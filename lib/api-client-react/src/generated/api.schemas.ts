@@ -521,6 +521,10 @@ export interface AdminStats {
   pendingDeposits: number;
   pendingWithdrawals: number;
   predictionSuccessRate: number;
+  pendingDepositsCount: number;
+  pendingDepositsAmount: number;
+  pendingWithdrawalsCount: number;
+  pendingWithdrawalsAmount: number;
 }
 
 export interface AdminChartDataPoint {

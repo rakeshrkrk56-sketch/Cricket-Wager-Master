@@ -40,7 +40,7 @@ export function Dashboard() {
   const [chartDays, setChartDays] = useState<7 | 14 | 30>(30);
 
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useGetAdminStats({
-    query: { queryKey: getGetAdminStatsQueryKey(), refetchInterval: 60_000 },
+    query: { queryKey: getGetAdminStatsQueryKey(), refetchInterval: 30_000 },
   });
   const { data: chartData, isLoading: chartLoading } = useGetAdminStatsChart(
     { days: chartDays },
@@ -92,21 +92,21 @@ export function Dashboard() {
           <KpiCard title="Total Withdrawals" value={fmt(stats?.totalWithdrawals)} subtitle="All approved" icon={ArrowUpRight} loading={statsLoading} />
           <KpiCard
             title="Pending Deposits"
-            value={stats?.pendingDeposits.toLocaleString()}
-            subtitle="Awaiting approval"
+            value={stats?.pendingDepositsCount.toLocaleString()}
+            subtitle={stats?.pendingDepositsAmount ? fmt(stats.pendingDepositsAmount) + " pending" : "Awaiting approval"}
             icon={Clock}
             loading={statsLoading}
-            highlight={stats?.pendingDeposits ? "amber" : undefined}
-            href="/deposits"
+            highlight={stats?.pendingDepositsCount ? "amber" : undefined}
+            href="/deposits?status=pending"
           />
           <KpiCard
             title="Pending Withdrawals"
-            value={stats?.pendingWithdrawals.toLocaleString()}
-            subtitle="Awaiting approval"
+            value={stats?.pendingWithdrawalsCount.toLocaleString()}
+            subtitle={stats?.pendingWithdrawalsAmount ? fmt(stats.pendingWithdrawalsAmount) + " pending" : "Awaiting approval"}
             icon={Clock}
             loading={statsLoading}
-            highlight={stats?.pendingWithdrawals ? "amber" : undefined}
-            href="/withdrawals"
+            highlight={stats?.pendingWithdrawalsCount ? "amber" : undefined}
+            href="/withdrawals?status=pending"
           />
         </div>
       </section>
@@ -295,6 +295,49 @@ function ChartCard({ title, loading, children }: { title: string; loading?: bool
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         ) : children}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PendingCard({
+  title,
+  count,
+  amount,
+  icon: Icon,
+  accentClass,
+  borderClass,
+}: {
+  title: string;
+  count: number;
+  amount: number;
+  icon: any;
+  accentClass: string;
+  borderClass: string;
+}) {
+  const hasItems = count > 0;
+
+  return (
+    <Card className={`cursor-pointer transition-colors ${borderClass} ${hasItems ? "border-opacity-70" : ""}`}>
+      <CardContent className="p-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">{title}</p>
+            <h3 className={`text-3xl font-bold font-mono tracking-tight ${hasItems ? accentClass : "text-foreground"}`}>
+              {count.toLocaleString()}
+            </h3>
+            <p className={`text-sm font-medium mt-1 ${hasItems ? accentClass : "text-muted-foreground"}`}>
+              ₹{amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })} pending
+            </p>
+          </div>
+          <div className={`p-3 rounded-lg ${hasItems ? `bg-current/10` : "bg-card-border"}`}>
+            <Icon className={`w-5 h-5 ${hasItems ? accentClass : "text-muted-foreground"}`} />
+          </div>
+        </div>
+        <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Clock className="w-3 h-3" />
+          <span>Refreshes every 30s · Click to review</span>
+        </div>
       </CardContent>
     </Card>
   );

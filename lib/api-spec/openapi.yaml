@@ -2002,6 +2002,14 @@ components:
           type: integer
         predictionSuccessRate:
           type: number
+        pendingDepositsCount:
+          type: integer
+        pendingDepositsAmount:
+          type: number
+        pendingWithdrawalsCount:
+          type: integer
+        pendingWithdrawalsAmount:
+          type: number
       required:
         - totalUsers
         - activeUsers
@@ -2021,6 +2029,10 @@ components:
         - pendingDeposits
         - pendingWithdrawals
         - predictionSuccessRate
+        - pendingDepositsCount
+        - pendingDepositsAmount
+        - pendingWithdrawalsCount
+        - pendingWithdrawalsAmount
 
     AdminChartDataPoint:
       type: object

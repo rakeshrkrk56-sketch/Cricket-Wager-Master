@@ -659,7 +659,11 @@ export const GetAdminStatsResponse = zod.object({
   "totalWithdrawals": zod.number(),
   "pendingDeposits": zod.number(),
   "pendingWithdrawals": zod.number(),
-  "predictionSuccessRate": zod.number()
+  "predictionSuccessRate": zod.number(),
+  "pendingDepositsCount": zod.number(),
+  "pendingDepositsAmount": zod.number(),
+  "pendingWithdrawalsCount": zod.number(),
+  "pendingWithdrawalsAmount": zod.number()
 })
 
 

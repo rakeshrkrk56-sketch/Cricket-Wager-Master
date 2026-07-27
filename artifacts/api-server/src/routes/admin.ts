@@ -466,9 +466,7 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
     [{ pendingPredictions }],
     [{ wonPredictions }],
     [{ settledPredictions }],
-    [{ pendingDepositsCount }],
-    [{ pendingWithdrawalsCount }],
-  ] = await Promise.all([
+  ]  = await Promise.all([
     db.select({ totalUsers: count() }).from(usersTable),
     db.select({ activeUsers: count() }).from(usersTable).where(eq(usersTable.status, "active")),
     db.select({ totalMatches: count() }).from(matchesTable),
@@ -477,8 +475,6 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
     db.select({ pendingPredictions: count() }).from(predictionsTable).where(eq(predictionsTable.status, "pending")),
     db.select({ wonPredictions: count() }).from(predictionsTable).where(eq(predictionsTable.status, "won")),
     db.select({ settledPredictions: count() }).from(predictionsTable).where(sql`status IN ('won','lost')`),
-    db.select({ pendingDepositsCount: count() }).from(depositsTable).where(eq(depositsTable.status, "pending")),
-    db.select({ pendingWithdrawalsCount: count() }).from(withdrawalsTable).where(eq(withdrawalsTable.status, "pending")),
   ]);
 
   const [
@@ -510,6 +506,17 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
     ? Math.round((Number(wonPredictions) / Number(settledPredictions)) * 100)
     : 0;
 
+  const [[{ pendingDepositsCount, pendingDepositsAmount }], [{ pendingWithdrawalsCount, pendingWithdrawalsAmount }]] = await Promise.all([
+    db
+      .select({ pendingDepositsCount: count(), pendingDepositsAmount: sum(depositsTable.amount) })
+      .from(depositsTable)
+      .where(eq(depositsTable.status, "pending")),
+    db
+      .select({ pendingWithdrawalsCount: count(), pendingWithdrawalsAmount: sum(withdrawalsTable.amount) })
+      .from(withdrawalsTable)
+      .where(eq(withdrawalsTable.status, "pending")),
+  ]);
+
   res.json(
     GetAdminStatsResponse.parse({
       totalUsers: Number(totalUsers),
@@ -530,6 +537,10 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
       pendingDeposits: Number(pendingDepositsCount),
       pendingWithdrawals: Number(pendingWithdrawalsCount),
       predictionSuccessRate,
+      pendingDepositsCount: Number(pendingDepositsCount),
+      pendingDepositsAmount: Number(pendingDepositsAmount ?? 0),
+      pendingWithdrawalsCount: Number(pendingWithdrawalsCount),
+      pendingWithdrawalsAmount: Number(pendingWithdrawalsAmount ?? 0),
     })
   );
 });
