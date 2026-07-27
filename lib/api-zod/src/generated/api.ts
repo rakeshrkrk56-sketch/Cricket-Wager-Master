@@ -1052,3 +1052,234 @@ export const MarkNotificationReadResponse = zod.object({
 })
 
 
+/**
+ * @summary Create a support ticket
+ */
+export const CreateSupportTicketBody = zod.object({
+  "subject": zod.string(),
+  "category": zod.string(),
+  "description": zod.string(),
+  "screenshotBase64": zod.string().optional()
+})
+
+export const CreateSupportTicketResponse = zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "subject": zod.string(),
+  "category": zod.enum(['deposit_issue', 'withdrawal_issue', 'prediction_issue', 'kyc_issue', 'account_issue', 'technical_problem', 'other']),
+  "description": zod.string(),
+  "hasScreenshot": zod.boolean(),
+  "status": zod.enum(['open', 'in_progress', 'resolved', 'closed']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "resolvedAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Get current user's tickets
+ */
+export const getMyTicketsQueryPageDefault = 1;
+export const getMyTicketsQueryLimitDefault = 20;
+
+export const GetMyTicketsQueryParams = zod.object({
+  "page": zod.coerce.number().default(getMyTicketsQueryPageDefault),
+  "limit": zod.coerce.number().default(getMyTicketsQueryLimitDefault)
+})
+
+export const GetMyTicketsResponse = zod.object({
+  "tickets": zod.array(zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "subject": zod.string(),
+  "category": zod.enum(['deposit_issue', 'withdrawal_issue', 'prediction_issue', 'kyc_issue', 'account_issue', 'technical_problem', 'other']),
+  "description": zod.string(),
+  "hasScreenshot": zod.boolean(),
+  "status": zod.enum(['open', 'in_progress', 'resolved', 'closed']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "resolvedAt": zod.string().nullish()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Get ticket detail and messages
+ */
+export const GetSupportTicketParams = zod.object({
+  "ticketId": zod.coerce.string()
+})
+
+export const GetSupportTicketResponse = zod.object({
+  "ticket": zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "subject": zod.string(),
+  "category": zod.enum(['deposit_issue', 'withdrawal_issue', 'prediction_issue', 'kyc_issue', 'account_issue', 'technical_problem', 'other']),
+  "description": zod.string(),
+  "hasScreenshot": zod.boolean(),
+  "status": zod.enum(['open', 'in_progress', 'resolved', 'closed']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "resolvedAt": zod.string().nullish()
+}),
+  "messages": zod.array(zod.object({
+  "id": zod.string(),
+  "ticketId": zod.string(),
+  "senderId": zod.string().nullish(),
+  "isAdmin": zod.boolean(),
+  "message": zod.string(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Reply to a ticket
+ */
+export const AddTicketMessageParams = zod.object({
+  "ticketId": zod.coerce.string()
+})
+
+export const AddTicketMessageBody = zod.object({
+  "message": zod.string()
+})
+
+export const AddTicketMessageResponse = zod.object({
+  "id": zod.string(),
+  "ticketId": zod.string(),
+  "senderId": zod.string().nullish(),
+  "isAdmin": zod.boolean(),
+  "message": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary List all support tickets (admin)
+ */
+export const adminListSupportTicketsQueryPageDefault = 1;
+export const adminListSupportTicketsQueryLimitDefault = 30;
+
+export const AdminListSupportTicketsQueryParams = zod.object({
+  "status": zod.enum(['open', 'in_progress', 'resolved', 'closed']).optional(),
+  "category": zod.coerce.string().optional(),
+  "search": zod.coerce.string().optional(),
+  "page": zod.coerce.number().default(adminListSupportTicketsQueryPageDefault),
+  "limit": zod.coerce.number().default(adminListSupportTicketsQueryLimitDefault)
+})
+
+export const AdminListSupportTicketsResponse = zod.object({
+  "tickets": zod.array(zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "subject": zod.string(),
+  "category": zod.enum(['deposit_issue', 'withdrawal_issue', 'prediction_issue', 'kyc_issue', 'account_issue', 'technical_problem', 'other']),
+  "description": zod.string(),
+  "hasScreenshot": zod.boolean(),
+  "status": zod.enum(['open', 'in_progress', 'resolved', 'closed']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "resolvedAt": zod.string().nullish()
+}).and(zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "phone": zod.string(),
+  "name": zod.string().nullish()
+}).optional()
+}))),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Get ticket detail for admin
+ */
+export const AdminGetSupportTicketParams = zod.object({
+  "ticketId": zod.coerce.string()
+})
+
+export const AdminGetSupportTicketResponse = zod.object({
+  "ticket": zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "subject": zod.string(),
+  "category": zod.enum(['deposit_issue', 'withdrawal_issue', 'prediction_issue', 'kyc_issue', 'account_issue', 'technical_problem', 'other']),
+  "description": zod.string(),
+  "hasScreenshot": zod.boolean(),
+  "status": zod.enum(['open', 'in_progress', 'resolved', 'closed']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "resolvedAt": zod.string().nullish()
+}).and(zod.object({
+  "user": zod.unknown().nullish()
+})),
+  "messages": zod.array(zod.object({
+  "id": zod.string(),
+  "ticketId": zod.string(),
+  "senderId": zod.string().nullish(),
+  "isAdmin": zod.boolean(),
+  "message": zod.string(),
+  "createdAt": zod.string()
+})),
+  "recentTransactions": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "amount": zod.number(),
+  "status": zod.string(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Admin reply to a ticket
+ */
+export const AdminReplyToTicketParams = zod.object({
+  "ticketId": zod.coerce.string()
+})
+
+export const AdminReplyToTicketBody = zod.object({
+  "message": zod.string()
+})
+
+export const AdminReplyToTicketResponse = zod.object({
+  "id": zod.string(),
+  "ticketId": zod.string(),
+  "senderId": zod.string().nullish(),
+  "isAdmin": zod.boolean(),
+  "message": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Update ticket status (admin)
+ */
+export const AdminUpdateTicketStatusParams = zod.object({
+  "ticketId": zod.coerce.string()
+})
+
+export const AdminUpdateTicketStatusBody = zod.object({
+  "status": zod.enum(['open', 'in_progress', 'resolved', 'closed'])
+})
+
+export const AdminUpdateTicketStatusResponse = zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "subject": zod.string(),
+  "category": zod.enum(['deposit_issue', 'withdrawal_issue', 'prediction_issue', 'kyc_issue', 'account_issue', 'technical_problem', 'other']),
+  "description": zod.string(),
+  "hasScreenshot": zod.boolean(),
+  "status": zod.enum(['open', 'in_progress', 'resolved', 'closed']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "resolvedAt": zod.string().nullish()
+})
+
+

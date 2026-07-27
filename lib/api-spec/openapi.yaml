@@ -1013,6 +1013,218 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+
+  # ─── Support ─────────────────────────────────────────────────────────────────
+
+  /support/tickets:
+    post:
+      operationId: createSupportTicket
+      tags: [support]
+      summary: Create a support ticket
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSupportTicketRequest"
+      responses:
+        "201":
+          description: Ticket created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicket"
+
+  /support/tickets/my:
+    get:
+      operationId: getMyTickets
+      tags: [support]
+      summary: Get current user's tickets
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Ticket list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketListResponse"
+
+  /support/tickets/{ticketId}:
+    get:
+      operationId: getSupportTicket
+      tags: [support]
+      summary: Get ticket detail and messages
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ticket detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketDetailResponse"
+
+  /support/tickets/{ticketId}/messages:
+    post:
+      operationId: addTicketMessage
+      tags: [support]
+      summary: Reply to a ticket
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddTicketMessageRequest"
+      responses:
+        "201":
+          description: Message added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketMessage"
+
+  /admin/support/tickets:
+    get:
+      operationId: adminListSupportTickets
+      tags: [support, admin]
+      summary: List all support tickets (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, resolved, closed]
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Ticket list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminTicketListResponse"
+
+  /admin/support/tickets/{ticketId}:
+    get:
+      operationId: adminGetSupportTicket
+      tags: [support, admin]
+      summary: Get ticket detail for admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ticket detail with user info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminTicketDetailResponse"
+
+  /admin/support/tickets/{ticketId}/reply:
+    post:
+      operationId: adminReplyToTicket
+      tags: [support, admin]
+      summary: Admin reply to a ticket
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddTicketMessageRequest"
+      responses:
+        "201":
+          description: Reply sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TicketMessage"
+
+  /admin/support/tickets/{ticketId}/status:
+    patch:
+      operationId: adminUpdateTicketStatus
+      tags: [support, admin]
+      summary: Update ticket status (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTicketStatusRequest"
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicket"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1021,6 +1233,218 @@ components:
       bearerFormat: JWT
 
   schemas:
+
+    # ─── Support ─────────────────────────────────────────────────────────────────
+
+    SupportTicket:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        subject:
+          type: string
+        category:
+          type: string
+          enum: [deposit_issue, withdrawal_issue, prediction_issue, kyc_issue, account_issue, technical_problem, other]
+        description:
+          type: string
+        hasScreenshot:
+          type: boolean
+        status:
+          type: string
+          enum: [open, in_progress, resolved, closed]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        resolvedAt:
+          type: string
+          nullable: true
+      required:
+        - id
+        - userId
+        - subject
+        - category
+        - description
+        - hasScreenshot
+        - status
+        - createdAt
+        - updatedAt
+
+    TicketMessage:
+      type: object
+      properties:
+        id:
+          type: string
+        ticketId:
+          type: string
+        senderId:
+          type: string
+          nullable: true
+        isAdmin:
+          type: boolean
+        message:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - ticketId
+        - isAdmin
+        - message
+        - createdAt
+
+    CreateSupportTicketRequest:
+      type: object
+      properties:
+        subject:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        screenshotBase64:
+          type: string
+      required:
+        - subject
+        - category
+        - description
+
+    AddTicketMessageRequest:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    UpdateTicketStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [open, in_progress, resolved, closed]
+      required:
+        - status
+
+    TicketListResponse:
+      type: object
+      properties:
+        tickets:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupportTicket"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - tickets
+        - total
+        - page
+        - limit
+
+    TicketDetailResponse:
+      type: object
+      properties:
+        ticket:
+          $ref: "#/components/schemas/SupportTicket"
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/TicketMessage"
+      required:
+        - ticket
+        - messages
+
+    AdminTicketUser:
+      type: object
+      properties:
+        id:
+          type: string
+        phone:
+          type: string
+        name:
+          type: string
+          nullable: true
+      required:
+        - id
+        - phone
+
+    AdminTicketListItem:
+      allOf:
+        - $ref: "#/components/schemas/SupportTicket"
+        - type: object
+          properties:
+            user:
+              $ref: "#/components/schemas/AdminTicketUser"
+
+    AdminTicketListResponse:
+      type: object
+      properties:
+        tickets:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminTicketListItem"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - tickets
+        - total
+        - page
+        - limit
+
+    AdminTicketDetailResponse:
+      type: object
+      properties:
+        ticket:
+          allOf:
+            - $ref: "#/components/schemas/SupportTicket"
+            - type: object
+              properties:
+                user:
+                  nullable: true
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/TicketMessage"
+        recentTransactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionSummary"
+      required:
+        - ticket
+        - messages
+        - recentTransactions
+
+    TransactionSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        amount:
+          type: number
+        status:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - type
+        - amount
+        - status
+        - createdAt
+
     HealthStatus:
       type: object
       properties:

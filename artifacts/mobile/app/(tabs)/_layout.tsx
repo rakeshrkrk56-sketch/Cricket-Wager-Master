@@ -53,6 +53,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: 'bell', selected: 'bell.fill' }} />
         <Label>सूचनाएं</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="support">
+        <Icon sf={{ default: 'questionmark.circle', selected: 'questionmark.circle.fill' }} />
+        <Label>सहायता</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: 'person', selected: 'person.fill' }} />
         <Label>प्रोफाइल</Label>
@@ -152,6 +156,14 @@ function ClassicTabLayout() {
         options={{
           title: 'सूचनाएं',
           tabBarIcon: ({ color, size }) => <NotificationsTabIcon color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="support"
+        options={{
+          title: 'सहायता',
+          tabBarIcon: ({ color, size }) =>
+            isIOS ? <SymbolView name="questionmark.circle" tintColor={color} size={size} /> : <Ionicons name="help-circle-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen

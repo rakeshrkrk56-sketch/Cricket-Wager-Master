@@ -9,6 +9,7 @@ import cricketRouter from "./cricket";
 import depositsRouter from "./deposits";
 import withdrawalsRouter from "./withdrawals";
 import notificationsRouter from "./notifications";
+import supportRouter from "./support";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(cricketRouter);
 router.use(depositsRouter);
 router.use(withdrawalsRouter);
 router.use(notificationsRouter);
+router.use(supportRouter);
 
 export default router;

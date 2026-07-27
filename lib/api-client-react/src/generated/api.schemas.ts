@@ -5,6 +5,123 @@
  * Jazment Cricket Prediction Platform API
  * OpenAPI spec version: 0.1.0
  */
+export type SupportTicketCategory = typeof SupportTicketCategory[keyof typeof SupportTicketCategory];
+
+
+export const SupportTicketCategory = {
+  deposit_issue: 'deposit_issue',
+  withdrawal_issue: 'withdrawal_issue',
+  prediction_issue: 'prediction_issue',
+  kyc_issue: 'kyc_issue',
+  account_issue: 'account_issue',
+  technical_problem: 'technical_problem',
+  other: 'other',
+} as const;
+
+export type SupportTicketStatus = typeof SupportTicketStatus[keyof typeof SupportTicketStatus];
+
+
+export const SupportTicketStatus = {
+  open: 'open',
+  in_progress: 'in_progress',
+  resolved: 'resolved',
+  closed: 'closed',
+} as const;
+
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  subject: string;
+  category: SupportTicketCategory;
+  description: string;
+  hasScreenshot: boolean;
+  status: SupportTicketStatus;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string | null;
+}
+
+export interface TicketMessage {
+  id: string;
+  ticketId: string;
+  senderId?: string | null;
+  isAdmin: boolean;
+  message: string;
+  createdAt: string;
+}
+
+export interface CreateSupportTicketRequest {
+  subject: string;
+  category: string;
+  description: string;
+  screenshotBase64?: string;
+}
+
+export interface AddTicketMessageRequest {
+  message: string;
+}
+
+export type UpdateTicketStatusRequestStatus = typeof UpdateTicketStatusRequestStatus[keyof typeof UpdateTicketStatusRequestStatus];
+
+
+export const UpdateTicketStatusRequestStatus = {
+  open: 'open',
+  in_progress: 'in_progress',
+  resolved: 'resolved',
+  closed: 'closed',
+} as const;
+
+export interface UpdateTicketStatusRequest {
+  status: UpdateTicketStatusRequestStatus;
+}
+
+export interface TicketListResponse {
+  tickets: SupportTicket[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface TicketDetailResponse {
+  ticket: SupportTicket;
+  messages: TicketMessage[];
+}
+
+export interface AdminTicketUser {
+  id: string;
+  phone: string;
+  name?: string | null;
+}
+
+export type AdminTicketListItem = SupportTicket & {
+  user?: AdminTicketUser;
+};
+
+export interface AdminTicketListResponse {
+  tickets: AdminTicketListItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export type AdminTicketDetailResponseTicket = SupportTicket & ({
+  user?: unknown | null;
+});
+
+export interface TransactionSummary {
+  id: string;
+  type: string;
+  amount: number;
+  status: string;
+  createdAt: string;
+}
+
+export interface AdminTicketDetailResponse {
+  ticket: AdminTicketDetailResponseTicket;
+  messages: TicketMessage[];
+  recentTransactions: TransactionSummary[];
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -762,4 +879,27 @@ export type GetNotificationsParams = {
 page?: number;
 limit?: number;
 };
+
+export type GetMyTicketsParams = {
+page?: number;
+limit?: number;
+};
+
+export type AdminListSupportTicketsParams = {
+status?: AdminListSupportTicketsStatus;
+category?: string;
+search?: string;
+page?: number;
+limit?: number;
+};
+
+export type AdminListSupportTicketsStatus = typeof AdminListSupportTicketsStatus[keyof typeof AdminListSupportTicketsStatus];
+
+
+export const AdminListSupportTicketsStatus = {
+  open: 'open',
+  in_progress: 'in_progress',
+  resolved: 'resolved',
+  closed: 'closed',
+} as const;
 

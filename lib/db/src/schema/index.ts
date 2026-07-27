@@ -6,3 +6,4 @@ export * from "./transactions";
 export * from "./deposits";
 export * from "./withdrawals";
 export * from "./notifications";
+export * from "./support";

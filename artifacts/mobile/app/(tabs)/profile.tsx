@@ -81,6 +81,7 @@ export default function ProfileScreen() {
       <View style={s.menuSection}>
         <MenuItem icon="trophy-outline" label="मेरी भविष्यवाणियां" onPress={() => router.push('/(tabs)/predictions')} />
         <MenuItem icon="wallet-outline" label="वॉलेट" onPress={() => router.push('/(tabs)/wallet')} />
+        <MenuItem icon="headset-outline" label="Support (सहायता)" onPress={() => router.push('/(tabs)/support')} />
         <MenuItem icon="information-circle-outline" label="Jazment के बारे में" onPress={() => Alert.alert('Jazment', 'Cricket Prediction Platform v1.0')} />
         <MenuItem icon="log-out-outline" label="लॉगआउट" onPress={handleLogout} destructive />
       </View>
