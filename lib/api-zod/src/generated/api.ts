@@ -652,7 +652,34 @@ export const GetAdminStatsResponse = zod.object({
   "totalPayout": zod.number(),
   "platformRevenue": zod.number(),
   "todayDeposits": zod.number(),
-  "todayWithdrawals": zod.number()
+  "todayWithdrawals": zod.number(),
+  "todayBets": zod.number(),
+  "todayProfit": zod.number(),
+  "totalDeposits": zod.number(),
+  "totalWithdrawals": zod.number(),
+  "pendingDeposits": zod.number(),
+  "pendingWithdrawals": zod.number(),
+  "predictionSuccessRate": zod.number()
+})
+
+
+/**
+ * @summary Get daily chart data (admin)
+ */
+export const getAdminStatsChartQueryDaysDefault = 30;
+
+export const GetAdminStatsChartQueryParams = zod.object({
+  "days": zod.coerce.number().default(getAdminStatsChartQueryDaysDefault)
+})
+
+export const GetAdminStatsChartResponse = zod.object({
+  "data": zod.array(zod.object({
+  "date": zod.string(),
+  "deposits": zod.number(),
+  "withdrawals": zod.number(),
+  "bets": zod.number(),
+  "revenue": zod.number()
+}))
 })
 
 
@@ -763,6 +790,7 @@ export const adminListDepositsQueryLimitDefault = 50;
 
 export const AdminListDepositsQueryParams = zod.object({
   "status": zod.enum(['pending', 'approved', 'rejected']).optional(),
+  "search": zod.coerce.string().optional(),
   "page": zod.coerce.number().default(adminListDepositsQueryPageDefault),
   "limit": zod.coerce.number().default(adminListDepositsQueryLimitDefault)
 })
@@ -905,6 +933,7 @@ export const adminListWithdrawalsQueryLimitDefault = 50;
 
 export const AdminListWithdrawalsQueryParams = zod.object({
   "status": zod.enum(['pending', 'approved', 'rejected']).optional(),
+  "search": zod.coerce.string().optional(),
   "page": zod.coerce.number().default(adminListWithdrawalsQueryPageDefault),
   "limit": zod.coerce.number().default(adminListWithdrawalsQueryLimitDefault)
 })

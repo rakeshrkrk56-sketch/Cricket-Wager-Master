@@ -397,6 +397,25 @@ export interface AdminStats {
   platformRevenue: number;
   todayDeposits: number;
   todayWithdrawals: number;
+  todayBets: number;
+  todayProfit: number;
+  totalDeposits: number;
+  totalWithdrawals: number;
+  pendingDeposits: number;
+  pendingWithdrawals: number;
+  predictionSuccessRate: number;
+}
+
+export interface AdminChartDataPoint {
+  date: string;
+  deposits: number;
+  withdrawals: number;
+  bets: number;
+  revenue: number;
+}
+
+export interface AdminChartResponse {
+  data: AdminChartDataPoint[];
 }
 
 export interface CricketMatch {
@@ -693,6 +712,10 @@ export const AdminListMatchesStatus = {
   completed: 'completed',
 } as const;
 
+export type GetAdminStatsChartParams = {
+days?: number;
+};
+
 export type GetMyDepositsParams = {
 page?: number;
 limit?: number;
@@ -700,6 +723,7 @@ limit?: number;
 
 export type AdminListDepositsParams = {
 status?: AdminListDepositsStatus;
+search?: string;
 page?: number;
 limit?: number;
 };
@@ -720,6 +744,7 @@ limit?: number;
 
 export type AdminListWithdrawalsParams = {
 status?: AdminListWithdrawalsStatus;
+search?: string;
 page?: number;
 limit?: number;
 };

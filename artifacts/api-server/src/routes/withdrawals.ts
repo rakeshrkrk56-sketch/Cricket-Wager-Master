@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, withdrawalsTable, usersTable, transactionsTable } from "@workspace/db";
-import { eq, and, desc, count, sql } from "drizzle-orm";
+import { eq, and, desc, count, like, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { createNotification } from "../lib/createNotification";
 
@@ -85,11 +85,14 @@ router.get("/withdrawals/my", requireAuth, async (req, res): Promise<void> => {
 
 router.get("/admin/withdrawals", requireAdmin, async (req, res): Promise<void> => {
   const status = req.query["status"] as string | undefined;
+  const search = req.query["search"] as string | undefined;
   const page = Number(req.query["page"] ?? 1);
   const limit = Number(req.query["limit"] ?? 50);
   const offset = (page - 1) * limit;
 
-  const conditions = status ? [eq(withdrawalsTable.status, status as any)] : [];
+  const conditions: any[] = [];
+  if (status) conditions.push(eq(withdrawalsTable.status, status as any));
+  if (search) conditions.push(like(usersTable.phone, `%${search}%`));
 
   const withdrawals = await db
     .select({
@@ -106,6 +109,7 @@ router.get("/admin/withdrawals", requireAdmin, async (req, res): Promise<void> =
   const [{ total }] = await db
     .select({ total: count() })
     .from(withdrawalsTable)
+    .leftJoin(usersTable, eq(withdrawalsTable.userId, usersTable.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined);
 
   res.json({

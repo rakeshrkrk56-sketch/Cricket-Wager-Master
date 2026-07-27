@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, matchesTable, marketsTable, predictionsTable, transactionsTable } from "@workspace/db";
-import { eq, and, desc, count, sql, like, gte } from "drizzle-orm";
+import { db, usersTable, matchesTable, marketsTable, predictionsTable, transactionsTable, depositsTable, withdrawalsTable } from "@workspace/db";
+import { eq, and, desc, count, sum, sql, like, gte, lte, between } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/auth";
 import { createNotification } from "../lib/createNotification";
 import {
@@ -457,23 +457,41 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [[{ totalUsers }], [{ activeUsers }]] = await Promise.all([
+  const [
+    [{ totalUsers }],
+    [{ activeUsers }],
+    [{ totalMatches }],
+    [{ liveMatches }],
+    [{ totalPredictions }],
+    [{ pendingPredictions }],
+    [{ wonPredictions }],
+    [{ settledPredictions }],
+    [{ pendingDepositsCount }],
+    [{ pendingWithdrawalsCount }],
+  ] = await Promise.all([
     db.select({ totalUsers: count() }).from(usersTable),
     db.select({ activeUsers: count() }).from(usersTable).where(eq(usersTable.status, "active")),
-  ]);
-  const [[{ totalMatches }], [{ liveMatches }]] = await Promise.all([
     db.select({ totalMatches: count() }).from(matchesTable),
     db.select({ liveMatches: count() }).from(matchesTable).where(eq(matchesTable.status, "live")),
-  ]);
-  const [[{ totalPredictions }], [{ pendingPredictions }]] = await Promise.all([
     db.select({ totalPredictions: count() }).from(predictionsTable),
     db.select({ pendingPredictions: count() }).from(predictionsTable).where(eq(predictionsTable.status, "pending")),
+    db.select({ wonPredictions: count() }).from(predictionsTable).where(eq(predictionsTable.status, "won")),
+    db.select({ settledPredictions: count() }).from(predictionsTable).where(sql`status IN ('won','lost')`),
+    db.select({ pendingDepositsCount: count() }).from(depositsTable).where(eq(depositsTable.status, "pending")),
+    db.select({ pendingWithdrawalsCount: count() }).from(withdrawalsTable).where(eq(withdrawalsTable.status, "pending")),
   ]);
 
-  const allPreds = await db.select().from(predictionsTable);
-  const totalVolume = allPreds.reduce((s, p) => s + Number(p.amount), 0);
-  const totalPayout = allPreds.filter((p) => p.status === "won").reduce((s, p) => s + Number(p.potentialWin), 0);
-  const platformRevenue = totalVolume - totalPayout;
+  const [
+    [{ totalDepositsSum }],
+    [{ totalWithdrawalsSum }],
+    [{ totalVolumeSum }],
+    [{ totalPayoutSum }],
+  ] = await Promise.all([
+    db.select({ totalDepositsSum: sql<string>`coalesce(sum(amount::numeric),0)` }).from(depositsTable).where(eq(depositsTable.status, "approved")),
+    db.select({ totalWithdrawalsSum: sql<string>`coalesce(sum(amount::numeric),0)` }).from(withdrawalsTable).where(eq(withdrawalsTable.status, "approved")),
+    db.select({ totalVolumeSum: sql<string>`coalesce(sum(amount::numeric),0)` }).from(predictionsTable),
+    db.select({ totalPayoutSum: sql<string>`coalesce(sum(potential_win::numeric),0)` }).from(predictionsTable).where(eq(predictionsTable.status, "won")),
+  ]);
 
   const todayTxs = await db
     .select()
@@ -482,6 +500,15 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
 
   const todayDeposits = todayTxs.filter((t) => t.type === "deposit").reduce((s, t) => s + Number(t.amount), 0);
   const todayWithdrawals = todayTxs.filter((t) => t.type === "withdraw").reduce((s, t) => s + Number(t.amount), 0);
+  const todayBets = todayTxs.filter((t) => t.type === "loss" || t.type === "win").reduce((s, t) => s + Number(t.amount), 0);
+
+  const totalVolume = Number(totalVolumeSum);
+  const totalPayout = Number(totalPayoutSum);
+  const platformRevenue = totalVolume - totalPayout;
+  const todayProfit = todayDeposits - todayWithdrawals;
+  const predictionSuccessRate = Number(settledPredictions) > 0
+    ? Math.round((Number(wonPredictions) / Number(settledPredictions)) * 100)
+    : 0;
 
   res.json(
     GetAdminStatsResponse.parse({
@@ -496,8 +523,61 @@ router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
       platformRevenue,
       todayDeposits,
       todayWithdrawals,
+      todayBets,
+      todayProfit,
+      totalDeposits: Number(totalDepositsSum),
+      totalWithdrawals: Number(totalWithdrawalsSum),
+      pendingDeposits: Number(pendingDepositsCount),
+      pendingWithdrawals: Number(pendingWithdrawalsCount),
+      predictionSuccessRate,
     })
   );
+});
+
+router.get("/admin/stats/chart", requireAdmin, async (req, res): Promise<void> => {
+  const days = Math.min(Number(req.query["days"] ?? 30), 90);
+  const rows = await db.execute(sql`
+    WITH date_series AS (
+      SELECT generate_series(
+        (now() - (${days} || ' days')::interval)::date,
+        now()::date,
+        '1 day'::interval
+      )::date AS day
+    ),
+    daily_deposits AS (
+      SELECT date_trunc('day', created_at)::date AS day, coalesce(sum(amount::numeric),0) AS amt
+      FROM deposits WHERE status='approved'
+      GROUP BY 1
+    ),
+    daily_withdrawals AS (
+      SELECT date_trunc('day', created_at)::date AS day, coalesce(sum(amount::numeric),0) AS amt
+      FROM withdrawals WHERE status='approved'
+      GROUP BY 1
+    ),
+    daily_bets AS (
+      SELECT date_trunc('day', created_at)::date AS day, coalesce(sum(amount::numeric),0) AS amt
+      FROM predictions
+      GROUP BY 1
+    ),
+    daily_payout AS (
+      SELECT date_trunc('day', created_at)::date AS day, coalesce(sum(potential_win::numeric),0) AS amt
+      FROM predictions WHERE status='won'
+      GROUP BY 1
+    )
+    SELECT
+      ds.day::text AS date,
+      coalesce(dd.amt,0)::float AS deposits,
+      coalesce(dw.amt,0)::float AS withdrawals,
+      coalesce(db2.amt,0)::float AS bets,
+      (coalesce(db2.amt,0) - coalesce(dp.amt,0))::float AS revenue
+    FROM date_series ds
+    LEFT JOIN daily_deposits dd ON dd.day = ds.day
+    LEFT JOIN daily_withdrawals dw ON dw.day = ds.day
+    LEFT JOIN daily_bets db2 ON db2.day = ds.day
+    LEFT JOIN daily_payout dp ON dp.day = ds.day
+    ORDER BY ds.day
+  `);
+  res.json({ data: rows });
 });
 
 function serializeUser(u: any) {

@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminChartResponse,
   AdminDepositListResponse,
   AdminListDepositsParams,
   AdminListMatchesParams,
@@ -36,6 +37,7 @@ import type {
   CricketScoreResponse,
   Deposit,
   DepositListResponse,
+  GetAdminStatsChartParams,
   GetMatchMarketsParams,
   GetMyDepositsParams,
   GetMyPredictionsParams,
@@ -2071,6 +2073,90 @@ export function useGetAdminStats<TData = Awaited<ReturnType<typeof getAdminStats
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetAdminStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminStatsChartUrl = (params?: GetAdminStatsChartParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/stats/chart?${stringifiedParams}` : `/api/admin/stats/chart`
+}
+
+/**
+ * @summary Get daily chart data (admin)
+ */
+export const getAdminStatsChart = async (params?: GetAdminStatsChartParams, options?: RequestInit): Promise<AdminChartResponse> => {
+
+  return customFetch<AdminChartResponse>(getGetAdminStatsChartUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminStatsChartQueryKey = (params?: GetAdminStatsChartParams,) => {
+    return [
+    `/api/admin/stats/chart`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetAdminStatsChartQueryOptions = <TData = Awaited<ReturnType<typeof getAdminStatsChart>>, TError = ErrorType<unknown>>(params?: GetAdminStatsChartParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminStatsChart>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminStatsChartQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminStatsChart>>> = ({ signal }) => getAdminStatsChart(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminStatsChart>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminStatsChartQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminStatsChart>>>
+export type GetAdminStatsChartQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get daily chart data (admin)
+ */
+
+export function useGetAdminStatsChart<TData = Awaited<ReturnType<typeof getAdminStatsChart>>, TError = ErrorType<unknown>>(
+ params?: GetAdminStatsChartParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminStatsChart>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminStatsChartQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
