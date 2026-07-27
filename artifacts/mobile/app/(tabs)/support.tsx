@@ -13,7 +13,7 @@ import {
   useCreateSupportTicket,
 } from '@workspace/api-client-react';
 
-const WHATSAPP_NUMBER = '919955285970';
+const WHATSAPP_NUMBER = '919955286970';
 const SUPPORT_EMAIL = 'support@jazment.com';
 const SUPPORT_HOURS = 'Mon–Sat, 9 AM – 9 PM IST';
 
@@ -161,7 +161,7 @@ export default function SupportScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.whatsappTitle}>WhatsApp Support</Text>
-              <Text style={s.whatsappNum}>+91 99552 85970</Text>
+              <Text style={s.whatsappNum}>+91 99552 86970</Text>
               <Text style={s.whatsappHours}>{SUPPORT_HOURS}</Text>
             </View>
             <TouchableOpacity style={s.whatsappBtn} onPress={openWhatsApp} activeOpacity={0.8}>
