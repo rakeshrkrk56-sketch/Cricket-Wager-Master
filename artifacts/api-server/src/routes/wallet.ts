@@ -63,13 +63,15 @@ router.post("/wallet/deposit", requireAuth, async (req, res): Promise<void> => {
   }
   const user = (req as any).user;
   const amount = parsed.data.amount;
-  const newBalance = Number(user.walletBalance) + amount;
+  const balanceBefore = Number(user.walletBalance);
+  const newBalance = balanceBefore + amount;
 
   await db.update(usersTable).set({ walletBalance: String(newBalance) }).where(eq(usersTable.id, user.id));
   await db.insert(transactionsTable).values({
     userId: user.id,
     type: "deposit",
     amount: String(amount),
+    balanceBefore: String(balanceBefore),
     balanceAfter: String(newBalance),
     note: parsed.data.note,
   });
@@ -107,6 +109,7 @@ router.post("/wallet/withdraw", requireAuth, async (req, res): Promise<void> => 
     userId: user.id,
     type: "withdraw",
     amount: String(amount),
+    balanceBefore: String(currentBalance),
     balanceAfter: String(newBalance),
     note: parsed.data.note,
   });
@@ -153,6 +156,7 @@ router.get("/wallet/transactions", requireAuth, async (req, res): Promise<void> 
         userId: t.userId,
         type: t.type,
         amount: Number(t.amount),
+        balanceBefore: t.balanceBefore != null ? Number(t.balanceBefore) : undefined,
         balanceAfter: Number(t.balanceAfter),
         referenceId: t.referenceId ?? undefined,
         note: t.note ?? undefined,

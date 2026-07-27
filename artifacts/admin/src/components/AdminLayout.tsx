@@ -1,13 +1,16 @@
 import { Link, useLocation } from "wouter";
 import { ReactNode } from "react";
-import { LayoutDashboard, Swords, Users, LogOut, Activity } from "lucide-react";
+import { LayoutDashboard, Swords, Users, LogOut, Activity, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { useAdminListDeposits, useAdminListWithdrawals } from "@workspace/api-client-react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/matches", label: "Matches (मैच)", icon: Swords },
   { href: "/users", label: "Users (उपयोगकर्ता)", icon: Users },
+  { href: "/deposits", label: "Deposits (जमा)", icon: ArrowDownCircle },
+  { href: "/withdrawals", label: "Withdrawals (निकासी)", icon: ArrowUpCircle },
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {

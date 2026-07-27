@@ -20,15 +20,27 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminDepositListResponse,
+  AdminListDepositsParams,
   AdminListMatchesParams,
+  AdminListWithdrawalsParams,
   AdminStats,
+  AdminWithdrawalListResponse,
+  ApproveRejectRequest,
   AuthResponse,
+  CreateDepositRequest,
   CreateMarketRequest,
   CreateMatchRequest,
+  CreateWithdrawalRequest,
   CricketLiveResponse,
   CricketScoreResponse,
+  Deposit,
+  DepositListResponse,
   GetMatchMarketsParams,
+  GetMyDepositsParams,
   GetMyPredictionsParams,
+  GetMyWithdrawalsParams,
+  GetNotificationsParams,
   GetTransactionsParams,
   HealthStatus,
   ListMatchesParams,
@@ -38,6 +50,7 @@ import type {
   Match,
   MatchDetail,
   MatchListResponse,
+  NotificationListResponse,
   PlacePredictionRequest,
   Prediction,
   PredictionListResponse,
@@ -45,6 +58,7 @@ import type {
   SendOtpResponse,
   SettleMarketRequest,
   SettlementResult,
+  SuccessResponse,
   TransactionListResponse,
   UpdateMarketRequest,
   UpdateMatchRequest,
@@ -54,7 +68,9 @@ import type {
   UserListResponse,
   VerifyOtpRequest,
   Wallet,
-  WalletTransactionRequest
+  WalletTransactionRequest,
+  Withdrawal,
+  WithdrawalListResponse
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -2220,4 +2236,996 @@ export function useGetCricketScore<TData = Awaited<ReturnType<typeof getCricketS
 
 
 
+
+export const getCreateDepositUrl = () => {
+
+
+
+
+  return `/api/deposits`
+}
+
+/**
+ * @summary Create a deposit request
+ */
+export const createDeposit = async (createDepositRequest: CreateDepositRequest, options?: RequestInit): Promise<Deposit> => {
+
+  return customFetch<Deposit>(getCreateDepositUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createDepositRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateDepositMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDeposit>>, TError,{data: BodyType<CreateDepositRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDeposit>>, TError,{data: BodyType<CreateDepositRequest>}, TContext> => {
+
+const mutationKey = ['createDeposit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDeposit>>, {data: BodyType<CreateDepositRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createDeposit(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDepositMutationResult = NonNullable<Awaited<ReturnType<typeof createDeposit>>>
+    export type CreateDepositMutationBody = BodyType<CreateDepositRequest>
+    export type CreateDepositMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a deposit request
+ */
+export const useCreateDeposit = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDeposit>>, TError,{data: BodyType<CreateDepositRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createDeposit>>,
+        TError,
+        {data: BodyType<CreateDepositRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateDepositMutationOptions(options));
+    }
+
+export const getGetMyDepositsUrl = (params?: GetMyDepositsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/deposits/my?${stringifiedParams}` : `/api/deposits/my`
+}
+
+/**
+ * @summary Get current user deposit history
+ */
+export const getMyDeposits = async (params?: GetMyDepositsParams, options?: RequestInit): Promise<DepositListResponse> => {
+
+  return customFetch<DepositListResponse>(getGetMyDepositsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyDepositsQueryKey = (params?: GetMyDepositsParams,) => {
+    return [
+    `/api/deposits/my`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMyDepositsQueryOptions = <TData = Awaited<ReturnType<typeof getMyDeposits>>, TError = ErrorType<unknown>>(params?: GetMyDepositsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyDeposits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyDepositsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyDeposits>>> = ({ signal }) => getMyDeposits(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyDeposits>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyDepositsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyDeposits>>>
+export type GetMyDepositsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get current user deposit history
+ */
+
+export function useGetMyDeposits<TData = Awaited<ReturnType<typeof getMyDeposits>>, TError = ErrorType<unknown>>(
+ params?: GetMyDepositsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyDeposits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyDepositsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminListDepositsUrl = (params?: AdminListDepositsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/deposits?${stringifiedParams}` : `/api/admin/deposits`
+}
+
+/**
+ * @summary List all deposits (admin)
+ */
+export const adminListDeposits = async (params?: AdminListDepositsParams, options?: RequestInit): Promise<AdminDepositListResponse> => {
+
+  return customFetch<AdminDepositListResponse>(getAdminListDepositsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListDepositsQueryKey = (params?: AdminListDepositsParams,) => {
+    return [
+    `/api/admin/deposits`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminListDepositsQueryOptions = <TData = Awaited<ReturnType<typeof adminListDeposits>>, TError = ErrorType<unknown>>(params?: AdminListDepositsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListDeposits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListDepositsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListDeposits>>> = ({ signal }) => adminListDeposits(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListDeposits>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListDepositsQueryResult = NonNullable<Awaited<ReturnType<typeof adminListDeposits>>>
+export type AdminListDepositsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all deposits (admin)
+ */
+
+export function useAdminListDeposits<TData = Awaited<ReturnType<typeof adminListDeposits>>, TError = ErrorType<unknown>>(
+ params?: AdminListDepositsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListDeposits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListDepositsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApproveDepositUrl = (depositId: string,) => {
+
+
+
+
+  return `/api/admin/deposits/${depositId}/approve`
+}
+
+/**
+ * @summary Approve a deposit and credit wallet (admin)
+ */
+export const approveDeposit = async (depositId: string,
+    approveRejectRequest?: ApproveRejectRequest, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getApproveDepositUrl(depositId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(approveRejectRequest)
+  }
+);}
+
+
+
+
+
+export const getApproveDepositMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveDeposit>>, TError,{depositId: string;data?: BodyType<ApproveRejectRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveDeposit>>, TError,{depositId: string;data?: BodyType<ApproveRejectRequest>}, TContext> => {
+
+const mutationKey = ['approveDeposit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveDeposit>>, {depositId: string;data?: BodyType<ApproveRejectRequest>}> = (props) => {
+          const {depositId,data} = props ?? {};
+
+          return  approveDeposit(depositId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveDepositMutationResult = NonNullable<Awaited<ReturnType<typeof approveDeposit>>>
+    export type ApproveDepositMutationBody = BodyType<ApproveRejectRequest> | undefined
+    export type ApproveDepositMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Approve a deposit and credit wallet (admin)
+ */
+export const useApproveDeposit = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveDeposit>>, TError,{depositId: string;data?: BodyType<ApproveRejectRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveDeposit>>,
+        TError,
+        {depositId: string;data?: BodyType<ApproveRejectRequest>},
+        TContext
+      > => {
+      return useMutation(getApproveDepositMutationOptions(options));
+    }
+
+export const getRejectDepositUrl = (depositId: string,) => {
+
+
+
+
+  return `/api/admin/deposits/${depositId}/reject`
+}
+
+/**
+ * @summary Reject a deposit (admin)
+ */
+export const rejectDeposit = async (depositId: string,
+    approveRejectRequest?: ApproveRejectRequest, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getRejectDepositUrl(depositId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(approveRejectRequest)
+  }
+);}
+
+
+
+
+
+export const getRejectDepositMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectDeposit>>, TError,{depositId: string;data?: BodyType<ApproveRejectRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectDeposit>>, TError,{depositId: string;data?: BodyType<ApproveRejectRequest>}, TContext> => {
+
+const mutationKey = ['rejectDeposit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectDeposit>>, {depositId: string;data?: BodyType<ApproveRejectRequest>}> = (props) => {
+          const {depositId,data} = props ?? {};
+
+          return  rejectDeposit(depositId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectDepositMutationResult = NonNullable<Awaited<ReturnType<typeof rejectDeposit>>>
+    export type RejectDepositMutationBody = BodyType<ApproveRejectRequest> | undefined
+    export type RejectDepositMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Reject a deposit (admin)
+ */
+export const useRejectDeposit = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectDeposit>>, TError,{depositId: string;data?: BodyType<ApproveRejectRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectDeposit>>,
+        TError,
+        {depositId: string;data?: BodyType<ApproveRejectRequest>},
+        TContext
+      > => {
+      return useMutation(getRejectDepositMutationOptions(options));
+    }
+
+export const getCreateWithdrawalUrl = () => {
+
+
+
+
+  return `/api/withdrawals`
+}
+
+/**
+ * @summary Create a withdrawal request
+ */
+export const createWithdrawal = async (createWithdrawalRequest: CreateWithdrawalRequest, options?: RequestInit): Promise<Withdrawal> => {
+
+  return customFetch<Withdrawal>(getCreateWithdrawalUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createWithdrawalRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateWithdrawalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWithdrawal>>, TError,{data: BodyType<CreateWithdrawalRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createWithdrawal>>, TError,{data: BodyType<CreateWithdrawalRequest>}, TContext> => {
+
+const mutationKey = ['createWithdrawal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createWithdrawal>>, {data: BodyType<CreateWithdrawalRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createWithdrawal(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateWithdrawalMutationResult = NonNullable<Awaited<ReturnType<typeof createWithdrawal>>>
+    export type CreateWithdrawalMutationBody = BodyType<CreateWithdrawalRequest>
+    export type CreateWithdrawalMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a withdrawal request
+ */
+export const useCreateWithdrawal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWithdrawal>>, TError,{data: BodyType<CreateWithdrawalRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createWithdrawal>>,
+        TError,
+        {data: BodyType<CreateWithdrawalRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateWithdrawalMutationOptions(options));
+    }
+
+export const getGetMyWithdrawalsUrl = (params?: GetMyWithdrawalsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/withdrawals/my?${stringifiedParams}` : `/api/withdrawals/my`
+}
+
+/**
+ * @summary Get current user withdrawal history
+ */
+export const getMyWithdrawals = async (params?: GetMyWithdrawalsParams, options?: RequestInit): Promise<WithdrawalListResponse> => {
+
+  return customFetch<WithdrawalListResponse>(getGetMyWithdrawalsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyWithdrawalsQueryKey = (params?: GetMyWithdrawalsParams,) => {
+    return [
+    `/api/withdrawals/my`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMyWithdrawalsQueryOptions = <TData = Awaited<ReturnType<typeof getMyWithdrawals>>, TError = ErrorType<unknown>>(params?: GetMyWithdrawalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyWithdrawals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyWithdrawalsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyWithdrawals>>> = ({ signal }) => getMyWithdrawals(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyWithdrawals>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyWithdrawalsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyWithdrawals>>>
+export type GetMyWithdrawalsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get current user withdrawal history
+ */
+
+export function useGetMyWithdrawals<TData = Awaited<ReturnType<typeof getMyWithdrawals>>, TError = ErrorType<unknown>>(
+ params?: GetMyWithdrawalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyWithdrawals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyWithdrawalsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminListWithdrawalsUrl = (params?: AdminListWithdrawalsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/withdrawals?${stringifiedParams}` : `/api/admin/withdrawals`
+}
+
+/**
+ * @summary List all withdrawals (admin)
+ */
+export const adminListWithdrawals = async (params?: AdminListWithdrawalsParams, options?: RequestInit): Promise<AdminWithdrawalListResponse> => {
+
+  return customFetch<AdminWithdrawalListResponse>(getAdminListWithdrawalsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListWithdrawalsQueryKey = (params?: AdminListWithdrawalsParams,) => {
+    return [
+    `/api/admin/withdrawals`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminListWithdrawalsQueryOptions = <TData = Awaited<ReturnType<typeof adminListWithdrawals>>, TError = ErrorType<unknown>>(params?: AdminListWithdrawalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListWithdrawals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListWithdrawalsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListWithdrawals>>> = ({ signal }) => adminListWithdrawals(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListWithdrawals>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListWithdrawalsQueryResult = NonNullable<Awaited<ReturnType<typeof adminListWithdrawals>>>
+export type AdminListWithdrawalsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all withdrawals (admin)
+ */
+
+export function useAdminListWithdrawals<TData = Awaited<ReturnType<typeof adminListWithdrawals>>, TError = ErrorType<unknown>>(
+ params?: AdminListWithdrawalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListWithdrawals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListWithdrawalsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getApproveWithdrawalUrl = (withdrawalId: string,) => {
+
+
+
+
+  return `/api/admin/withdrawals/${withdrawalId}/approve`
+}
+
+/**
+ * @summary Approve a withdrawal and deduct wallet (admin)
+ */
+export const approveWithdrawal = async (withdrawalId: string,
+    approveRejectRequest?: ApproveRejectRequest, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getApproveWithdrawalUrl(withdrawalId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(approveRejectRequest)
+  }
+);}
+
+
+
+
+
+export const getApproveWithdrawalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveWithdrawal>>, TError,{withdrawalId: string;data?: BodyType<ApproveRejectRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveWithdrawal>>, TError,{withdrawalId: string;data?: BodyType<ApproveRejectRequest>}, TContext> => {
+
+const mutationKey = ['approveWithdrawal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveWithdrawal>>, {withdrawalId: string;data?: BodyType<ApproveRejectRequest>}> = (props) => {
+          const {withdrawalId,data} = props ?? {};
+
+          return  approveWithdrawal(withdrawalId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveWithdrawalMutationResult = NonNullable<Awaited<ReturnType<typeof approveWithdrawal>>>
+    export type ApproveWithdrawalMutationBody = BodyType<ApproveRejectRequest> | undefined
+    export type ApproveWithdrawalMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Approve a withdrawal and deduct wallet (admin)
+ */
+export const useApproveWithdrawal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveWithdrawal>>, TError,{withdrawalId: string;data?: BodyType<ApproveRejectRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveWithdrawal>>,
+        TError,
+        {withdrawalId: string;data?: BodyType<ApproveRejectRequest>},
+        TContext
+      > => {
+      return useMutation(getApproveWithdrawalMutationOptions(options));
+    }
+
+export const getRejectWithdrawalUrl = (withdrawalId: string,) => {
+
+
+
+
+  return `/api/admin/withdrawals/${withdrawalId}/reject`
+}
+
+/**
+ * @summary Reject a withdrawal (admin)
+ */
+export const rejectWithdrawal = async (withdrawalId: string,
+    approveRejectRequest?: ApproveRejectRequest, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getRejectWithdrawalUrl(withdrawalId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(approveRejectRequest)
+  }
+);}
+
+
+
+
+
+export const getRejectWithdrawalMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectWithdrawal>>, TError,{withdrawalId: string;data?: BodyType<ApproveRejectRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectWithdrawal>>, TError,{withdrawalId: string;data?: BodyType<ApproveRejectRequest>}, TContext> => {
+
+const mutationKey = ['rejectWithdrawal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectWithdrawal>>, {withdrawalId: string;data?: BodyType<ApproveRejectRequest>}> = (props) => {
+          const {withdrawalId,data} = props ?? {};
+
+          return  rejectWithdrawal(withdrawalId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectWithdrawalMutationResult = NonNullable<Awaited<ReturnType<typeof rejectWithdrawal>>>
+    export type RejectWithdrawalMutationBody = BodyType<ApproveRejectRequest> | undefined
+    export type RejectWithdrawalMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Reject a withdrawal (admin)
+ */
+export const useRejectWithdrawal = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectWithdrawal>>, TError,{withdrawalId: string;data?: BodyType<ApproveRejectRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectWithdrawal>>,
+        TError,
+        {withdrawalId: string;data?: BodyType<ApproveRejectRequest>},
+        TContext
+      > => {
+      return useMutation(getRejectWithdrawalMutationOptions(options));
+    }
+
+export const getGetNotificationsUrl = (params?: GetNotificationsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/notifications?${stringifiedParams}` : `/api/notifications`
+}
+
+/**
+ * @summary Get current user notifications
+ */
+export const getNotifications = async (params?: GetNotificationsParams, options?: RequestInit): Promise<NotificationListResponse> => {
+
+  return customFetch<NotificationListResponse>(getGetNotificationsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNotificationsQueryKey = (params?: GetNotificationsParams,) => {
+    return [
+    `/api/notifications`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof getNotifications>>, TError = ErrorType<unknown>>(params?: GetNotificationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNotificationsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNotifications>>> = ({ signal }) => getNotifications(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNotifications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNotificationsQueryResult = NonNullable<Awaited<ReturnType<typeof getNotifications>>>
+export type GetNotificationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get current user notifications
+ */
+
+export function useGetNotifications<TData = Awaited<ReturnType<typeof getNotifications>>, TError = ErrorType<unknown>>(
+ params?: GetNotificationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNotificationsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMarkAllNotificationsReadUrl = () => {
+
+
+
+
+  return `/api/notifications/read-all`
+}
+
+/**
+ * @summary Mark all notifications as read
+ */
+export const markAllNotificationsRead = async ( options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getMarkAllNotificationsReadUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkAllNotificationsReadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAllNotificationsRead>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markAllNotificationsRead>>, TError,void, TContext> => {
+
+const mutationKey = ['markAllNotificationsRead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markAllNotificationsRead>>, void> = () => {
+
+
+          return  markAllNotificationsRead(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkAllNotificationsReadMutationResult = NonNullable<Awaited<ReturnType<typeof markAllNotificationsRead>>>
+
+    export type MarkAllNotificationsReadMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Mark all notifications as read
+ */
+export const useMarkAllNotificationsRead = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAllNotificationsRead>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markAllNotificationsRead>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getMarkAllNotificationsReadMutationOptions(options));
+    }
+
+export const getMarkNotificationReadUrl = (notificationId: string,) => {
+
+
+
+
+  return `/api/notifications/${notificationId}/read`
+}
+
+/**
+ * @summary Mark a single notification as read
+ */
+export const markNotificationRead = async (notificationId: string, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getMarkNotificationReadUrl(notificationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkNotificationReadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markNotificationRead>>, TError,{notificationId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markNotificationRead>>, TError,{notificationId: string}, TContext> => {
+
+const mutationKey = ['markNotificationRead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markNotificationRead>>, {notificationId: string}> = (props) => {
+          const {notificationId} = props ?? {};
+
+          return  markNotificationRead(notificationId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkNotificationReadMutationResult = NonNullable<Awaited<ReturnType<typeof markNotificationRead>>>
+
+    export type MarkNotificationReadMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Mark a single notification as read
+ */
+export const useMarkNotificationRead = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markNotificationRead>>, TError,{notificationId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markNotificationRead>>,
+        TError,
+        {notificationId: string},
+        TContext
+      > => {
+      return useMutation(getMarkNotificationReadMutationOptions(options));
+    }
 

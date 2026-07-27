@@ -9,6 +9,8 @@ import { Matches } from '@/pages/Matches';
 import { MatchDetail } from '@/pages/MatchDetail';
 import { Users } from '@/pages/Users';
 import { UserDetail } from '@/pages/UserDetail';
+import { Deposits } from '@/pages/Deposits';
+import { Withdrawals } from '@/pages/Withdrawals';
 import { Login } from '@/pages/Login';
 
 const queryClient = new QueryClient({
@@ -54,6 +56,12 @@ function Router() {
       </Route>
       <Route path="/users/:userId">
         <ProtectedRoute component={UserDetail} />
+      </Route>
+      <Route path="/deposits">
+        <ProtectedRoute component={Deposits} />
+      </Route>
+      <Route path="/withdrawals">
+        <ProtectedRoute component={Withdrawals} />
       </Route>
       
       <Route>

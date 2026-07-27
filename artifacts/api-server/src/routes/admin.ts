@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, usersTable, matchesTable, marketsTable, predictionsTable, transactionsTable } from "@workspace/db";
 import { eq, and, desc, count, sql, like, gte } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/auth";
+import { createNotification } from "../lib/createNotification";
 import {
   ListUsersQueryParams,
   ListUsersResponse,
@@ -313,23 +314,33 @@ router.post("/admin/markets/:marketId/settle", requireAdmin, async (req, res): P
     totalPayout += win;
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, pred.userId));
     if (user) {
-      const newBalance = Number(user.walletBalance) + win;
+      const balanceBefore = Number(user.walletBalance);
+      const newBalance = balanceBefore + win;
       await db.update(usersTable).set({ walletBalance: String(newBalance) }).where(eq(usersTable.id, user.id));
       await db.insert(transactionsTable).values({
         userId: user.id,
         type: "win",
         amount: String(win),
+        balanceBefore: String(balanceBefore),
         balanceAfter: String(newBalance),
         referenceId: marketId,
         note: `Win: ${market.question}`,
       });
+      await createNotification(user.id, "prediction_won",
+        "आप जीत गए! 🏆",
+        `आपकी भविष्यवाणी "${market.question}" सही निकली। ₹${win.toFixed(0)} आपके वॉलेट में जमा हो गए।`
+      );
     }
     await db.update(predictionsTable).set({ status: "won" }).where(eq(predictionsTable.id, pred.id));
   }
 
-  // Mark losers
+  // Mark losers and notify
   for (const pred of losers) {
     await db.update(predictionsTable).set({ status: "lost" }).where(eq(predictionsTable.id, pred.id));
+    await createNotification(pred.userId, "prediction_lost",
+      "भविष्यवाणी हारी",
+      `आपकी भविष्यवाणी "${market.question}" पर ₹${Number(pred.amount).toFixed(0)} हार गए।`
+    ).catch(() => {}); // non-critical
   }
 
   // Settle market
@@ -374,16 +385,22 @@ router.post("/admin/markets/:marketId/refund", requireAdmin, async (req, res): P
     totalPayout += refundAmt;
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, pred.userId));
     if (user) {
-      const newBalance = Number(user.walletBalance) + refundAmt;
+      const balanceBefore = Number(user.walletBalance);
+      const newBalance = balanceBefore + refundAmt;
       await db.update(usersTable).set({ walletBalance: String(newBalance) }).where(eq(usersTable.id, user.id));
       await db.insert(transactionsTable).values({
         userId: user.id,
         type: "refund",
         amount: String(refundAmt),
+        balanceBefore: String(balanceBefore),
         balanceAfter: String(newBalance),
         referenceId: marketId,
         note: `Refund: ${market.question}`,
       });
+      await createNotification(user.id, "wallet_credited",
+        "Refund Credited",
+        `₹${refundAmt.toFixed(0)} refunded for cancelled market: "${market.question}".`
+      ).catch(() => {});
     }
     await db.update(predictionsTable).set({ status: "refunded" }).where(eq(predictionsTable.id, pred.id));
   }

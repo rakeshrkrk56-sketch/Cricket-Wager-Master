@@ -131,12 +131,23 @@ export const TransactionType = {
   refund: 'refund',
 } as const;
 
+export type TransactionStatus = typeof TransactionStatus[keyof typeof TransactionStatus];
+
+
+export const TransactionStatus = {
+  completed: 'completed',
+  pending: 'pending',
+  reversed: 'reversed',
+} as const;
+
 export interface Transaction {
   id: string;
   userId: string;
   type: TransactionType;
   amount: number;
+  balanceBefore?: number;
   balanceAfter: number;
+  status?: TransactionStatus;
   referenceId?: string;
   note?: string;
   createdAt: string;
@@ -256,6 +267,8 @@ export interface Market {
   totalYes: number;
   totalNo: number;
   totalAmount: number;
+  yesPool?: number;
+  noPool?: number;
   createdAt: string;
   settledAt?: string;
 }
@@ -330,7 +343,7 @@ export const PlacePredictionRequestChoice = {
 
 export interface PlacePredictionRequest {
   choice: PlacePredictionRequestChoice;
-  /** @minimum 10 */
+  /** @minimum 100 */
   amount: number;
 }
 
@@ -413,6 +426,180 @@ export interface CricketScoreResponse {
   status: string;
   score?: CricketScoreResponseScoreItem[];
   teams?: string[];
+}
+
+export type CreateDepositRequestMethod = typeof CreateDepositRequestMethod[keyof typeof CreateDepositRequestMethod];
+
+
+export const CreateDepositRequestMethod = {
+  upi_deeplink: 'upi_deeplink',
+  manual: 'manual',
+} as const;
+
+export interface CreateDepositRequest {
+  /** @minimum 200 */
+  amount: number;
+  method: CreateDepositRequestMethod;
+  utrNumber?: string;
+  screenshotBase64?: string;
+}
+
+export type DepositMethod = typeof DepositMethod[keyof typeof DepositMethod];
+
+
+export const DepositMethod = {
+  upi_deeplink: 'upi_deeplink',
+  manual: 'manual',
+} as const;
+
+export type DepositStatus = typeof DepositStatus[keyof typeof DepositStatus];
+
+
+export const DepositStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface Deposit {
+  id: string;
+  userId: string;
+  amount: number;
+  method: DepositMethod;
+  utrNumber?: string;
+  hasScreenshot: boolean;
+  screenshotBase64?: string;
+  status: DepositStatus;
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
+  approvedAt?: string;
+}
+
+export interface DepositListResponse {
+  deposits: Deposit[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface AdminDepositUser {
+  id?: string;
+  phone?: string;
+  name?: string;
+}
+
+export type AdminDeposit = Deposit & {
+  user?: AdminDepositUser;
+};
+
+export interface AdminDepositListResponse {
+  deposits: AdminDeposit[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface BankAccount {
+  accountNumber?: string;
+  ifsc?: string;
+  holderName?: string;
+}
+
+export interface CreateWithdrawalRequest {
+  /** @minimum 500 */
+  amount: number;
+  upiId?: string;
+  bankAccount?: BankAccount;
+}
+
+export type WithdrawalStatus = typeof WithdrawalStatus[keyof typeof WithdrawalStatus];
+
+
+export const WithdrawalStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface Withdrawal {
+  id: string;
+  userId: string;
+  amount: number;
+  upiId?: string;
+  bankAccount?: BankAccount;
+  status: WithdrawalStatus;
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
+  approvedAt?: string;
+}
+
+export interface WithdrawalListResponse {
+  withdrawals: Withdrawal[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface AdminWithdrawalUser {
+  id?: string;
+  phone?: string;
+  name?: string;
+  walletBalance?: number;
+}
+
+export type AdminWithdrawal = Withdrawal & {
+  user?: AdminWithdrawalUser;
+};
+
+export interface AdminWithdrawalListResponse {
+  withdrawals: AdminWithdrawal[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
+
+
+export const NotificationType = {
+  deposit_submitted: 'deposit_submitted',
+  deposit_approved: 'deposit_approved',
+  deposit_rejected: 'deposit_rejected',
+  withdrawal_submitted: 'withdrawal_submitted',
+  withdrawal_approved: 'withdrawal_approved',
+  withdrawal_rejected: 'withdrawal_rejected',
+  prediction_won: 'prediction_won',
+  prediction_lost: 'prediction_lost',
+  wallet_credited: 'wallet_credited',
+} as const;
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface NotificationListResponse {
+  notifications: Notification[];
+  total: number;
+  unreadCount: number;
+  page: number;
+  limit: number;
+}
+
+export interface ApproveRejectRequest {
+  remarks?: string;
+}
+
+export interface SuccessResponse {
+  success: boolean;
+  balanceAfter?: number;
 }
 
 export type ListUsersParams = {
@@ -505,4 +692,49 @@ export const AdminListMatchesStatus = {
   live: 'live',
   completed: 'completed',
 } as const;
+
+export type GetMyDepositsParams = {
+page?: number;
+limit?: number;
+};
+
+export type AdminListDepositsParams = {
+status?: AdminListDepositsStatus;
+page?: number;
+limit?: number;
+};
+
+export type AdminListDepositsStatus = typeof AdminListDepositsStatus[keyof typeof AdminListDepositsStatus];
+
+
+export const AdminListDepositsStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type GetMyWithdrawalsParams = {
+page?: number;
+limit?: number;
+};
+
+export type AdminListWithdrawalsParams = {
+status?: AdminListWithdrawalsStatus;
+page?: number;
+limit?: number;
+};
+
+export type AdminListWithdrawalsStatus = typeof AdminListWithdrawalsStatus[keyof typeof AdminListWithdrawalsStatus];
+
+
+export const AdminListWithdrawalsStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type GetNotificationsParams = {
+page?: number;
+limit?: number;
+};
 

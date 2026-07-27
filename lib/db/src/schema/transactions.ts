@@ -6,13 +6,18 @@ import { usersTable } from "./users";
 export const transactionTypeEnum = pgEnum("transaction_type", [
   "deposit", "withdraw", "win", "loss", "bonus", "refund"
 ]);
+export const transactionStatusEnum = pgEnum("transaction_status", [
+  "completed", "pending", "reversed"
+]);
 
 export const transactionsTable = pgTable("transactions", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   userId: text("user_id").notNull().references(() => usersTable.id),
   type: transactionTypeEnum("type").notNull(),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  balanceBefore: numeric("balance_before", { precision: 12, scale: 2 }),
   balanceAfter: numeric("balance_after", { precision: 12, scale: 2 }).notNull(),
+  status: transactionStatusEnum("status").notNull().default("completed"),
   referenceId: text("reference_id"),
   note: text("note"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

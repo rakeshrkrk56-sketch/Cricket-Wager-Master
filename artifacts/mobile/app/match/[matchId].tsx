@@ -12,10 +12,11 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   useGetMatch, useGetMatchMarkets,
-  getGetMatchMarketsQueryKey, usePlacePrediction,
+  getGetMatchQueryKey, getGetMatchMarketsQueryKey, usePlacePrediction,
   getGetMeQueryKey,
 } from '@workspace/api-client-react';
 
+const HOUSE_EDGE = 0.075;
 const CATEGORY_LABELS: Record<string, string> = {
   toss: '🪙 टॉस', innings: '🏏 पारी', over: '⚡ ओवर',
   batsman: '🏏 बल्लेबाज', bowler: '🎯 गेंदबाज', match_winner: '🏆 विजेता',
@@ -44,23 +45,33 @@ function MarketCard({ market, onPredict }: { market: any; onPredict: (m: any) =>
           </Text>
         </View>
       </View>
-      <View style={s.stats}>
-        <Text style={s.stat}>हाँ: {market.totalYes} | नहीं: {market.totalNo}</Text>
-        {market.status === 'settled' && market.correctAnswer && (
-          <Text style={[s.answer, { color: market.correctAnswer === 'YES' ? colors.success : colors.destructive }]}>
-            उत्तर: {market.correctAnswer === 'YES' ? 'हाँ' : 'नहीं'}
-          </Text>
-        )}
+      <View style={s.poolRow}>
+        <View style={s.poolSide}>
+          <Text style={[s.poolLabel, { color: '#22C55E' }]}>हाँ</Text>
+          <Text style={[s.poolOdds, { color: '#22C55E' }]}>×{Number(market.yesPrice).toFixed(2)}</Text>
+          <Text style={s.poolCount}>{market.totalYes} दांव</Text>
+        </View>
+        <View style={s.poolDivider} />
+        <View style={s.poolSide}>
+          <Text style={[s.poolLabel, { color: '#EF4444' }]}>नहीं</Text>
+          <Text style={[s.poolOdds, { color: '#EF4444' }]}>×{Number(market.noPrice).toFixed(2)}</Text>
+          <Text style={s.poolCount}>{market.totalNo} दांव</Text>
+        </View>
       </View>
+      {market.status === 'settled' && market.correctAnswer && (
+        <Text style={[s.answer, { color: market.correctAnswer === 'YES' ? '#22C55E' : '#EF4444' }]}>
+          उत्तर: {market.correctAnswer === 'YES' ? 'हाँ ✓' : 'नहीं ✓'}
+        </Text>
+      )}
       {isOpen && (
         <View style={s.buttons}>
           <TouchableOpacity style={[s.btn, s.yesBtn]} onPress={() => onPredict({ ...market, preChoice: 'YES' })} activeOpacity={0.8}>
             <Text style={s.btnLabel}>हाँ</Text>
-            <Text style={s.btnOdds}>×{market.yesPrice}</Text>
+            <Text style={s.btnOdds}>×{Number(market.yesPrice).toFixed(2)}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.btn, s.noBtn]} onPress={() => onPredict({ ...market, preChoice: 'NO' })} activeOpacity={0.8}>
             <Text style={s.btnLabel}>नहीं</Text>
-            <Text style={s.btnOdds}>×{market.noPrice}</Text>
+            <Text style={s.btnOdds}>×{Number(market.noPrice).toFixed(2)}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -73,13 +84,17 @@ const marketStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
     backgroundColor: colors.card, borderRadius: 12, padding: 14,
     borderWidth: 1, borderColor: colors.border, marginBottom: 10,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 10 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 12 },
   question: { flex: 1, fontSize: 14, fontWeight: '600' as const, color: colors.foreground, fontFamily: 'Inter_600SemiBold', lineHeight: 20 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
   statusText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  stats: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  stat: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-  answer: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  poolRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, backgroundColor: colors.muted, borderRadius: 10, padding: 12 },
+  poolSide: { flex: 1, alignItems: 'center', gap: 2 },
+  poolDivider: { width: 1, height: 40, backgroundColor: colors.border, marginHorizontal: 8 },
+  poolLabel: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  poolOdds: { fontSize: 20, fontFamily: 'Inter_700Bold', fontWeight: '700' as const },
+  poolCount: { fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+  answer: { fontSize: 12, fontFamily: 'Inter_600SemiBold', marginBottom: 8, textAlign: 'center' as const },
   buttons: { flexDirection: 'row', gap: 8 },
   btn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 10, gap: 6 },
   yesBtn: { backgroundColor: '#22C55E22', borderWidth: 1.5, borderColor: '#22C55E' },
@@ -99,7 +114,7 @@ export default function MatchDetailScreen() {
   const [amount, setAmount] = useState('');
   const [predicted, setPredicted] = useState(false);
 
-  const { data: match, isLoading: matchLoading } = useGetMatch(matchId!, { query: { enabled: !!matchId } });
+  const { data: match, isLoading: matchLoading } = useGetMatch(matchId!, { query: { enabled: !!matchId, queryKey: getGetMatchQueryKey(matchId!) } });
   const { data: marketsData, isLoading: marketsLoading } = useGetMatchMarkets(
     matchId!,
     {},
@@ -108,18 +123,22 @@ export default function MatchDetailScreen() {
   const placePrediction = usePlacePrediction();
 
   const markets = marketsData?.markets ?? [];
-
-  // Group markets by category
   const grouped = markets.reduce((acc: Record<string, any[]>, m) => {
-    const cat = m.category;
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(m);
+    if (!acc[m.category]) acc[m.category] = [];
+    acc[m.category].push(m);
     return acc;
   }, {});
 
+  const amt = parseFloat(amount) || 0;
+  const odds = selectedMarket
+    ? (selectedMarket.preChoice === 'YES' ? Number(selectedMarket.yesPrice) : Number(selectedMarket.noPrice))
+    : 0;
+  const grossReturn = Math.round(amt * odds * 100) / 100;
+  const platformFee = Math.round(amt * HOUSE_EDGE * 100) / 100;
+  const netProfit = Math.round((grossReturn - amt) * 100) / 100;
+
   const handleConfirmPrediction = () => {
-    const amt = parseFloat(amount);
-    if (!amt || amt < 10) { Alert.alert('न्यूनतम राशि', 'कम से कम ₹10 का दांव लगाएं'); return; }
+    if (!amt || amt < 100) { Alert.alert('न्यूनतम राशि', 'कम से कम ₹100 का दांव लगाएं'); return; }
     if ((user?.walletBalance ?? 0) < amt) { Alert.alert('अपर्याप्त बैलेंस', 'पर्याप्त बैलेंस नहीं है'); return; }
 
     placePrediction.mutate(
@@ -148,13 +167,8 @@ export default function MatchDetailScreen() {
   if (matchLoading) return <View style={s.root}><ActivityIndicator color={colors.primary} style={{ marginTop: 100 }} /></View>;
   if (!match) return <View style={s.root}><Text style={{ color: colors.foreground, margin: 24 }}>मैच नहीं मिला</Text></View>;
 
-  const potentialWin = selectedMarket && amount
-    ? (parseFloat(amount) * (selectedMarket.preChoice === 'YES' ? selectedMarket.yesPrice : selectedMarket.noPrice)).toFixed(0)
-    : '0';
-
   return (
     <View style={s.root}>
-      {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
           <Ionicons name="arrow-back" size={22} color={colors.foreground} />
@@ -165,7 +179,6 @@ export default function MatchDetailScreen() {
         </View>
       </View>
 
-      {/* Match score banner if live */}
       {match.status === 'live' && (
         <View style={s.liveBanner}>
           <View style={s.liveDot} />
@@ -176,7 +189,6 @@ export default function MatchDetailScreen() {
         </View>
       )}
 
-      {/* Success toast */}
       {predicted && (
         <View style={s.successToast}>
           <Ionicons name="checkmark-circle" size={20} color={colors.success} />
@@ -204,25 +216,28 @@ export default function MatchDetailScreen() {
         )}
       </ScrollView>
 
-      {/* Prediction modal */}
+      {/* Prediction sheet */}
       <Modal visible={!!selectedMarket} transparent animationType="slide">
-        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setSelectedMarket(null)}>
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => { setSelectedMarket(null); setAmount(''); }}>
           <TouchableOpacity activeOpacity={1} style={s.sheet} onPress={() => {}}>
             <View style={s.sheetHandle} />
             <Text style={s.sheetTitle}>भविष्यवाणी करें</Text>
             <Text style={s.sheetQuestion}>{selectedMarket?.questionHindi || selectedMarket?.question}</Text>
+
             <View style={[s.choiceBadge, {
               backgroundColor: selectedMarket?.preChoice === 'YES' ? '#22C55E22' : '#EF444422',
               borderColor: selectedMarket?.preChoice === 'YES' ? '#22C55E' : '#EF4444',
             }]}>
               <Text style={[s.choiceText, { color: selectedMarket?.preChoice === 'YES' ? '#22C55E' : '#EF4444' }]}>
                 {selectedMarket?.preChoice === 'YES' ? 'हाँ ✓' : 'नहीं ✗'}
+                {'  '}×{selectedMarket ? (selectedMarket.preChoice === 'YES' ? Number(selectedMarket.yesPrice).toFixed(2) : Number(selectedMarket.noPrice).toFixed(2)) : '0'}
               </Text>
             </View>
-            <Text style={s.amountLabel}>राशि दर्ज करें</Text>
+
+            <Text style={s.amountLabel}>राशि दर्ज करें (न्यूनतम ₹100)</Text>
             <TextInput
               style={s.amountInput}
-              placeholder="न्यूनतम ₹10"
+              placeholder="₹100"
               placeholderTextColor={colors.mutedForeground}
               keyboardType="numeric"
               value={amount}
@@ -230,23 +245,42 @@ export default function MatchDetailScreen() {
               autoFocus
             />
             <View style={s.quickAmounts}>
-              {[50, 100, 200, 500].map((a) => (
-                <TouchableOpacity key={a} style={s.quickBtn} onPress={() => setAmount(String(a))}>
-                  <Text style={s.quickText}>₹{a}</Text>
+              {[100, 200, 500, 1000].map((a) => (
+                <TouchableOpacity key={a} style={[s.quickBtn, amt === a && { borderColor: colors.primary, backgroundColor: colors.primary + '20' }]} onPress={() => setAmount(String(a))}>
+                  <Text style={[s.quickText, amt === a && { color: colors.primary }]}>₹{a}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            {amount && parseFloat(amount) >= 10 && (
-              <View style={s.winRow}>
-                <Text style={s.winLabel}>जीतने की राशि:</Text>
-                <Text style={s.winAmount}>₹{potentialWin}</Text>
+
+            {/* Payout breakdown */}
+            {amt >= 100 && (
+              <View style={s.breakdown}>
+                <View style={s.breakRow}>
+                  <Text style={s.breakLabel}>दांव राशि</Text>
+                  <Text style={s.breakVal}>₹{amt.toFixed(0)}</Text>
+                </View>
+                <View style={s.breakRow}>
+                  <Text style={s.breakLabel}>अनुमानित वापसी</Text>
+                  <Text style={[s.breakVal, { color: colors.success }]}>₹{grossReturn.toFixed(0)}</Text>
+                </View>
+                <View style={s.breakRow}>
+                  <Text style={s.breakLabel}>प्लेटफॉर्म शुल्क (7.5%)</Text>
+                  <Text style={[s.breakVal, { color: colors.mutedForeground }]}>−₹{platformFee.toFixed(0)}</Text>
+                </View>
+                <View style={[s.breakRow, s.breakRowNet]}>
+                  <Text style={s.breakLabelBold}>शुद्ध लाभ</Text>
+                  <Text style={[s.breakValBold, { color: netProfit >= 0 ? colors.success : colors.destructive }]}>
+                    {netProfit >= 0 ? '+' : ''}₹{netProfit.toFixed(0)}
+                  </Text>
+                </View>
               </View>
             )}
+
             <Text style={s.balanceText}>वॉलेट बैलेंस: ₹{user?.walletBalance?.toFixed(0)}</Text>
             <TouchableOpacity
-              style={[s.confirmBtn, placePrediction.isPending && s.btnDisabled]}
+              style={[s.confirmBtn, (placePrediction.isPending || amt < 100) && s.btnDisabled]}
               onPress={handleConfirmPrediction}
-              disabled={placePrediction.isPending}
+              disabled={placePrediction.isPending || amt < 100}
               activeOpacity={0.85}
             >
               {placePrediction.isPending
@@ -310,14 +344,21 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   quickAmounts: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   quickBtn: { flex: 1, backgroundColor: colors.muted, borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   quickText: { fontSize: 13, fontWeight: '600' as const, color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
-  winRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  winLabel: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-  winAmount: { fontSize: 16, fontWeight: '700' as const, color: colors.success, fontFamily: 'Inter_700Bold' },
+  breakdown: {
+    backgroundColor: colors.muted, borderRadius: 12, padding: 14, marginBottom: 14,
+    borderWidth: 1, borderColor: colors.border, gap: 8,
+  },
+  breakRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  breakRowNet: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 4 },
+  breakLabel: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+  breakVal: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: colors.foreground },
+  breakLabelBold: { fontSize: 14, color: colors.foreground, fontFamily: 'Inter_700Bold', fontWeight: '700' as const },
+  breakValBold: { fontSize: 16, fontFamily: 'Inter_700Bold', fontWeight: '700' as const },
   balanceText: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 16 },
   confirmBtn: {
     backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center',
     shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
-  btnDisabled: { opacity: 0.6 },
+  btnDisabled: { opacity: 0.5 },
   confirmText: { fontSize: 16, fontWeight: '700' as const, color: colors.primaryForeground, fontFamily: 'Inter_700Bold' },
 });

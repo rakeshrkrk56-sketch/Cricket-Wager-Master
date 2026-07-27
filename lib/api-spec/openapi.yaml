@@ -26,6 +26,12 @@ tags:
     description: Admin operations
   - name: cricket
     description: Live cricket data
+  - name: deposits
+    description: Deposit management
+  - name: withdrawals
+    description: Withdrawal management
+  - name: notifications
+    description: In-app notifications
 
 paths:
   /healthz:
@@ -653,6 +659,331 @@ paths:
               schema:
                 $ref: "#/components/schemas/CricketScoreResponse"
 
+  # ─── Deposits ────────────────────────────────────────────────────────────────
+  /deposits:
+    post:
+      operationId: createDeposit
+      tags: [deposits]
+      summary: Create a deposit request
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDepositRequest"
+      responses:
+        "201":
+          description: Deposit created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deposit"
+
+  /deposits/my:
+    get:
+      operationId: getMyDeposits
+      tags: [deposits]
+      summary: Get current user deposit history
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Deposit list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DepositListResponse"
+
+  /admin/deposits:
+    get:
+      operationId: adminListDeposits
+      tags: [deposits, admin]
+      summary: List all deposits (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Deposit list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminDepositListResponse"
+
+  /admin/deposits/{depositId}/approve:
+    post:
+      operationId: approveDeposit
+      tags: [deposits, admin]
+      summary: Approve a deposit and credit wallet (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: depositId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveRejectRequest"
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/deposits/{depositId}/reject:
+    post:
+      operationId: rejectDeposit
+      tags: [deposits, admin]
+      summary: Reject a deposit (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: depositId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveRejectRequest"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ─── Withdrawals ──────────────────────────────────────────────────────────────
+  /withdrawals:
+    post:
+      operationId: createWithdrawal
+      tags: [withdrawals]
+      summary: Create a withdrawal request
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWithdrawalRequest"
+      responses:
+        "201":
+          description: Withdrawal created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Withdrawal"
+
+  /withdrawals/my:
+    get:
+      operationId: getMyWithdrawals
+      tags: [withdrawals]
+      summary: Get current user withdrawal history
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Withdrawal list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WithdrawalListResponse"
+
+  /admin/withdrawals:
+    get:
+      operationId: adminListWithdrawals
+      tags: [withdrawals, admin]
+      summary: List all withdrawals (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Withdrawal list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminWithdrawalListResponse"
+
+  /admin/withdrawals/{withdrawalId}/approve:
+    post:
+      operationId: approveWithdrawal
+      tags: [withdrawals, admin]
+      summary: Approve a withdrawal and deduct wallet (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: withdrawalId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveRejectRequest"
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/withdrawals/{withdrawalId}/reject:
+    post:
+      operationId: rejectWithdrawal
+      tags: [withdrawals, admin]
+      summary: Reject a withdrawal (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: withdrawalId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveRejectRequest"
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ─── Notifications ────────────────────────────────────────────────────────────
+  /notifications:
+    get:
+      operationId: getNotifications
+      tags: [notifications]
+      summary: Get current user notifications
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationListResponse"
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /notifications/{notificationId}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark a single notification as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -841,8 +1172,13 @@ components:
           enum: [deposit, withdraw, win, loss, bonus, refund]
         amount:
           type: number
+        balanceBefore:
+          type: number
         balanceAfter:
           type: number
+        status:
+          type: string
+          enum: [completed, pending, reversed]
         referenceId:
           type: string
         note:
@@ -1008,6 +1344,10 @@ components:
           type: integer
         totalAmount:
           type: number
+        yesPool:
+          type: number
+        noPool:
+          type: number
         createdAt:
           type: string
           format: date-time
@@ -1109,7 +1449,7 @@ components:
           enum: [YES, NO]
         amount:
           type: number
-          minimum: 10
+          minimum: 100
       required:
         - choice
         - amount
@@ -1274,3 +1614,313 @@ components:
         - matchId
         - name
         - status
+
+    # ─── Deposits ──────────────────────────────────────────────────────────────
+    CreateDepositRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          minimum: 200
+        method:
+          type: string
+          enum: [upi_deeplink, manual]
+        utrNumber:
+          type: string
+        screenshotBase64:
+          type: string
+      required:
+        - amount
+        - method
+
+    Deposit:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        amount:
+          type: number
+        method:
+          type: string
+          enum: [upi_deeplink, manual]
+        utrNumber:
+          type: string
+        hasScreenshot:
+          type: boolean
+        screenshotBase64:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        remarks:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        approvedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - amount
+        - method
+        - hasScreenshot
+        - status
+        - createdAt
+        - updatedAt
+
+    DepositListResponse:
+      type: object
+      properties:
+        deposits:
+          type: array
+          items:
+            $ref: "#/components/schemas/Deposit"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - deposits
+        - total
+        - page
+        - limit
+
+    AdminDepositUser:
+      type: object
+      properties:
+        id:
+          type: string
+        phone:
+          type: string
+        name:
+          type: string
+
+    AdminDeposit:
+      allOf:
+        - $ref: "#/components/schemas/Deposit"
+        - type: object
+          properties:
+            user:
+              $ref: "#/components/schemas/AdminDepositUser"
+
+    AdminDepositListResponse:
+      type: object
+      properties:
+        deposits:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminDeposit"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - deposits
+        - total
+        - page
+        - limit
+
+    # ─── Withdrawals ───────────────────────────────────────────────────────────
+    BankAccount:
+      type: object
+      properties:
+        accountNumber:
+          type: string
+        ifsc:
+          type: string
+        holderName:
+          type: string
+
+    CreateWithdrawalRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          minimum: 500
+        upiId:
+          type: string
+        bankAccount:
+          $ref: "#/components/schemas/BankAccount"
+      required:
+        - amount
+
+    Withdrawal:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        amount:
+          type: number
+        upiId:
+          type: string
+        bankAccount:
+          $ref: "#/components/schemas/BankAccount"
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        remarks:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        approvedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - amount
+        - status
+        - createdAt
+        - updatedAt
+
+    WithdrawalListResponse:
+      type: object
+      properties:
+        withdrawals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Withdrawal"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - withdrawals
+        - total
+        - page
+        - limit
+
+    AdminWithdrawalUser:
+      type: object
+      properties:
+        id:
+          type: string
+        phone:
+          type: string
+        name:
+          type: string
+        walletBalance:
+          type: number
+
+    AdminWithdrawal:
+      allOf:
+        - $ref: "#/components/schemas/Withdrawal"
+        - type: object
+          properties:
+            user:
+              $ref: "#/components/schemas/AdminWithdrawalUser"
+
+    AdminWithdrawalListResponse:
+      type: object
+      properties:
+        withdrawals:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminWithdrawal"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - withdrawals
+        - total
+        - page
+        - limit
+
+    # ─── Notifications ─────────────────────────────────────────────────────────
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        type:
+          type: string
+          enum:
+            - deposit_submitted
+            - deposit_approved
+            - deposit_rejected
+            - withdrawal_submitted
+            - withdrawal_approved
+            - withdrawal_rejected
+            - prediction_won
+            - prediction_lost
+            - wallet_credited
+        title:
+          type: string
+        body:
+          type: string
+        read:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - type
+        - title
+        - body
+        - read
+        - createdAt
+
+    NotificationListResponse:
+      type: object
+      properties:
+        notifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+        total:
+          type: integer
+        unreadCount:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - notifications
+        - total
+        - unreadCount
+        - page
+        - limit
+
+    # ─── Shared ────────────────────────────────────────────────────────────────
+    ApproveRejectRequest:
+      type: object
+      properties:
+        remarks:
+          type: string
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        balanceAfter:
+          type: number
+      required:
+        - success

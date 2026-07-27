@@ -6,6 +6,9 @@ import matchesRouter from "./matches";
 import predictionsRouter from "./predictions";
 import adminRouter from "./admin";
 import cricketRouter from "./cricket";
+import depositsRouter from "./deposits";
+import withdrawalsRouter from "./withdrawals";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -16,5 +19,8 @@ router.use(matchesRouter);
 router.use(predictionsRouter);
 router.use(adminRouter);
 router.use(cricketRouter);
+router.use(depositsRouter);
+router.use(withdrawalsRouter);
+router.use(notificationsRouter);
 
 export default router;

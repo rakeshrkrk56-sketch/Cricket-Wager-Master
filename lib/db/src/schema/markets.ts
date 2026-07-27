@@ -17,8 +17,10 @@ export const marketsTable = pgTable("markets", {
   question: text("question").notNull(),
   questionHindi: text("question_hindi"),
   category: marketCategoryEnum("category").notNull(),
-  yesPrice: numeric("yes_price", { precision: 6, scale: 2 }).notNull().default("2.00"),
-  noPrice: numeric("no_price", { precision: 6, scale: 2 }).notNull().default("2.00"),
+  yesPrice: numeric("yes_price", { precision: 6, scale: 2 }).notNull().default("1.90"),
+  noPrice: numeric("no_price", { precision: 6, scale: 2 }).notNull().default("1.90"),
+  yesPool: numeric("yes_pool", { precision: 12, scale: 2 }).notNull().default("0"),
+  noPool: numeric("no_pool", { precision: 12, scale: 2 }).notNull().default("0"),
   status: marketStatusEnum("status").notNull().default("open"),
   correctAnswer: answerEnum("correct_answer"),
   totalYes: integer("total_yes").notNull().default(0),
@@ -29,6 +31,9 @@ export const marketsTable = pgTable("markets", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertMarketSchema = createInsertSchema(marketsTable).omit({ id: true, createdAt: true, updatedAt: true, totalYes: true, totalNo: true, totalAmount: true });
+export const insertMarketSchema = createInsertSchema(marketsTable).omit({
+  id: true, createdAt: true, updatedAt: true,
+  totalYes: true, totalNo: true, totalAmount: true, yesPool: true, noPool: true
+});
 export type InsertMarket = z.infer<typeof insertMarketSchema>;
 export type Market = typeof marketsTable.$inferSelect;

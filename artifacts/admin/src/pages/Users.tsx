@@ -86,9 +86,8 @@ export function Users() {
               </TableRow>
             ) : (
               users.map((user) => (
-                <TableRow key={user.id} className="border-border cursor-pointer group" asChild>
-                  {/* Using standard HTML trick to make whole row clickable while inside a table */}
-                  <Link href={`/users/${user.id}`}>
+                <TableRow key={user.id} className="border-border cursor-pointer group" onClick={() => window.location.href = `/users/${user.id}`}>
+                  <Link href={`/users/${user.id}`} style={{ display: 'contents' }}>
                     <TableCell>
                       <div className="font-mono text-sm font-bold text-white group-hover:text-primary transition-colors">{user.phone}</div>
                       <div className="text-xs text-muted-foreground">{user.name || "Unknown"}</div>

@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, usersTable, marketsTable, predictionsTable, transactionsTable } from "@workspace/db";
 import { eq, and, desc, count } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
+import { calculateOdds } from "../lib/odds";
 import {
   PlacePredictionParams,
   PlacePredictionBody,
@@ -29,6 +30,12 @@ router.post("/markets/:marketId/predict", requireAuth, async (req, res): Promise
   const { choice, amount } = bodyParsed.data;
   const user = (req as any).user;
 
+  // Minimum prediction ₹100
+  if (amount < 100) {
+    res.status(400).json({ error: "Minimum prediction amount is ₹100" });
+    return;
+  }
+
   const [market] = await db.select().from(marketsTable).where(eq(marketsTable.id, marketId));
   if (!market) {
     res.status(404).json({ error: "Market not found" });
@@ -45,18 +52,21 @@ router.post("/markets/:marketId/predict", requireAuth, async (req, res): Promise
     return;
   }
 
+  // Use current odds for this prediction
   const price = choice === "YES" ? Number(market.yesPrice) : Number(market.noPrice);
-  const potentialWin = amount * price;
+  const potentialWin = Math.round(amount * price * 100) / 100;
 
   // Deduct from wallet
+  const balanceBefore = userBalance;
   const newBalance = userBalance - amount;
   await db.update(usersTable).set({ walletBalance: String(newBalance) }).where(eq(usersTable.id, user.id));
 
-  // Record transaction
+  // Record transaction with balanceBefore
   await db.insert(transactionsTable).values({
     userId: user.id,
     type: "loss",
     amount: String(amount),
+    balanceBefore: String(balanceBefore),
     balanceAfter: String(newBalance),
     referenceId: marketId,
     note: `Prediction on: ${market.question}`,
@@ -74,15 +84,29 @@ router.post("/markets/:marketId/predict", requireAuth, async (req, res): Promise
     status: "pending",
   }).returning();
 
-  // Update market totals
+  // Update market pool totals
+  const newYesPool = choice === "YES"
+    ? Number(market.yesPool) + amount
+    : Number(market.yesPool);
+  const newNoPool = choice === "NO"
+    ? Number(market.noPool) + amount
+    : Number(market.noPool);
   const newTotalYes = choice === "YES" ? market.totalYes + 1 : market.totalYes;
   const newTotalNo = choice === "NO" ? market.totalNo + 1 : market.totalNo;
   const newTotalAmount = Number(market.totalAmount) + amount;
+
+  // Recalculate dynamic odds after this bet
+  const { yesOdds, noOdds } = calculateOdds(newYesPool, newNoPool);
 
   await db.update(marketsTable).set({
     totalYes: newTotalYes,
     totalNo: newTotalNo,
     totalAmount: String(newTotalAmount),
+    yesPool: String(newYesPool),
+    noPool: String(newNoPool),
+    yesPrice: String(yesOdds),
+    noPrice: String(noOdds),
+    updatedAt: new Date(),
   }).where(eq(marketsTable.id, marketId));
 
   res.json(
