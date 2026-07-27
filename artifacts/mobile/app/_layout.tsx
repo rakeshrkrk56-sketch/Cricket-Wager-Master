@@ -27,7 +27,7 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 });
 
-const WHATSAPP_NUMBER = '919876543210';
+const WHATSAPP_NUMBER = '919955286970';
 
 function FloatingWhatsAppButton() {
   const { token } = useAuth();
