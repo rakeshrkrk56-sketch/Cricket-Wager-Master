@@ -91,6 +91,7 @@ function StatusBadge({ status, colors }: { status: string; colors: any }) {
 }
 
 type DepositTab = 'upi' | 'manual';
+type WithdrawMethod = 'upi' | 'bank';
 type WalletTab = 'transactions' | 'deposits' | 'withdrawals';
 
 export default function WalletScreen() {
@@ -113,7 +114,14 @@ export default function WalletScreen() {
 
   // Withdrawal form
   const [wdAmount, setWdAmount] = useState('');
+  const [wdMethod, setWdMethod] = useState<WithdrawMethod>('upi');
   const [wdUpiId, setWdUpiId] = useState('');
+  // Bank fields
+  const [wdBankName, setWdBankName] = useState('');
+  const [wdHolderName, setWdHolderName] = useState('');
+  const [wdAccountNumber, setWdAccountNumber] = useState('');
+  const [wdConfirmAccountNumber, setWdConfirmAccountNumber] = useState('');
+  const [wdIfsc, setWdIfsc] = useState('');
 
   const { data: wallet, isLoading: walletLoading } = useGetWallet({ query: { enabled: !!token, queryKey: getGetWalletQueryKey() } });
   const { data: txData, isLoading: txLoading } = useGetTransactions({}, { query: { enabled: !!token && walletTab === 'transactions', queryKey: getGetTransactionsQueryKey({}) } });
@@ -185,22 +193,53 @@ export default function WalletScreen() {
     );
   };
 
+  const resetWithdrawForm = () => {
+    setWdAmount(''); setWdUpiId('');
+    setWdBankName(''); setWdHolderName('');
+    setWdAccountNumber(''); setWdConfirmAccountNumber(''); setWdIfsc('');
+  };
+
   const handleWithdrawal = () => {
     const amt = parseFloat(wdAmount);
     if (!amt || amt < 500) { Alert.alert('न्यूनतम निकासी', 'कम से कम ₹500 निकालें'); return; }
-    if (!wdUpiId.trim()) { Alert.alert('UPI ID आवश्यक', 'अपना UPI ID दर्ज करें'); return; }
+
+    let payload: any;
+    if (wdMethod === 'upi') {
+      if (!wdUpiId.trim()) { Alert.alert('UPI ID आवश्यक', 'अपना UPI ID दर्ज करें'); return; }
+      payload = { amount: amt, upiId: wdUpiId.trim() };
+    } else {
+      if (!wdBankName.trim()) { Alert.alert('बैंक नाम आवश्यक', 'बैंक का नाम दर्ज करें'); return; }
+      if (!wdHolderName.trim()) { Alert.alert('खाताधारक नाम आवश्यक', 'खाताधारक का नाम दर्ज करें'); return; }
+      if (!wdAccountNumber.trim()) { Alert.alert('खाता नंबर आवश्यक', 'बैंक खाता नंबर दर्ज करें'); return; }
+      if (wdAccountNumber.trim() !== wdConfirmAccountNumber.trim()) { Alert.alert('खाता नंबर मेल नहीं खाता', 'दोनों खाता नंबर समान होने चाहिए'); return; }
+      if (!wdIfsc.trim() || wdIfsc.trim().length < 11) { Alert.alert('IFSC कोड अमान्य', 'सही IFSC कोड दर्ज करें (11 अक्षर)'); return; }
+      payload = {
+        amount: amt,
+        bankAccount: {
+          bankName: wdBankName.trim(),
+          holderName: wdHolderName.trim(),
+          accountNumber: wdAccountNumber.trim(),
+          ifsc: wdIfsc.trim().toUpperCase(),
+        },
+      };
+    }
 
     createWithdrawal.mutate(
-      { data: { amount: amt, upiId: wdUpiId.trim() } },
+      { data: payload },
       {
         onSuccess: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           queryClient.invalidateQueries({ queryKey: getGetMyWithdrawalsQueryKey({}) });
           queryClient.invalidateQueries({ queryKey: getGetWalletQueryKey() });
           setShowWithdraw(false);
-          setWdAmount(''); setWdUpiId('');
+          resetWithdrawForm();
           setWalletTab('withdrawals');
-          Alert.alert('निकासी अनुरोध भेजा', 'आपकी निकासी समीक्षा में है। स्वीकृत होने पर धनराशि आपके UPI में भेजी जाएगी।');
+          Alert.alert(
+            'निकासी अनुरोध भेजा ✓',
+            wdMethod === 'upi'
+              ? 'आपकी निकासी समीक्षा में है। स्वीकृत होने पर धनराशि आपके UPI में भेजी जाएगी।'
+              : 'आपकी निकासी समीक्षा में है। स्वीकृत होने पर धनराशि आपके बैंक खाते में भेजी जाएगी।'
+          );
         },
         onError: (err: any) => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -443,52 +482,159 @@ export default function WalletScreen() {
             <View style={s.sheetHandle} />
             <Text style={s.sheetTitle}>निकासी</Text>
 
-            <View style={s.infoBox}>
-              <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
-              <Text style={s.infoText}>निकासी स्वीकृत होने पर आपके UPI पर पैसे भेजे जाएंगे। स्वीकृति में 24 घंटे लग सकते हैं।</Text>
+            {/* Method toggle */}
+            <View style={s.depTabs}>
+              <TouchableOpacity
+                style={[s.depTab, wdMethod === 'upi' && s.depTabActive]}
+                onPress={() => setWdMethod('upi')}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="phone-portrait-outline" size={16} color={wdMethod === 'upi' ? colors.primary : colors.mutedForeground} />
+                <Text style={[s.depTabText, wdMethod === 'upi' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>UPI Transfer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.depTab, wdMethod === 'bank' && s.depTabActive]}
+                onPress={() => setWdMethod('bank')}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="business-outline" size={16} color={wdMethod === 'bank' ? colors.primary : colors.mutedForeground} />
+                <Text style={[s.depTabText, wdMethod === 'bank' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Bank Transfer</Text>
+              </TouchableOpacity>
             </View>
 
-            <Text style={s.amountLabel}>राशि (न्यूनतम ₹500)</Text>
-            <TextInput
-              style={s.amountInput}
-              placeholder="₹500"
-              placeholderTextColor={colors.mutedForeground}
-              keyboardType="numeric"
-              value={wdAmount}
-              onChangeText={setWdAmount}
-              autoFocus
-            />
-            <View style={s.quickAmounts}>
-              {[500, 1000, 2000, 5000].map((a) => (
-                <TouchableOpacity key={a} style={s.quickBtn} onPress={() => setWdAmount(String(a))}>
-                  <Text style={s.quickText}>₹{a}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={s.balHint}>उपलब्ध: ₹{balance.toFixed(0)}</Text>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {/* Amount — shared */}
+              <Text style={s.amountLabel}>राशि (न्यूनतम ₹500)</Text>
+              <TextInput
+                style={s.amountInput}
+                placeholder="₹500"
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="numeric"
+                value={wdAmount}
+                onChangeText={setWdAmount}
+              />
+              <View style={s.quickAmounts}>
+                {[500, 1000, 2000, 5000].map((a) => (
+                  <TouchableOpacity key={a} style={s.quickBtn} onPress={() => setWdAmount(String(a))}>
+                    <Text style={s.quickText}>₹{a}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={s.balHint}>उपलब्ध: ₹{balance.toFixed(0)}</Text>
 
-            <Text style={s.amountLabel}>आपका UPI ID</Text>
-            <TextInput
-              style={s.textInput}
-              placeholder="example@upi"
-              placeholderTextColor={colors.mutedForeground}
-              value={wdUpiId}
-              onChangeText={setWdUpiId}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
+              {/* UPI section */}
+              {wdMethod === 'upi' && (
+                <View>
+                  <View style={s.infoBox}>
+                    <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
+                    <Text style={s.infoText}>स्वीकृत होने पर धनराशि आपके UPI ID पर भेजी जाएगी।</Text>
+                  </View>
+                  <Text style={[s.amountLabel, { marginTop: 12 }]}>आपका UPI ID *</Text>
+                  <TextInput
+                    style={s.textInput}
+                    placeholder="example@upi"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={wdUpiId}
+                    onChangeText={setWdUpiId}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                  />
+                </View>
+              )}
 
-            <TouchableOpacity
-              style={[s.confirmBtn, createWithdrawal.isPending && s.btnDisabled]}
-              onPress={handleWithdrawal}
-              disabled={createWithdrawal.isPending}
-              activeOpacity={0.85}
-            >
-              {createWithdrawal.isPending
-                ? <ActivityIndicator color={colors.primaryForeground} />
-                : <Text style={s.confirmText}>निकासी अनुरोध भेजें</Text>
-              }
-            </TouchableOpacity>
+              {/* Bank section */}
+              {wdMethod === 'bank' && (
+                <View>
+                  <View style={s.infoBox}>
+                    <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
+                    <Text style={s.infoText}>स्वीकृत होने पर धनराशि आपके बैंक खाते में NEFT/IMPS द्वारा भेजी जाएगी। 1–2 कार्यदिवस लग सकते हैं।</Text>
+                  </View>
+
+                  <Text style={[s.amountLabel, { marginTop: 12 }]}>बैंक का नाम *</Text>
+                  <TextInput
+                    style={s.textInput}
+                    placeholder="जैसे: State Bank of India"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={wdBankName}
+                    onChangeText={setWdBankName}
+                    autoCapitalize="words"
+                  />
+
+                  <Text style={s.amountLabel}>खाताधारक का नाम *</Text>
+                  <TextInput
+                    style={s.textInput}
+                    placeholder="जैसे: Rahul Sharma"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={wdHolderName}
+                    onChangeText={setWdHolderName}
+                    autoCapitalize="words"
+                  />
+
+                  <Text style={s.amountLabel}>खाता नंबर *</Text>
+                  <TextInput
+                    style={s.textInput}
+                    placeholder="बैंक खाता नंबर दर्ज करें"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={wdAccountNumber}
+                    onChangeText={setWdAccountNumber}
+                    keyboardType="numeric"
+                    secureTextEntry={false}
+                  />
+
+                  <Text style={s.amountLabel}>खाता नंबर की पुष्टि करें *</Text>
+                  <TextInput
+                    style={[
+                      s.textInput,
+                      wdConfirmAccountNumber.length > 0 && {
+                        borderColor: wdAccountNumber === wdConfirmAccountNumber ? colors.success : colors.destructive,
+                        borderWidth: 1.5,
+                      },
+                    ]}
+                    placeholder="खाता नंबर दोबारा दर्ज करें"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={wdConfirmAccountNumber}
+                    onChangeText={setWdConfirmAccountNumber}
+                    keyboardType="numeric"
+                  />
+                  {wdConfirmAccountNumber.length > 0 && wdAccountNumber !== wdConfirmAccountNumber && (
+                    <View style={s.validationMsg}>
+                      <Ionicons name="close-circle" size={14} color={colors.destructive} />
+                      <Text style={[s.validationText, { color: colors.destructive }]}>खाता नंबर मेल नहीं खाता</Text>
+                    </View>
+                  )}
+                  {wdConfirmAccountNumber.length > 0 && wdAccountNumber === wdConfirmAccountNumber && wdAccountNumber.length > 0 && (
+                    <View style={s.validationMsg}>
+                      <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                      <Text style={[s.validationText, { color: colors.success }]}>खाता नंबर मेल खाता है</Text>
+                    </View>
+                  )}
+
+                  <Text style={[s.amountLabel, { marginTop: 4 }]}>IFSC कोड *</Text>
+                  <TextInput
+                    style={s.textInput}
+                    placeholder="जैसे: SBIN0001234"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={wdIfsc}
+                    onChangeText={(t) => setWdIfsc(t.toUpperCase())}
+                    autoCapitalize="characters"
+                    maxLength={11}
+                  />
+                  <Text style={s.ifscHint}>IFSC कोड आपकी बैंक पासबुक या चेकबुक पर मिलता है (11 अक्षर)</Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[s.confirmBtn, createWithdrawal.isPending && s.btnDisabled, { marginTop: 20, marginBottom: 8 }]}
+                onPress={handleWithdrawal}
+                disabled={createWithdrawal.isPending}
+                activeOpacity={0.85}
+              >
+                {createWithdrawal.isPending
+                  ? <ActivityIndicator color={colors.primaryForeground} />
+                  : <Text style={s.confirmText}>निकासी अनुरोध भेजें</Text>
+                }
+              </TouchableOpacity>
+            </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -567,4 +713,7 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   confirmBtn: { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center', shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   btnDisabled: { opacity: 0.6 },
   confirmText: { fontSize: 16, fontWeight: '700' as const, color: colors.primaryForeground, fontFamily: 'Inter_700Bold' },
+  validationMsg: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: -10, marginBottom: 12 },
+  validationText: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  ifscHint: { fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: -10, marginBottom: 16 },
 });

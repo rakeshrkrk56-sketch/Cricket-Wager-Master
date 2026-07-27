@@ -871,9 +871,11 @@ export const CreateWithdrawalBody = zod.object({
   "amount": zod.number().min(createWithdrawalBodyAmountMin),
   "upiId": zod.string().optional(),
   "bankAccount": zod.object({
-  "accountNumber": zod.string().optional(),
-  "ifsc": zod.string().optional(),
-  "holderName": zod.string().optional()
+  "bankName": zod.string(),
+  "holderName": zod.string(),
+  "accountNumber": zod.string(),
+  "confirmAccountNumber": zod.string().optional(),
+  "ifsc": zod.string()
 }).optional()
 })
 
@@ -883,9 +885,11 @@ export const CreateWithdrawalResponse = zod.object({
   "amount": zod.number(),
   "upiId": zod.string().optional(),
   "bankAccount": zod.object({
-  "accountNumber": zod.string().optional(),
-  "ifsc": zod.string().optional(),
-  "holderName": zod.string().optional()
+  "bankName": zod.string(),
+  "holderName": zod.string(),
+  "accountNumber": zod.string(),
+  "confirmAccountNumber": zod.string().optional(),
+  "ifsc": zod.string()
 }).optional(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "remarks": zod.string().optional(),
@@ -913,9 +917,11 @@ export const GetMyWithdrawalsResponse = zod.object({
   "amount": zod.number(),
   "upiId": zod.string().optional(),
   "bankAccount": zod.object({
-  "accountNumber": zod.string().optional(),
-  "ifsc": zod.string().optional(),
-  "holderName": zod.string().optional()
+  "bankName": zod.string(),
+  "holderName": zod.string(),
+  "accountNumber": zod.string(),
+  "confirmAccountNumber": zod.string().optional(),
+  "ifsc": zod.string()
 }).optional(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "remarks": zod.string().optional(),
@@ -949,9 +955,11 @@ export const AdminListWithdrawalsResponse = zod.object({
   "amount": zod.number(),
   "upiId": zod.string().optional(),
   "bankAccount": zod.object({
-  "accountNumber": zod.string().optional(),
-  "ifsc": zod.string().optional(),
-  "holderName": zod.string().optional()
+  "bankName": zod.string(),
+  "holderName": zod.string(),
+  "accountNumber": zod.string(),
+  "confirmAccountNumber": zod.string().optional(),
+  "ifsc": zod.string()
 }).optional(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "remarks": zod.string().optional(),

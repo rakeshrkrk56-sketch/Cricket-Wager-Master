@@ -641,9 +641,11 @@ export interface AdminDepositListResponse {
 }
 
 export interface BankAccount {
-  accountNumber?: string;
-  ifsc?: string;
-  holderName?: string;
+  bankName: string;
+  holderName: string;
+  accountNumber: string;
+  confirmAccountNumber?: string;
+  ifsc: string;
 }
 
 export interface CreateWithdrawalRequest {

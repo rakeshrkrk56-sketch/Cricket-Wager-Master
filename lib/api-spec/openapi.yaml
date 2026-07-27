@@ -2245,12 +2245,21 @@ components:
     BankAccount:
       type: object
       properties:
-        accountNumber:
-          type: string
-        ifsc:
+        bankName:
           type: string
         holderName:
           type: string
+        accountNumber:
+          type: string
+        confirmAccountNumber:
+          type: string
+        ifsc:
+          type: string
+      required:
+        - bankName
+        - holderName
+        - accountNumber
+        - ifsc
 
     CreateWithdrawalRequest:
       type: object
