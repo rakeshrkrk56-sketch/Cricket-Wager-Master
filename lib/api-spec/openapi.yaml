@@ -3,20 +3,36 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Jazment Cricket Prediction Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: users
+    description: User management
+  - name: wallet
+    description: Wallet operations
+  - name: matches
+    description: Cricket matches
+  - name: markets
+    description: Prediction markets
+  - name: predictions
+    description: User predictions
+  - name: admin
+    description: Admin operations
+  - name: cricket
+    description: Live cricket data
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,7 +40,626 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── Auth ────────────────────────────────────────────────────────────────────
+  /auth/send-otp:
+    post:
+      operationId: sendOtp
+      tags: [auth]
+      summary: Send OTP to mobile number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendOtpRequest"
+      responses:
+        "200":
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendOtpResponse"
+
+  /auth/verify-otp:
+    post:
+      operationId: verifyOtp
+      tags: [auth]
+      summary: Verify OTP and get auth token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyOtpRequest"
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  # ─── Users (Admin) ────────────────────────────────────────────────────────────
+  /admin/users:
+    get:
+      operationId: listUsers
+      tags: [admin, users]
+      summary: List all users (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, suspended]
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserListResponse"
+
+  /admin/users/{userId}:
+    get:
+      operationId: getUser
+      tags: [admin, users]
+      summary: Get user by ID (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDetail"
+    patch:
+      operationId: updateUser
+      tags: [admin, users]
+      summary: Update user status or KYC (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  # ─── Wallet ───────────────────────────────────────────────────────────────────
+  /wallet:
+    get:
+      operationId: getWallet
+      tags: [wallet]
+      summary: Get current user wallet
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Wallet info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+
+  /wallet/deposit:
+    post:
+      operationId: depositWallet
+      tags: [wallet]
+      summary: Deposit to wallet
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletTransactionRequest"
+      responses:
+        "200":
+          description: Updated wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+
+  /wallet/withdraw:
+    post:
+      operationId: withdrawWallet
+      tags: [wallet]
+      summary: Withdraw from wallet
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletTransactionRequest"
+      responses:
+        "200":
+          description: Updated wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+
+  /wallet/transactions:
+    get:
+      operationId: getTransactions
+      tags: [wallet]
+      summary: Get transaction history
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Transaction list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionListResponse"
+
+  # ─── Matches ──────────────────────────────────────────────────────────────────
+  /matches:
+    get:
+      operationId: listMatches
+      tags: [matches]
+      summary: List matches
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [upcoming, live, completed]
+        - name: tournament
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Match list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchListResponse"
+
+  /matches/{matchId}:
+    get:
+      operationId: getMatch
+      tags: [matches]
+      summary: Get match details
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Match detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchDetail"
+
+  /matches/{matchId}/markets:
+    get:
+      operationId: getMatchMarkets
+      tags: [markets]
+      summary: Get markets for a match
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, paused, closed, settled, refunded]
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [toss, innings, over, batsman, bowler, match_winner]
+      responses:
+        "200":
+          description: Markets list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketListResponse"
+
+  # ─── Markets ──────────────────────────────────────────────────────────────────
+  /markets/{marketId}:
+    get:
+      operationId: getMarket
+      tags: [markets]
+      summary: Get market details
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Market detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Market"
+
+  /markets/{marketId}/predict:
+    post:
+      operationId: placePrediction
+      tags: [predictions]
+      summary: Place a prediction on a market
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlacePredictionRequest"
+      responses:
+        "200":
+          description: Prediction placed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prediction"
+
+  # ─── User Predictions ─────────────────────────────────────────────────────────
+  /predictions/my:
+    get:
+      operationId: getMyPredictions
+      tags: [predictions]
+      summary: Get current user predictions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, won, lost, refunded]
+      responses:
+        "200":
+          description: My predictions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PredictionListResponse"
+
+  # ─── Admin Matches ────────────────────────────────────────────────────────────
+  /admin/matches:
+    get:
+      operationId: adminListMatches
+      tags: [admin]
+      summary: List all matches (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [upcoming, live, completed]
+      responses:
+        "200":
+          description: Match list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchListResponse"
+    post:
+      operationId: createMatch
+      tags: [admin]
+      summary: Create a new match (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMatchRequest"
+      responses:
+        "201":
+          description: Created match
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Match"
+
+  /admin/matches/{matchId}:
+    patch:
+      operationId: updateMatch
+      tags: [admin]
+      summary: Update match status (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMatchRequest"
+      responses:
+        "200":
+          description: Updated match
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Match"
+
+  # ─── Admin Markets ────────────────────────────────────────────────────────────
+  /admin/matches/{matchId}/markets:
+    post:
+      operationId: createMarket
+      tags: [admin]
+      summary: Create a market for a match (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMarketRequest"
+      responses:
+        "201":
+          description: Created market
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Market"
+
+  /admin/markets/{marketId}:
+    patch:
+      operationId: updateMarket
+      tags: [admin]
+      summary: Update market status or result (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMarketRequest"
+      responses:
+        "200":
+          description: Updated market
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Market"
+
+  /admin/markets/{marketId}/settle:
+    post:
+      operationId: settleMarket
+      tags: [admin]
+      summary: Settle a market and credit winners (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettleMarketRequest"
+      responses:
+        "200":
+          description: Settlement result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettlementResult"
+
+  /admin/markets/{marketId}/refund:
+    post:
+      operationId: refundMarket
+      tags: [admin]
+      summary: Refund all predictions for a market (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Refund result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettlementResult"
+
+  /admin/markets/{marketId}/predictions:
+    get:
+      operationId: getMarketPredictions
+      tags: [admin]
+      summary: Get all predictions for a market (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Predictions list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PredictionListResponse"
+
+  # ─── Admin Stats ──────────────────────────────────────────────────────────────
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Get platform stats (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Platform statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
+  # ─── Cricket Live Data ────────────────────────────────────────────────────────
+  /cricket/live:
+    get:
+      operationId: getLiveCricketMatches
+      tags: [cricket]
+      summary: Get live matches from CricAPI
+      responses:
+        "200":
+          description: Live cricket matches
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CricketLiveResponse"
+
+  /cricket/score/{cricMatchId}:
+    get:
+      operationId: getCricketScore
+      tags: [cricket]
+      summary: Get live score for a cricket match
+      parameters:
+        - name: cricMatchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Match score
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CricketScoreResponse"
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +669,608 @@ components:
       required:
         - status
 
+    # ─── Auth ──────────────────────────────────────────────────────────────────
+    SendOtpRequest:
+      type: object
+      properties:
+        phone:
+          type: string
+          description: Mobile number with country code (e.g. +919876543210)
+      required:
+        - phone
+
+    SendOtpResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        otpId:
+          type: string
+      required:
+        - success
+        - message
+
+    VerifyOtpRequest:
+      type: object
+      properties:
+        phone:
+          type: string
+        otp:
+          type: string
+      required:
+        - phone
+        - otp
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - token
+        - user
+
+    # ─── User ──────────────────────────────────────────────────────────────────
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        phone:
+          type: string
+        name:
+          type: string
+        walletBalance:
+          type: number
+        kycStatus:
+          type: string
+          enum: [pending, verified, rejected]
+        status:
+          type: string
+          enum: [active, suspended]
+        role:
+          type: string
+          enum: [user, admin]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - phone
+        - walletBalance
+        - kycStatus
+        - status
+        - role
+        - createdAt
+
+    UserDetail:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          properties:
+            totalPredictions:
+              type: integer
+            totalWon:
+              type: integer
+            totalLost:
+              type: integer
+            totalAmountBet:
+              type: number
+            totalAmountWon:
+              type: number
+
+    UserListResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - users
+        - total
+        - page
+        - limit
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [active, suspended]
+        kycStatus:
+          type: string
+          enum: [pending, verified, rejected]
+        name:
+          type: string
+
+    # ─── Wallet ────────────────────────────────────────────────────────────────
+    Wallet:
+      type: object
+      properties:
+        userId:
+          type: string
+        balance:
+          type: number
+        depositTotal:
+          type: number
+        withdrawTotal:
+          type: number
+        winTotal:
+          type: number
+        bonusTotal:
+          type: number
+      required:
+        - userId
+        - balance
+        - depositTotal
+        - withdrawTotal
+        - winTotal
+        - bonusTotal
+
+    WalletTransactionRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          minimum: 1
+        note:
+          type: string
+      required:
+        - amount
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        type:
+          type: string
+          enum: [deposit, withdraw, win, loss, bonus, refund]
+        amount:
+          type: number
+        balanceAfter:
+          type: number
+        referenceId:
+          type: string
+        note:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - type
+        - amount
+        - balanceAfter
+        - createdAt
+
+    TransactionListResponse:
+      type: object
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - transactions
+        - total
+        - page
+        - limit
+
+    # ─── Match ─────────────────────────────────────────────────────────────────
+    Match:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        team1:
+          type: string
+        team2:
+          type: string
+        tournament:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [upcoming, live, completed, cancelled]
+        cricApiMatchId:
+          type: string
+        liveScore:
+          $ref: "#/components/schemas/LiveScore"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - team1
+        - team2
+        - tournament
+        - startTime
+        - status
+        - createdAt
+
+    MatchDetail:
+      allOf:
+        - $ref: "#/components/schemas/Match"
+        - type: object
+          properties:
+            openMarketsCount:
+              type: integer
+            totalPredictions:
+              type: integer
+
+    MatchListResponse:
+      type: object
+      properties:
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Match"
+        total:
+          type: integer
+      required:
+        - matches
+        - total
+
+    LiveScore:
+      type: object
+      properties:
+        score:
+          type: string
+        overs:
+          type: string
+        battingTeam:
+          type: string
+        status:
+          type: string
+
+    CreateMatchRequest:
+      type: object
+      properties:
+        team1:
+          type: string
+        team2:
+          type: string
+        tournament:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        cricApiMatchId:
+          type: string
+      required:
+        - team1
+        - team2
+        - tournament
+        - startTime
+
+    UpdateMatchRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [upcoming, live, completed, cancelled]
+        title:
+          type: string
+
+    # ─── Market ────────────────────────────────────────────────────────────────
+    Market:
+      type: object
+      properties:
+        id:
+          type: string
+        matchId:
+          type: string
+        question:
+          type: string
+        questionHindi:
+          type: string
+        category:
+          type: string
+          enum: [toss, innings, over, batsman, bowler, match_winner]
+        yesPrice:
+          type: number
+        noPrice:
+          type: number
+        status:
+          type: string
+          enum: [open, paused, closed, settled, refunded]
+        correctAnswer:
+          type: string
+          enum: [YES, NO]
+        totalYes:
+          type: integer
+        totalNo:
+          type: integer
+        totalAmount:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+        settledAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - matchId
+        - question
+        - category
+        - yesPrice
+        - noPrice
+        - status
+        - totalYes
+        - totalNo
+        - totalAmount
+        - createdAt
+
+    MarketListResponse:
+      type: object
+      properties:
+        markets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Market"
+        total:
+          type: integer
+      required:
+        - markets
+        - total
+
+    CreateMarketRequest:
+      type: object
+      properties:
+        question:
+          type: string
+        questionHindi:
+          type: string
+        category:
+          type: string
+          enum: [toss, innings, over, batsman, bowler, match_winner]
+        yesPrice:
+          type: number
+          default: 2.0
+        noPrice:
+          type: number
+          default: 2.0
+      required:
+        - question
+        - category
+
+    UpdateMarketRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [open, paused, closed]
+        yesPrice:
+          type: number
+        noPrice:
+          type: number
+
+    SettleMarketRequest:
+      type: object
+      properties:
+        correctAnswer:
+          type: string
+          enum: [YES, NO]
+      required:
+        - correctAnswer
+
+    SettlementResult:
+      type: object
+      properties:
+        marketId:
+          type: string
+        totalPredictions:
+          type: integer
+        winnersCount:
+          type: integer
+        totalPayout:
+          type: number
+        status:
+          type: string
+      required:
+        - marketId
+        - totalPredictions
+        - winnersCount
+        - totalPayout
+        - status
+
+    # ─── Predictions ───────────────────────────────────────────────────────────
+    PlacePredictionRequest:
+      type: object
+      properties:
+        choice:
+          type: string
+          enum: [YES, NO]
+        amount:
+          type: number
+          minimum: 10
+      required:
+        - choice
+        - amount
+
+    Prediction:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        marketId:
+          type: string
+        matchId:
+          type: string
+        question:
+          type: string
+        choice:
+          type: string
+          enum: [YES, NO]
+        amount:
+          type: number
+        potentialWin:
+          type: number
+        status:
+          type: string
+          enum: [pending, won, lost, refunded]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - marketId
+        - choice
+        - amount
+        - potentialWin
+        - status
+        - createdAt
+
+    PredictionListResponse:
+      type: object
+      properties:
+        predictions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Prediction"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - predictions
+        - total
+        - page
+        - limit
+
+    # ─── Admin Stats ───────────────────────────────────────────────────────────
+    AdminStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        activeUsers:
+          type: integer
+        totalMatches:
+          type: integer
+        liveMatches:
+          type: integer
+        totalPredictions:
+          type: integer
+        pendingPredictions:
+          type: integer
+        totalVolume:
+          type: number
+        totalPayout:
+          type: number
+        platformRevenue:
+          type: number
+        todayDeposits:
+          type: number
+        todayWithdrawals:
+          type: number
+      required:
+        - totalUsers
+        - activeUsers
+        - totalMatches
+        - liveMatches
+        - totalPredictions
+        - pendingPredictions
+        - totalVolume
+        - totalPayout
+        - platformRevenue
+        - todayDeposits
+        - todayWithdrawals
+
+    # ─── Cricket ───────────────────────────────────────────────────────────────
+    CricketMatch:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        venue:
+          type: string
+        date:
+          type: string
+        teams:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - name
+        - status
+
+    CricketLiveResponse:
+      type: object
+      properties:
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/CricketMatch"
+        total:
+          type: integer
+      required:
+        - matches
+        - total
+
+    CricketScoreResponse:
+      type: object
+      properties:
+        matchId:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        score:
+          type: array
+          items:
+            type: object
+            properties:
+              r:
+                type: integer
+              w:
+                type: integer
+              o:
+                type: number
+              inning:
+                type: string
+        teams:
+          type: array
+          items:
+            type: string
+      required:
+        - matchId
+        - name
+        - status

@@ -1,8 +1,20 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import authRouter from "./auth";
+import walletRouter from "./wallet";
+import matchesRouter from "./matches";
+import predictionsRouter from "./predictions";
+import adminRouter from "./admin";
+import cricketRouter from "./cricket";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(authRouter);
+router.use(walletRouter);
+router.use(matchesRouter);
+router.use(predictionsRouter);
+router.use(adminRouter);
+router.use(cricketRouter);
 
 export default router;

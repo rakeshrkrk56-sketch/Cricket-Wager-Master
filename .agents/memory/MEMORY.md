@@ -1,0 +1,2 @@
+- [Jazment platform overview](jazment-platform.md) — full-stack cricket prediction app; admin web + user mobile + API server + shared DB
+- [Mock OTP auth pattern](jazment-mock-otp.md) — OTP always accepts 1234; token is base64 userId:role:timestamp; no real SMS
