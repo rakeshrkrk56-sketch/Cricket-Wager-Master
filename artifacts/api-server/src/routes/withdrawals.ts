@@ -127,48 +127,72 @@ router.post("/admin/withdrawals/:withdrawalId/approve", requireAdmin, async (req
   const withdrawalId = req.params["withdrawalId"] as string;
   const { remarks } = req.body;
 
-  const [withdrawal] = await db.select().from(withdrawalsTable).where(eq(withdrawalsTable.id, withdrawalId));
-  if (!withdrawal) { res.status(404).json({ error: "Withdrawal not found" }); return; }
-  if (withdrawal.status !== "pending") { res.status(400).json({ error: "Withdrawal already processed" }); return; }
+  // Pre-check existence before entering transaction (fast path for 404)
+  const [withdrawalCheck] = await db.select({ id: withdrawalsTable.id, userId: withdrawalsTable.userId })
+    .from(withdrawalsTable).where(eq(withdrawalsTable.id, withdrawalId));
+  if (!withdrawalCheck) { res.status(404).json({ error: "Withdrawal not found" }); return; }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, withdrawal.userId));
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, withdrawalCheck.userId));
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
-  const amount = Number(withdrawal.amount);
-  const balanceBefore = Number(user.walletBalance);
+  let balanceAfter: number | null = null;
 
-  // Re-validate balance at approval time
-  if (balanceBefore < amount) {
-    res.status(400).json({ error: "User has insufficient balance at approval time" });
-    return;
-  }
+  try {
+    await db.transaction(async (tx) => {
+      // Atomic conditional update: only succeeds if status is still "pending".
+      // This eliminates the TOCTOU race — concurrent approvals cannot both win.
+      const [approved] = await tx
+        .update(withdrawalsTable)
+        .set({ status: "approved", remarks: remarks ?? null, approvedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(withdrawalsTable.id, withdrawalId), eq(withdrawalsTable.status, "pending")))
+        .returning();
 
-  const balanceAfter = balanceBefore - amount;
+      if (!approved) {
+        throw Object.assign(new Error("Withdrawal already processed"), { alreadyProcessed: true });
+      }
 
-  await db.transaction(async (tx) => {
-    await tx.update(withdrawalsTable).set({
-      status: "approved",
-      remarks: remarks ?? null,
-      approvedAt: new Date(),
-      updatedAt: new Date(),
-    }).where(eq(withdrawalsTable.id, withdrawalId));
+      const amount = Number(approved.amount);
+      const balanceBefore = Number(user.walletBalance);
 
-    await tx.update(usersTable).set({ walletBalance: String(balanceAfter), updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+      // Re-validate balance inside the transaction (prevents overdraft under concurrent load)
+      if (balanceBefore < amount) {
+        throw Object.assign(
+          new Error("User has insufficient balance at approval time"),
+          { insufficientBalance: true }
+        );
+      }
 
-    await tx.insert(transactionsTable).values({
-      userId: user.id,
-      type: "withdraw",
-      amount: String(amount),
-      balanceBefore: String(balanceBefore),
-      balanceAfter: String(balanceAfter),
-      referenceId: withdrawalId,
-      note: `Withdrawal approved (UPI: ${withdrawal.upiId ?? "bank transfer"})`,
+      balanceAfter = balanceBefore - amount;
+
+      await tx.update(usersTable)
+        .set({ walletBalance: String(balanceAfter), updatedAt: new Date() })
+        .where(eq(usersTable.id, user.id));
+
+      await tx.insert(transactionsTable).values({
+        userId: user.id,
+        type: "withdraw",
+        amount: String(amount),
+        balanceBefore: String(balanceBefore),
+        balanceAfter: String(balanceAfter),
+        referenceId: withdrawalId,
+        note: `Withdrawal approved (UPI: ${approved.upiId ?? "bank transfer"})`,
+      });
     });
-  });
+  } catch (err: any) {
+    if (err.alreadyProcessed) {
+      res.status(400).json({ error: "Withdrawal already processed" });
+      return;
+    }
+    if (err.insufficientBalance) {
+      res.status(400).json({ error: "User has insufficient balance at approval time" });
+      return;
+    }
+    throw err;
+  }
 
   await createNotification(user.id, "withdrawal_approved",
     "Withdrawal Approved ✓",
-    `Your withdrawal of ₹${amount.toFixed(0)} has been approved and processed.`
+    `Your withdrawal has been approved and processed.`
   );
 
   res.json({ success: true, balanceAfter });

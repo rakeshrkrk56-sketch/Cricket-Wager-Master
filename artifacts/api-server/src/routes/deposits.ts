@@ -145,46 +145,65 @@ router.post("/admin/deposits/:depositId/approve", requireAdmin, async (req, res)
   const depositId = req.params["depositId"] as string;
   const { remarks } = req.body;
 
-  const [deposit] = await db.select().from(depositsTable).where(eq(depositsTable.id, depositId));
-  if (!deposit) { res.status(404).json({ error: "Deposit not found" }); return; }
-  if (deposit.status !== "pending") { res.status(400).json({ error: "Deposit already processed" }); return; }
+  // Pre-check existence before entering transaction (fast path for 404)
+  const [depositCheck] = await db.select({ id: depositsTable.id, userId: depositsTable.userId })
+    .from(depositsTable).where(eq(depositsTable.id, depositId));
+  if (!depositCheck) { res.status(404).json({ error: "Deposit not found" }); return; }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, deposit.userId));
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, depositCheck.userId));
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
-  const balanceBefore = Number(user.walletBalance);
-  const amount = Number(deposit.amount);
-  const balanceAfter = balanceBefore + amount;
+  let balanceAfter: number | null = null;
 
-  // Atomic: update deposit, credit wallet, create transaction inside a single DB transaction
-  await db.transaction(async (tx) => {
-    await tx.update(depositsTable).set({
-      status: "approved",
-      remarks: remarks ?? null,
-      approvedAt: new Date(),
-      updatedAt: new Date(),
-    }).where(eq(depositsTable.id, depositId));
+  try {
+    await db.transaction(async (tx) => {
+      // Atomic conditional update: only succeeds if status is still "pending".
+      // This eliminates the TOCTOU race — concurrent approvals cannot both win.
+      const [approved] = await tx
+        .update(depositsTable)
+        .set({ status: "approved", remarks: remarks ?? null, approvedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(depositsTable.id, depositId), eq(depositsTable.status, "pending")))
+        .returning();
 
-    await tx.update(usersTable).set({ walletBalance: String(balanceAfter), updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+      if (!approved) {
+        // Another request already processed this deposit; abort the transaction.
+        throw Object.assign(new Error("Deposit already processed"), { alreadyProcessed: true });
+      }
 
-    await tx.insert(transactionsTable).values({
-      userId: user.id,
-      type: "deposit",
-      amount: String(amount),
-      balanceBefore: String(balanceBefore),
-      balanceAfter: String(balanceAfter),
-      referenceId: depositId,
-      note: `Deposit approved (UTR: ${deposit.utrNumber ?? "N/A"})`,
+      const amount = Number(approved.amount);
+      const balanceBefore = Number(user.walletBalance);
+      balanceAfter = balanceBefore + amount;
+
+      await tx.update(usersTable)
+        .set({ walletBalance: String(balanceAfter), updatedAt: new Date() })
+        .where(eq(usersTable.id, user.id));
+
+      await tx.insert(transactionsTable).values({
+        userId: user.id,
+        type: "deposit",
+        amount: String(amount),
+        balanceBefore: String(balanceBefore),
+        balanceAfter: String(balanceAfter),
+        referenceId: depositId,
+        note: `Deposit approved (UTR: ${approved.utrNumber ?? "N/A"})`,
+      });
     });
-  });
+  } catch (err: any) {
+    if (err.alreadyProcessed) {
+      res.status(400).json({ error: "Deposit already processed" });
+      return;
+    }
+    throw err;
+  }
 
+  const amount = Number(user.walletBalance) + (balanceAfter! - Number(user.walletBalance)); // resolved above
   await createNotification(user.id, "deposit_approved",
     "Deposit Approved ✓",
-    `Your deposit of ₹${amount.toFixed(0)} has been approved. Wallet credited.`
+    `Your deposit has been approved. Wallet credited.`
   );
   await createNotification(user.id, "wallet_credited",
     "Wallet Credited",
-    `₹${amount.toFixed(0)} added to your wallet. New balance: ₹${balanceAfter.toFixed(0)}.`
+    `Wallet updated. New balance: ₹${(balanceAfter as number).toFixed(0)}.`
   );
 
   res.json({ success: true, balanceAfter });

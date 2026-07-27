@@ -10,6 +10,7 @@ import depositsRouter from "./deposits";
 import withdrawalsRouter from "./withdrawals";
 import notificationsRouter from "./notifications";
 import supportRouter from "./support";
+import testSeedRouter from "./test-seed";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,10 @@ router.use(depositsRouter);
 router.use(withdrawalsRouter);
 router.use(notificationsRouter);
 router.use(supportRouter);
+
+// Test-only seeding endpoints — never available in production
+if (process.env["NODE_ENV"] !== "production") {
+  router.use(testSeedRouter);
+}
 
 export default router;
