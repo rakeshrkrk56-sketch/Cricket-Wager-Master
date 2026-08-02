@@ -1,14 +1,7 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Platform,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+  ActivityIndicator, Alert, FlatList, Platform, RefreshControl, ScrollView,
+  StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -17,282 +10,172 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  getAdminListDepositsQueryKey,
-  getAdminListWithdrawalsQueryKey,
-  getGetAdminStatsQueryKey,
-  useAdminListDeposits,
-  useAdminListWithdrawals,
-  useGetAdminStats,
+  getAdminListDepositsQueryKey, getAdminListMatchesQueryKey, getAdminListSupportTicketsQueryKey,
+  getAdminListWithdrawalsQueryKey, getGetAdminStatsQueryKey, getGetMatchMarketsQueryKey,
+  getAdminGetSupportTicketQueryKey, getGetUserQueryKey, getListUsersQueryKey, useAdminAdjustWallet, useAdminGetSupportTicket,
+  useAdminListDeposits, useAdminListMatches, useAdminListSupportTickets, useAdminListWithdrawals,
+  useAdminReplyToTicket, useAdminUpdateTicketStatus, useApproveDeposit, useApproveWithdrawal,
+  useGetAdminStats, useGetMatchMarkets, useGetUser, useListUsers, useRefundMarket, useRejectDeposit,
+  useRejectWithdrawal, useSettleMarket, useUpdateMarket,
 } from '@workspace/api-client-react';
 
-type AdminSection = 'overview' | 'deposits' | 'withdrawals';
+type Section = 'home' | 'deposits' | 'withdrawals' | 'users' | 'support' | 'matches';
+const money = (value?: number) => `₹${Number(value ?? 0).toLocaleString('en-IN')}`;
+const shortDate = (value?: string) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+const errorText = (error: any) => error?.data?.error ?? error?.message ?? 'Please try again.';
 
-function formatCurrency(value?: number) {
-  return `₹${Number(value ?? 0).toLocaleString('en-IN')}`;
-}
-
-function StatusPill({ status }: { status: string }) {
-  const colors = useColors();
-  const color = status === 'approved' ? colors.success : status === 'rejected' ? colors.destructive : colors.warning;
-  return (
-    <View style={[styles.statusPill, { backgroundColor: `${color}22` }]}>
-      <Text style={[styles.statusText, { color }]}>{status.toUpperCase()}</Text>
-    </View>
-  );
-}
-
-function MetricCard({ label, value, icon, tone = 'primary' }: {
-  label: string;
-  value: string;
-  icon: string;
-  tone?: 'primary' | 'warning' | 'success';
-}) {
-  const colors = useColors();
-  const color = tone === 'warning' ? colors.warning : tone === 'success' ? colors.success : colors.primary;
-  return (
-    <View style={styles.metricCard}>
-      <View style={[styles.metricIcon, { backgroundColor: `${color}20` }]}>
-        <Ionicons name={icon as never} size={20} color={color} />
-      </View>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
-    </View>
-  );
-}
-
-export default function AdminTestScreen() {
+function Gate({ children }: { children: React.ReactNode }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, token, isLoading: authLoading } = useAuth();
-  const queryClient = useQueryClient();
-  const [section, setSection] = useState<AdminSection>('overview');
+  const { token, user, isLoading } = useAuth();
+  useEffect(() => {
+    if (!isLoading && !token) router.replace('/login');
+  }, [isLoading, token]);
+  if (isLoading) return null;
+  if (!token) return null;
+  if (user?.role !== 'admin') return (
+    <View style={[s.gate, { backgroundColor: colors.background, paddingTop: insets.top + 50 }]}>
+      <Ionicons name="lock-closed-outline" color={colors.destructive} size={44} />
+      <Text style={[s.gateTitle, { color: colors.foreground }]}>Admin access only</Text>
+      <Text style={[s.gateText, { color: colors.mutedForeground }]}>Your account is not authorized to access operations.</Text>
+      <TouchableOpacity testID="admin-access-back" style={[s.primaryButton, { backgroundColor: colors.primary }]} onPress={() => router.back()}>
+        <Text style={[s.primaryText, { color: colors.primaryForeground }]}>Go back</Text>
+      </TouchableOpacity>
+    </View>
+  );
+  return <>{children}</>;
+}
 
-  const isAdmin = user?.role === 'admin';
-  const stats = useGetAdminStats({
-    query: {
-      enabled: !!token && isAdmin,
-      queryKey: getGetAdminStatsQueryKey(),
-      refetchInterval: 30_000,
-    },
-  });
-  const deposits = useAdminListDeposits(
-    { status: 'pending', page: 1, limit: 30 },
-    {
-      query: {
-        enabled: !!token && isAdmin && section === 'deposits',
-        queryKey: getAdminListDepositsQueryKey({ status: 'pending', page: 1, limit: 30 }),
-        refetchInterval: 30_000,
-      },
-    },
-  );
-  const withdrawals = useAdminListWithdrawals(
-    { status: 'pending', page: 1, limit: 30 },
-    {
-      query: {
-        enabled: !!token && isAdmin && section === 'withdrawals',
-        queryKey: getAdminListWithdrawalsQueryKey({ status: 'pending', page: 1, limit: 30 }),
-        refetchInterval: 30_000,
-      },
-    },
-  );
+function Status({ value }: { value: string }) {
+  const colors = useColors();
+  const color = value === 'approved' || value === 'active' || value === 'open' ? colors.success : value === 'rejected' || value === 'cancelled' || value === 'closed' ? colors.destructive : colors.warning;
+  return <View style={[s.pill, { backgroundColor: `${color}22` }]}><Text style={[s.pillText, { color }]}>{value.replace('_', ' ').toUpperCase()}</Text></View>;
+}
+
+function Empty({ icon, title, body }: { icon: any; title: string; body: string }) {
+  const colors = useColors();
+  return <View style={s.empty}><Ionicons name={icon} size={45} color={colors.success} /><Text style={[s.emptyTitle, { color: colors.foreground }]}>{title}</Text><Text style={[s.emptyText, { color: colors.mutedForeground }]}>{body}</Text></View>;
+}
+
+export default function AdminWorkspace() {
+  return <Gate><AdminWorkspaceContent /></Gate>;
+}
+
+function AdminWorkspaceContent() {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const client = useQueryClient();
+  const [section, setSection] = useState<Section>('home');
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [selectedMatch, setSelectedMatch] = useState<any>(null);
+  const [userSearch, setUserSearch] = useState('');
+  const [remark, setRemark] = useState('');
+  const [reply, setReply] = useState('');
+  const [walletAmount, setWalletAmount] = useState('');
+  const [walletReason, setWalletReason] = useState('');
+  const [walletType, setWalletType] = useState<'credit' | 'debit'>('credit');
+
+  const stats = useGetAdminStats({ query: { queryKey: getGetAdminStatsQueryKey(), refetchInterval: 30000 } });
+  const deposits = useAdminListDeposits({ status: 'pending', page: 1, limit: 30 } as any, { query: { enabled: section === 'deposits', queryKey: getAdminListDepositsQueryKey({ status: 'pending', page: 1, limit: 30 } as any), refetchInterval: 30000 } });
+  const withdrawals = useAdminListWithdrawals({ status: 'pending', page: 1, limit: 30 } as any, { query: { enabled: section === 'withdrawals', queryKey: getAdminListWithdrawalsQueryKey({ status: 'pending', page: 1, limit: 30 } as any), refetchInterval: 30000 } });
+  const users = useListUsers({ page: 1, limit: 30, search: userSearch || undefined });
+  const userDetail = useGetUser(selectedUser?.id ?? '', { query: { enabled: !!selectedUser?.id, queryKey: getGetUserQueryKey(selectedUser?.id ?? '') } });
+  const tickets = useAdminListSupportTickets({ page: 1, limit: 30 } as any, { query: { enabled: section === 'support', queryKey: getAdminListSupportTicketsQueryKey({ page: 1, limit: 30 } as any), refetchInterval: 30000 } });
+  const ticketDetail = useAdminGetSupportTicket(selectedTicket?.id ?? '', { query: { enabled: !!selectedTicket?.id, queryKey: getAdminGetSupportTicketQueryKey(selectedTicket?.id ?? '') } });
+  const matches = useAdminListMatches(undefined, { query: { enabled: section === 'matches', queryKey: getAdminListMatchesQueryKey(), refetchInterval: 30000 } });
+  const markets = useGetMatchMarkets(selectedMatch?.id ?? '', undefined, { query: { enabled: !!selectedMatch?.id, queryKey: getGetMatchMarketsQueryKey(selectedMatch?.id ?? '') } });
+
+  const approveDeposit = useApproveDeposit();
+  const rejectDeposit = useRejectDeposit();
+  const approveWithdrawal = useApproveWithdrawal();
+  const rejectWithdrawal = useRejectWithdrawal();
+  const adjustWallet = useAdminAdjustWallet();
+  const replyTicket = useAdminReplyToTicket();
+  const updateTicket = useAdminUpdateTicketStatus();
+  const settleMarket = useSettleMarket();
+  const refundMarket = useRefundMarket();
+  const updateMarket = useUpdateMarket();
 
   const refresh = useCallback(async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: getGetAdminStatsQueryKey() }),
-      queryClient.invalidateQueries({ queryKey: getAdminListDepositsQueryKey() }),
-      queryClient.invalidateQueries({ queryKey: getAdminListWithdrawalsQueryKey() }),
+      client.invalidateQueries({ queryKey: getGetAdminStatsQueryKey() }),
+      client.invalidateQueries({ queryKey: getAdminListDepositsQueryKey() }),
+      client.invalidateQueries({ queryKey: getAdminListWithdrawalsQueryKey() }),
+      client.invalidateQueries({ queryKey: getListUsersQueryKey() }),
+      client.invalidateQueries({ queryKey: getAdminListSupportTicketsQueryKey() }),
+      client.invalidateQueries({ queryKey: getAdminListMatchesQueryKey() }),
     ]);
-  }, [queryClient]);
+  }, [client]);
+  const successRefresh = useCallback((message: string) => { refresh(); Alert.alert('Updated', message); }, [refresh]);
+  const confirm = (title: string, body: string, action: () => void, destructive = false) => Alert.alert(title, body, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', style: destructive ? 'destructive' : 'default', onPress: action }]);
 
-  const pendingDeposits = (deposits.data as any)?.deposits ?? [];
-  const pendingWithdrawals = (withdrawals.data as any)?.withdrawals ?? [];
-  const activeLoading = section === 'overview' ? stats.isLoading : section === 'deposits' ? deposits.isLoading : withdrawals.isLoading;
-  const sectionData = section === 'deposits' ? pendingDeposits : pendingWithdrawals;
+  const header = useMemo(() => ({
+    home: ['Admin workspace', 'Live operations overview'],
+    deposits: ['Deposits', 'Pending requests'],
+    withdrawals: ['Withdrawals', 'Pending requests'],
+    users: ['Users', 'Search accounts and wallets'],
+    support: ['Support', 'Open customer tickets'],
+    matches: ['Matches', 'Live markets and settlement'],
+  }[section]), [section]);
+  const nav: [Section, string, any][] = [['home', 'Home', 'grid-outline'], ['deposits', 'Deposits', 'arrow-down-circle-outline'], ['withdrawals', 'Withdrawals', 'arrow-up-circle-outline'], ['users', 'Users', 'people-outline'], ['support', 'Support', 'chatbubbles-outline'], ['matches', 'Matches', 'trophy-outline']];
 
-  const headerSubtitle = useMemo(() => {
-    if (section === 'overview') return 'Read-only testing dashboard';
-    if (section === 'deposits') return `${pendingDeposits.length} pending request${pendingDeposits.length === 1 ? '' : 's'}`;
-    return `${pendingWithdrawals.length} pending request${pendingWithdrawals.length === 1 ? '' : 's'}`;
-  }, [pendingDeposits.length, pendingWithdrawals.length, section]);
-
-  if (authLoading) return null;
-  if (!token) {
-    router.replace('/login');
-    return null;
-  }
-  if (!isAdmin) {
-    return (
-      <View style={[styles.accessRoot, { backgroundColor: colors.background, paddingTop: insets.top + 32 }]}>
-        <Ionicons name="lock-closed-outline" size={42} color={colors.destructive} />
-        <Text style={[styles.accessTitle, { color: colors.foreground }]}>Admin access only</Text>
-        <Text style={[styles.accessBody, { color: colors.mutedForeground }]}>
-          This test console is available only to accounts with the admin role.
-        </Text>
-        <TouchableOpacity style={[styles.backAction, { backgroundColor: colors.primary }]} onPress={() => router.back()}>
-          <Text style={[styles.backActionText, { color: colors.primaryForeground }]}>Go back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  const renderRequest = ({ item }: { item: any }) => {
-    const isDeposit = section === 'deposits';
-    const destination = isDeposit
-      ? item.utrNumber ? `UTR: ${item.utrNumber}` : item.method === 'manual' ? 'Manual deposit' : 'UPI deposit'
-      : item.upiId ? `UPI: ${item.upiId}` : item.bankAccount ? `Bank: ${item.bankAccount.accountNumber} • ${item.bankAccount.ifsc}` : 'Payment method not supplied';
-    return (
-      <View style={[styles.requestCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.requestTop}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.requestAmount, { color: colors.foreground }]}>{formatCurrency(item.amount)}</Text>
-            <Text style={[styles.requestUser, { color: colors.foreground }]}>{item.user?.name ?? item.user?.phone ?? item.userId}</Text>
-          </View>
-          <StatusPill status={item.status} />
-        </View>
-        <Text style={[styles.requestDetail, { color: colors.mutedForeground }]} numberOfLines={2}>{destination}</Text>
-        <Text style={[styles.requestTime, { color: colors.mutedForeground }]}>
-          {new Date(item.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
-        </Text>
-        <View style={[styles.testingNotice, { backgroundColor: `${colors.warning}18` }]}>
-          <Ionicons name="flask-outline" size={14} color={colors.warning} />
-          <Text style={[styles.testingNoticeText, { color: colors.warning }]}>Testing mode — no approve or reject controls</Text>
-        </View>
-      </View>
-    );
+  const queueAction = (kind: 'deposit' | 'withdrawal', item: any, outcome: 'approve' | 'reject') => {
+    const mutation = kind === 'deposit' ? (outcome === 'approve' ? approveDeposit : rejectDeposit) : (outcome === 'approve' ? approveWithdrawal : rejectWithdrawal);
+    const remarks = remark.trim();
+    if (outcome === 'reject' && !remarks) { Alert.alert('Remark required', 'Add a reason before rejecting this request.'); return; }
+    confirm(`${outcome === 'approve' ? 'Approve' : 'Reject'} ${kind}?`, `${money(item.amount)} for ${item.user?.phone ?? item.userId}. This changes the request status${outcome === 'approve' && kind === 'deposit' ? ' and credits the wallet' : ''}.`, () => {
+      mutation.mutate({ [`${kind}Id`]: item.id, data: { remarks: remarks || undefined } } as any, {
+        onSuccess: () => { setRemark(''); successRefresh(`${kind[0].toUpperCase() + kind.slice(1)} ${outcome}d.`); },
+        onError: (e: any) => Alert.alert('Action failed', errorText(e)),
+      });
+    }, outcome === 'reject');
   };
 
-  return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 12), borderBottomColor: colors.border }]}>
-        <TouchableOpacity accessibilityLabel="Back to profile" style={[styles.iconButton, { backgroundColor: colors.card }]} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color={colors.foreground} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <View style={styles.titleRow}>
-            <Text style={[styles.title, { color: colors.foreground }]}>Admin Test</Text>
-            <View style={[styles.testBadge, { backgroundColor: `${colors.warning}22` }]}><Text style={[styles.testBadgeText, { color: colors.warning }]}>READ ONLY</Text></View>
-          </View>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{headerSubtitle}</Text>
-        </View>
-        <TouchableOpacity accessibilityLabel="Refresh admin test data" style={[styles.iconButton, { backgroundColor: colors.card }]} onPress={refresh}>
-          <Ionicons name="refresh-outline" size={21} color={colors.primary} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={[styles.tabs, { borderBottomColor: colors.border }]}>
-        {([
-          ['overview', 'Overview', 'grid-outline'],
-          ['deposits', 'Deposits', 'arrow-down-circle-outline'],
-          ['withdrawals', 'Withdrawals', 'arrow-up-circle-outline'],
-        ] as const).map(([key, label, icon]) => (
-          <TouchableOpacity key={key} style={[styles.tab, section === key && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]} onPress={() => setSection(key)}>
-            <Ionicons name={icon} size={16} color={section === key ? colors.primary : colors.mutedForeground} />
-            <Text style={[styles.tabText, { color: section === key ? colors.primary : colors.mutedForeground }]}>{label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {section === 'overview' ? (
-        stats.isLoading ? (
-          <ActivityIndicator style={{ marginTop: 64 }} color={colors.primary} />
-        ) : (
-          <FlatList
-            data={[{ id: 'summary' }]}
-            keyExtractor={(item) => item.id}
-            refreshControl={<RefreshControl refreshing={stats.isFetching} onRefresh={refresh} tintColor={colors.primary} />}
-            contentContainerStyle={[styles.overviewContent, { paddingBottom: insets.bottom + 24 }]}
-            renderItem={() => (
-              <>
-                <View style={[styles.testCard, { backgroundColor: `${colors.warning}15`, borderColor: `${colors.warning}4D` }]}>
-                  <Ionicons name="flask-outline" size={22} color={colors.warning} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.testCardTitle, { color: colors.foreground }]}>Testing console</Text>
-                    <Text style={[styles.testCardBody, { color: colors.mutedForeground }]}>Live admin data is visible here. Actions are intentionally disabled.</Text>
-                  </View>
-                </View>
-                <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>PENDING QUEUES</Text>
-                <View style={styles.metricsGrid}>
-                  <MetricCard label="Deposits waiting" value={String(stats.data?.pendingDepositsCount ?? 0)} icon="arrow-down-circle-outline" tone="warning" />
-                  <MetricCard label="Withdrawals waiting" value={String(stats.data?.pendingWithdrawalsCount ?? 0)} icon="arrow-up-circle-outline" tone="warning" />
-                </View>
-                <View style={styles.metricsGrid}>
-                  <MetricCard label="Deposit value" value={formatCurrency(stats.data?.pendingDepositsAmount)} icon="cash-outline" tone="success" />
-                  <MetricCard label="Withdrawal value" value={formatCurrency(stats.data?.pendingWithdrawalsAmount)} icon="wallet-outline" tone="warning" />
-                </View>
-                <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>LIVE PLATFORM</Text>
-                <View style={styles.metricsGrid}>
-                  <MetricCard label="Active users" value={String(stats.data?.activeUsers ?? 0)} icon="people-outline" />
-                  <MetricCard label="Live matches" value={String(stats.data?.liveMatches ?? 0)} icon="radio-outline" tone="success" />
-                </View>
-                <View style={styles.metricsGrid}>
-                  <MetricCard label="Today deposits" value={formatCurrency(stats.data?.todayDeposits)} icon="trending-down-outline" tone="success" />
-                  <MetricCard label="Today withdrawals" value={formatCurrency(stats.data?.todayWithdrawals)} icon="trending-up-outline" />
-                </View>
-              </>
-            )}
-          />
-        )
-      ) : activeLoading ? (
-        <ActivityIndicator style={{ marginTop: 64 }} color={colors.primary} />
-      ) : (
-        <FlatList
-          data={sectionData}
-          keyExtractor={(item: any) => item.id}
-          renderItem={renderRequest}
-          refreshControl={<RefreshControl refreshing={section === 'deposits' ? deposits.isFetching : withdrawals.isFetching} onRefresh={refresh} tintColor={colors.primary} />}
-          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 24 }]}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Ionicons name={section === 'deposits' ? 'checkmark-done-circle-outline' : 'shield-checkmark-outline'} size={48} color={colors.success} />
-              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Nothing pending</Text>
-              <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>There are no pending {section} to review right now.</Text>
-            </View>
-          }
-        />
-      )}
-    </View>
+  const renderQueue = (kind: 'deposit' | 'withdrawal', data: any[], loading: boolean) => (
+    <FlatList data={data} keyExtractor={(i) => i.id} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.primary} />} contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]}
+      ListHeaderComponent={<TextInput testID={`admin-${kind}-remark`} value={remark} onChangeText={setRemark} placeholder="Optional approval note · required to reject" placeholderTextColor={colors.mutedForeground} style={[s.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]} />}
+      ListEmptyComponent={!loading ? <Empty icon="checkmark-done-circle-outline" title="Nothing pending" body={`There are no pending ${kind}s right now.`} /> : <ActivityIndicator color={colors.primary} />}
+      renderItem={({ item }) => <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={s.row}><View style={{ flex: 1 }}><Text style={[s.amount, { color: colors.foreground }]}>{money(item.amount)}</Text><Text style={[s.cardTitle, { color: colors.foreground }]}>{item.user?.name ?? item.user?.phone ?? item.userId}</Text></View><Status value={item.status} /></View>
+        <Text style={[s.detail, { color: colors.mutedForeground }]}>{kind === 'deposit' ? item.utrNumber ? `UTR: ${item.utrNumber}` : item.method ?? 'Payment method not supplied' : item.upiId ? `UPI: ${item.upiId}` : item.bankAccount ? `Bank: ${item.bankAccount.accountNumber} · ${item.bankAccount.ifsc}` : 'Destination not supplied'}</Text>
+        <Text style={[s.detail, { color: colors.mutedForeground }]}>{shortDate(item.createdAt)}</Text>
+        <View style={s.actions}><TouchableOpacity testID={`admin-${kind}-approve-${item.id}`} style={[s.action, { backgroundColor: `${colors.success}22` }]} onPress={() => queueAction(kind, item, 'approve')}><Text style={{ color: colors.success }}>Approve</Text></TouchableOpacity><TouchableOpacity testID={`admin-${kind}-reject-${item.id}`} style={[s.action, { backgroundColor: `${colors.destructive}22` }]} onPress={() => queueAction(kind, item, 'reject')}><Text style={{ color: colors.destructive }}>Reject</Text></TouchableOpacity></View>
+      </View>} />
   );
+
+  const userView = selectedUser ? <ScrollView contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]}>
+    <TouchableOpacity onPress={() => setSelectedUser(null)}><Text style={[s.link, { color: colors.primary }]}>‹ All users</Text></TouchableOpacity>
+    {userDetail.isLoading ? <ActivityIndicator color={colors.primary} /> : <><View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}><Text style={[s.cardTitle, { color: colors.foreground }]}>{userDetail.data?.name || 'Unnamed user'}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>{userDetail.data?.phone}</Text><Text style={[s.amount, { color: colors.primary }]}>{money(userDetail.data?.walletBalance)}</Text><Status value={userDetail.data?.status ?? 'active'} /></View>
+      <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}><Text style={[s.cardTitle, { color: colors.foreground }]}>Wallet adjustment</Text><View style={s.actions}><TouchableOpacity style={[s.action, walletType === 'credit' && { backgroundColor: `${colors.success}22` }]} onPress={() => setWalletType('credit')}><Text style={{ color: colors.success }}>Credit</Text></TouchableOpacity><TouchableOpacity style={[s.action, walletType === 'debit' && { backgroundColor: `${colors.destructive}22` }]} onPress={() => setWalletType('debit')}><Text style={{ color: colors.destructive }}>Debit</Text></TouchableOpacity></View>
+        <TextInput testID="admin-wallet-amount" value={walletAmount} keyboardType="decimal-pad" onChangeText={setWalletAmount} placeholder="Amount" placeholderTextColor={colors.mutedForeground} style={[s.input, { color: colors.foreground, borderColor: colors.border }]} />
+        <TextInput testID="admin-wallet-reason" value={walletReason} onChangeText={setWalletReason} placeholder="Reason (required)" placeholderTextColor={colors.mutedForeground} style={[s.input, { color: colors.foreground, borderColor: colors.border }]} />
+        <TouchableOpacity testID="admin-wallet-submit" style={[s.primaryButton, { backgroundColor: walletType === 'credit' ? colors.success : colors.destructive }]} onPress={() => {
+          const amount = Number(walletAmount); if (!amount || amount < 1 || !walletReason.trim()) { Alert.alert('Enter amount and reason', 'A valid amount and a reason are required.'); return; }
+          confirm(`Confirm ${walletType}`, `${walletType === 'credit' ? 'Credit' : 'Debit'} ${money(amount)} ${walletType === 'credit' ? 'to' : 'from'} ${userDetail.data?.phone}. This is logged and cannot be undone.`, () => adjustWallet.mutate({ userId: selectedUser.id, data: { type: walletType, amount, reason: walletReason.trim() } }, { onSuccess: (result) => { setWalletAmount(''); setWalletReason(''); client.invalidateQueries({ queryKey: getGetUserQueryKey(selectedUser.id) }); Alert.alert('Wallet updated', `New balance: ${money(result.balanceAfter)}`); }, onError: (e: any) => Alert.alert('Adjustment failed', errorText(e)) }), walletType === 'debit');
+        }}><Text style={[s.primaryText, { color: colors.primaryForeground }]}>{walletType === 'credit' ? 'Credit wallet' : 'Debit wallet'}</Text></TouchableOpacity></View></>}
+  </ScrollView> : <FlatList data={users.data?.users ?? []} keyExtractor={(i) => i.id} contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]} refreshControl={<RefreshControl refreshing={users.isFetching} onRefresh={refresh} tintColor={colors.primary} />} ListHeaderComponent={<TextInput testID="admin-user-search" value={userSearch} onChangeText={setUserSearch} placeholder="Search phone number" placeholderTextColor={colors.mutedForeground} style={[s.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]} />} renderItem={({ item }) => <TouchableOpacity style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => setSelectedUser(item)}><View style={s.row}><View><Text style={[s.cardTitle, { color: colors.foreground }]}>{item.name || item.phone}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>{item.phone}</Text></View><Text style={[s.amountSmall, { color: colors.primary }]}>{money(item.walletBalance)}</Text></View><Status value={item.status} /></TouchableOpacity>} />;
+
+  const supportView = selectedTicket ? <ScrollView contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]}><TouchableOpacity onPress={() => setSelectedTicket(null)}><Text style={[s.link, { color: colors.primary }]}>‹ All tickets</Text></TouchableOpacity>{ticketDetail.isLoading ? <ActivityIndicator color={colors.primary} /> : <><View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}><Text style={[s.cardTitle, { color: colors.foreground }]}>{ticketDetail.data?.ticket.subject}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>{ticketDetail.data?.ticket.description}</Text><Status value={ticketDetail.data?.ticket.status ?? 'open'} /></View>{ticketDetail.data?.messages.map((m: any) => <View key={m.id} style={[s.message, { backgroundColor: m.isAdmin ? `${colors.primary}24` : colors.card, borderColor: colors.border }]}><Text style={[s.detail, { color: colors.foreground }]}>{m.message}</Text><Text style={[s.tiny, { color: colors.mutedForeground }]}>{m.isAdmin ? 'Admin' : 'Customer'} · {shortDate(m.createdAt)}</Text></View>)}<TextInput testID="admin-ticket-reply" value={reply} onChangeText={setReply} multiline placeholder="Write a reply" placeholderTextColor={colors.mutedForeground} style={[s.input, s.multiline, { color: colors.foreground, borderColor: colors.border }]} /><TouchableOpacity testID="admin-ticket-reply-submit" style={[s.primaryButton, { backgroundColor: colors.primary }]} onPress={() => { if (!reply.trim()) return; replyTicket.mutate({ ticketId: selectedTicket.id, data: { message: reply.trim() } }, { onSuccess: () => { setReply(''); client.invalidateQueries({ queryKey: getAdminListSupportTicketsQueryKey() }); ticketDetail.refetch(); }, onError: (e: any) => Alert.alert('Reply failed', errorText(e)) }); }}><Text style={[s.primaryText, { color: colors.primaryForeground }]}>Send reply</Text></TouchableOpacity><View style={s.actions}>{(['in_progress', 'resolved', 'closed'] as const).map(status => <TouchableOpacity key={status} style={[s.action, { backgroundColor: `${colors.primary}20` }]} onPress={() => confirm('Update ticket', `Mark this ticket as ${status.replace('_', ' ')}?`, () => updateTicket.mutate({ ticketId: selectedTicket.id, data: { status } }, { onSuccess: () => { ticketDetail.refetch(); refresh(); }, onError: (e: any) => Alert.alert('Update failed', errorText(e)) }))}><Text style={{ color: colors.primary }}>{status.replace('_', ' ')}</Text></TouchableOpacity>)}</View></>}</ScrollView> : <FlatList data={tickets.data?.tickets ?? []} keyExtractor={(i) => i.id} contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]} refreshControl={<RefreshControl refreshing={tickets.isFetching} onRefresh={refresh} tintColor={colors.primary} />} renderItem={({ item }: any) => <TouchableOpacity style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => setSelectedTicket(item)}><View style={s.row}><View style={{ flex: 1 }}><Text style={[s.cardTitle, { color: colors.foreground }]}>{item.subject}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>{item.user?.phone ?? item.userId} · {item.category}</Text></View><Status value={item.status} /></View></TouchableOpacity>} />;
+
+  const matchesView = selectedMatch ? <ScrollView contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]}><TouchableOpacity onPress={() => setSelectedMatch(null)}><Text style={[s.link, { color: colors.primary }]}>‹ All matches</Text></TouchableOpacity><View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}><Text style={[s.cardTitle, { color: colors.foreground }]}>{selectedMatch.team1} vs {selectedMatch.team2}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>{selectedMatch.tournament} · {shortDate(selectedMatch.startTime)}</Text><Status value={selectedMatch.status} /></View>{markets.isLoading ? <ActivityIndicator color={colors.primary} /> : (markets.data?.markets ?? []).map((market: any) => <View key={market.id} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}><Text style={[s.cardTitle, { color: colors.foreground }]}>{market.question}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>YES {market.yesPrice} · NO {market.noPrice} · Pool {money(market.totalAmount)}</Text><Status value={market.status} />{(market.status === 'open' || market.status === 'paused') && <View style={s.actions}><TouchableOpacity style={[s.action, { backgroundColor: `${colors.warning}22` }]} onPress={() => updateMarket.mutate({ marketId: market.id, data: { status: market.status === 'open' ? 'paused' : 'open' } }, { onSuccess: () => markets.refetch(), onError: (e: any) => Alert.alert('Update failed', errorText(e)) })}><Text style={{ color: colors.warning }}>{market.status === 'open' ? 'Pause' : 'Resume'}</Text></TouchableOpacity><TouchableOpacity testID={`admin-market-settle-${market.id}`} style={[s.action, { backgroundColor: `${colors.success}22` }]} onPress={() => Alert.alert('Settle market', 'Choose the correct outcome. This pays winners and cannot be reversed.', [{ text: 'Cancel', style: 'cancel' }, { text: 'YES wins', onPress: () => settleMarket.mutate({ marketId: market.id, data: { correctAnswer: 'YES' } }, { onSuccess: () => { markets.refetch(); Alert.alert('Market settled'); }, onError: (e: any) => Alert.alert('Settlement failed', errorText(e)) }) }, { text: 'NO wins', onPress: () => settleMarket.mutate({ marketId: market.id, data: { correctAnswer: 'NO' } }, { onSuccess: () => { markets.refetch(); Alert.alert('Market settled'); }, onError: (e: any) => Alert.alert('Settlement failed', errorText(e)) }) }])}><Text style={{ color: colors.success }}>Settle</Text></TouchableOpacity><TouchableOpacity testID={`admin-market-refund-${market.id}`} style={[s.action, { backgroundColor: `${colors.destructive}22` }]} onPress={() => confirm('Refund market', `Refund all pending predictions for "${market.question}"? This cannot be undone.`, () => refundMarket.mutate({ marketId: market.id }, { onSuccess: () => { markets.refetch(); Alert.alert('Market refunded'); }, onError: (e: any) => Alert.alert('Refund failed', errorText(e)) }), true)}><Text style={{ color: colors.destructive }}>Refund</Text></TouchableOpacity></View>}</View>)}</ScrollView> : <FlatList data={matches.data?.matches ?? []} keyExtractor={(i) => i.id} contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]} refreshControl={<RefreshControl refreshing={matches.isFetching} onRefresh={refresh} tintColor={colors.primary} />} renderItem={({ item }) => <TouchableOpacity style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => setSelectedMatch(item)}><View style={s.row}><View><Text style={[s.cardTitle, { color: colors.foreground }]}>{item.team1} vs {item.team2}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>{item.tournament} · {shortDate(item.startTime)}</Text></View><Status value={item.status} /></View></TouchableOpacity>} />;
+
+  const home = <ScrollView contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]} refreshControl={<RefreshControl refreshing={stats.isFetching} onRefresh={refresh} tintColor={colors.primary} />}><View style={[s.notice, { backgroundColor: `${colors.primary}16`, borderColor: `${colors.primary}44` }]}><Ionicons name="shield-checkmark-outline" color={colors.primary} size={23} /><Text style={[s.detail, { color: colors.foreground, flex: 1 }]}>Every sensitive request is authorized by the server and requires a confirmation here.</Text></View><Text style={[s.sectionTitle, { color: colors.mutedForeground }]}>PENDING QUEUES</Text><View style={s.metrics}><Metric colors={colors} label="Deposits" value={String(stats.data?.pendingDepositsCount ?? 0)} onPress={() => setSection('deposits')} /><Metric colors={colors} label="Withdrawals" value={String(stats.data?.pendingWithdrawalsCount ?? 0)} onPress={() => setSection('withdrawals')} /></View><View style={s.metrics}><Metric colors={colors} label="Deposit value" value={money(stats.data?.pendingDepositsAmount)} /><Metric colors={colors} label="Withdrawal value" value={money(stats.data?.pendingWithdrawalsAmount)} /></View><Text style={[s.sectionTitle, { color: colors.mutedForeground }]}>PLATFORM</Text><View style={s.metrics}><Metric colors={colors} label="Active users" value={String(stats.data?.activeUsers ?? 0)} onPress={() => setSection('users')} /><Metric colors={colors} label="Live matches" value={String(stats.data?.liveMatches ?? 0)} onPress={() => setSection('matches')} /></View></ScrollView>;
+
+  return <View style={[s.root, { backgroundColor: colors.background }]}><View style={[s.header, { paddingTop: insets.top + (Platform.OS === 'web' ? 65 : 12), borderBottomColor: colors.border }]}><TouchableOpacity accessibilityLabel="Back to profile" style={[s.circle, { backgroundColor: colors.card }]} onPress={() => router.back()}><Ionicons name="arrow-back" size={20} color={colors.foreground} /></TouchableOpacity><View style={{ flex: 1 }}><Text style={[s.headerTitle, { color: colors.foreground }]}>{header[0]}</Text><Text style={[s.headerSub, { color: colors.mutedForeground }]}>{header[1]}</Text></View><TouchableOpacity testID="admin-refresh" style={[s.circle, { backgroundColor: colors.card }]} onPress={refresh}><Ionicons name="refresh-outline" size={20} color={colors.primary} /></TouchableOpacity></View><ScrollView horizontal showsHorizontalScrollIndicator={false} style={[s.nav, { borderBottomColor: colors.border }]} contentContainerStyle={s.navInner}>{nav.map(([key, label, icon]) => <TouchableOpacity key={key} testID={`admin-nav-${key}`} style={[s.navItem, section === key && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]} onPress={() => { setSection(key); setSelectedUser(null); setSelectedTicket(null); setSelectedMatch(null); }}><Ionicons name={icon} size={16} color={section === key ? colors.primary : colors.mutedForeground} /><Text style={[s.navLabel, { color: section === key ? colors.primary : colors.mutedForeground }]}>{label}</Text></TouchableOpacity>)}</ScrollView>{section === 'home' ? home : section === 'deposits' ? renderQueue('deposit', (deposits.data as any)?.deposits ?? [], deposits.isLoading) : section === 'withdrawals' ? renderQueue('withdrawal', (withdrawals.data as any)?.withdrawals ?? [], withdrawals.isLoading) : section === 'users' ? userView : section === 'support' ? supportView : matchesView}</View>;
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1 },
-  iconButton: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { fontSize: 21, fontFamily: 'Inter_700Bold', fontWeight: '700' },
-  subtitle: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  testBadge: { borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3 },
-  testBadgeText: { fontSize: 9, fontFamily: 'Inter_700Bold', fontWeight: '700', letterSpacing: .5 },
-  tabs: { flexDirection: 'row', paddingHorizontal: 12, borderBottomWidth: 1 },
-  tab: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, paddingVertical: 13 },
-  tabText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
-  overviewContent: { padding: 16 },
-  testCard: { flexDirection: 'row', gap: 12, alignItems: 'center', borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 20 },
-  testCardTitle: { fontSize: 14, fontFamily: 'Inter_700Bold', fontWeight: '700', marginBottom: 3 },
-  testCardBody: { fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 17 },
-  sectionLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', fontWeight: '700', letterSpacing: 1, marginBottom: 9, marginTop: 4 },
-  metricsGrid: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-  metricCard: { flex: 1, backgroundColor: '#131E2F', borderRadius: 12, padding: 13, minHeight: 122 },
-  metricIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  metricValue: { fontSize: 19, fontFamily: 'Inter_700Bold', fontWeight: '700', color: '#F3F8FD' },
-  metricLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#8EA3BC', marginTop: 4, lineHeight: 15 },
-  listContent: { padding: 16, gap: 10 },
-  requestCard: { borderWidth: 1, borderRadius: 14, padding: 15 },
-  requestTop: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  requestAmount: { fontSize: 22, fontFamily: 'Inter_700Bold', fontWeight: '700' },
-  requestUser: { fontSize: 13, fontFamily: 'Inter_600SemiBold', marginTop: 4 },
-  requestDetail: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 11 },
-  requestTime: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 5 },
-  statusPill: { borderRadius: 14, paddingHorizontal: 8, paddingVertical: 5 },
-  statusText: { fontSize: 9, fontFamily: 'Inter_700Bold', fontWeight: '700' },
-  testingNotice: { flexDirection: 'row', gap: 6, alignItems: 'center', padding: 9, borderRadius: 8, marginTop: 12 },
-  testingNoticeText: { fontSize: 11, fontFamily: 'Inter_500Medium', flex: 1 },
-  empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 28, gap: 9 },
-  emptyTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', fontWeight: '700' },
-  emptyBody: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 19 },
-  accessRoot: { flex: 1, alignItems: 'center', paddingHorizontal: 32 },
-  accessTitle: { fontSize: 22, fontFamily: 'Inter_700Bold', fontWeight: '700', marginTop: 16 },
-  accessBody: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center', marginTop: 8, lineHeight: 20 },
-  backAction: { marginTop: 24, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10 },
-  backActionText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+function Metric({ colors, label, value, onPress }: { colors: any; label: string; value: string; onPress?: () => void }) {
+  const inner = <><Text style={[s.metricValue, { color: colors.foreground }]}>{value}</Text><Text style={[s.metricLabel, { color: colors.mutedForeground }]}>{label}</Text></>;
+  return onPress ? <TouchableOpacity style={[s.metric, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={onPress}>{inner}</TouchableOpacity> : <View style={[s.metric, { backgroundColor: colors.card, borderColor: colors.border }]}>{inner}</View>;
+}
+
+const s = StyleSheet.create({
+  root: { flex: 1 }, gate: { flex: 1, alignItems: 'center', paddingHorizontal: 30 }, gateTitle: { fontSize: 22, fontFamily: 'Inter_700Bold', marginTop: 15 }, gateText: { textAlign: 'center', lineHeight: 20, marginTop: 7, fontFamily: 'Inter_400Regular' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingBottom: 13, borderBottomWidth: 1 }, circle: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' }, headerTitle: { fontSize: 20, fontFamily: 'Inter_700Bold' }, headerSub: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  nav: { maxHeight: 52, borderBottomWidth: 1 }, navInner: { paddingHorizontal: 8 }, navItem: { flexDirection: 'row', gap: 5, paddingHorizontal: 11, paddingVertical: 15, alignItems: 'center' }, navLabel: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  list: { padding: 16, gap: 10 }, card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 }, row: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 }, cardTitle: { fontSize: 15, fontFamily: 'Inter_700Bold' }, amount: { fontSize: 22, fontFamily: 'Inter_700Bold' }, amountSmall: { fontSize: 15, fontFamily: 'Inter_700Bold' }, detail: { fontSize: 12, lineHeight: 18, fontFamily: 'Inter_400Regular' }, tiny: { fontSize: 10, fontFamily: 'Inter_400Regular' },
+  pill: { alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 }, pillText: { fontSize: 9, fontFamily: 'Inter_700Bold' }, actions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 4 }, action: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 9 }, input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 13, fontFamily: 'Inter_400Regular' }, multiline: { minHeight: 82, textAlignVertical: 'top' }, primaryButton: { alignSelf: 'stretch', alignItems: 'center', borderRadius: 10, paddingVertical: 13, marginTop: 8 }, primaryText: { fontSize: 14, fontFamily: 'Inter_700Bold' },
+  empty: { paddingTop: 80, alignItems: 'center', gap: 8, paddingHorizontal: 26 }, emptyTitle: { fontSize: 17, fontFamily: 'Inter_700Bold' }, emptyText: { textAlign: 'center', fontSize: 13, lineHeight: 19, fontFamily: 'Inter_400Regular' }, link: { fontSize: 14, fontFamily: 'Inter_600SemiBold', marginBottom: 2 }, message: { borderWidth: 1, borderRadius: 11, padding: 11, gap: 5 },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1, borderRadius: 12, padding: 13 }, sectionTitle: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1, marginTop: 10 }, metrics: { flexDirection: 'row', gap: 10 }, metric: { flex: 1, borderWidth: 1, borderRadius: 12, padding: 13, minHeight: 88, justifyContent: 'center' }, metricValue: { fontSize: 19, fontFamily: 'Inter_700Bold' }, metricLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 5 },
 });
