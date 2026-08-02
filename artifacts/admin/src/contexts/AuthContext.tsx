@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { useLocation } from "wouter";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 interface AuthContextType {
   token: string | null;
@@ -20,6 +21,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       localStorage.removeItem("jazment_admin_token");
     }
+  }, [token]);
+
+  // Wire the token into the generated API client so every hook sends
+  // Authorization: Bearer <token> automatically.
+  useEffect(() => {
+    setAuthTokenGetter(token ? () => token : null);
   }, [token]);
 
   const login = (newToken: string) => {
