@@ -12,6 +12,8 @@ import notificationsRouter from "./notifications";
 import supportRouter from "./support";
 import settingsRouter from "./settings";
 import testSeedRouter from "./test-seed";
+import kycRouter from "./kyc";
+import riskRouter from "./risk";
 
 const router: IRouter = Router();
 
@@ -27,6 +29,8 @@ router.use(withdrawalsRouter);
 router.use(notificationsRouter);
 router.use(supportRouter);
 router.use(settingsRouter);
+router.use(kycRouter);
+router.use(riskRouter);
 
 // Test-only seeding endpoints — never available in production
 if (process.env["NODE_ENV"] !== "production") {

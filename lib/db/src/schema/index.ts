@@ -8,3 +8,7 @@ export * from "./withdrawals";
 export * from "./notifications";
 export * from "./support";
 export * from "./settings";
+export * from "./audit_logs";
+export * from "./admin_notes";
+export * from "./kyc_documents";
+export * from "./login_history";

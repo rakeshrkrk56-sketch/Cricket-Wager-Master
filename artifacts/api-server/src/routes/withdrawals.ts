@@ -1,14 +1,14 @@
 import { Router, type IRouter } from "express";
 import { db, withdrawalsTable, usersTable, transactionsTable } from "@workspace/db";
 import { eq, and, desc, count, like, sql } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../middlewares/auth";
+import { requireAuth, requireAdmin, requireNotHold } from "../middlewares/auth";
 import { createNotification } from "../lib/createNotification";
 
 const router: IRouter = Router();
 
 // ─── User endpoints ──────────────────────────────────────────────────────────
 
-router.post("/withdrawals", requireAuth, async (req, res): Promise<void> => {
+router.post("/withdrawals", requireAuth, requireNotHold, async (req, res): Promise<void> => {
   const user = (req as any).user;
   const { amount, upiId, bankAccount } = req.body;
 

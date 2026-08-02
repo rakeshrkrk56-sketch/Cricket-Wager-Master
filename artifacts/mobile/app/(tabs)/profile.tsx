@@ -70,6 +70,17 @@ export default function ProfileScreen() {
     rejected: colors.destructive,
   };
 
+  const accountStatusColor: Record<string, string> = {
+    active: colors.success,
+    hold: colors.warning,
+    suspended: colors.destructive,
+  };
+  const accountStatusLabel: Record<string, string> = {
+    active: t('profile_status_active'),
+    hold: 'On Hold',
+    suspended: t('profile_status_suspended'),
+  };
+
   const currentLangLabel = lang === 'en' ? '🇬🇧 English' : '🇮🇳 हिंदी';
 
   return (
@@ -100,8 +111,10 @@ export default function ProfileScreen() {
         </View>
         <View style={s.statDivider} />
         <View style={s.stat}>
-          <Text style={s.statVal}>{user?.status === 'active' ? t('profile_status_active') : t('profile_status_suspended')}</Text>
-          <Text style={[s.statLabel, { color: user?.status === 'active' ? colors.success : colors.destructive }]}>{t('profile_status')}</Text>
+          <Text style={[s.statVal, { color: accountStatusColor[user?.status ?? 'active'] }]}>
+            {accountStatusLabel[user?.status ?? 'active'] ?? user?.status}
+          </Text>
+          <Text style={[s.statLabel, { color: accountStatusColor[user?.status ?? 'active'] }]}>{t('profile_status')}</Text>
         </View>
       </View>
 
@@ -110,11 +123,20 @@ export default function ProfileScreen() {
         <MenuItem icon="trophy-outline"            label={t('profile_my_predictions')} onPress={() => router.push('/(tabs)/predictions')} />
         <MenuItem icon="wallet-outline"            label={t('profile_wallet')}          onPress={() => router.push('/(tabs)/wallet')} />
         <MenuItem icon="headset-outline"           label={t('profile_support')}         onPress={() => router.push('/(tabs)/support')} />
+
+        {/* KYC Documents */}
+        <MenuItem
+          icon="document-text-outline"
+          label="KYC Verification"
+          sublabel={kycLabel[user?.kycStatus ?? 'pending']}
+          onPress={() => router.push('/kyc')}
+        />
+
         {user?.role === 'admin' && (
           <MenuItem
             icon="shield-checkmark-outline"
-            label="Admin Test Console"
-            sublabel="Read-only access for testing"
+            label="Admin Workspace"
+            sublabel="Manage users, deposits, withdrawals"
             onPress={() => router.push('/admin')}
           />
         )}

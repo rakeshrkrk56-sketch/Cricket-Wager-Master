@@ -3,6 +3,7 @@ import { db, usersTable, matchesTable, marketsTable, predictionsTable, transacti
 import { eq, and, desc, count, sum, sql, like, gte, lte, between } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/auth";
 import { createNotification } from "../lib/createNotification";
+import { createAuditLog } from "../lib/createAuditLog";
 import {
   ListUsersQueryParams,
   ListUsersResponse,
@@ -106,20 +107,45 @@ router.get("/admin/users/:userId", requireAdmin, async (req, res): Promise<void>
 });
 
 router.patch("/admin/users/:userId", requireAdmin, async (req, res): Promise<void> => {
+  const admin = (req as any).user;
   const params = UpdateUserParams.safeParse(req.params);
-  const body = UpdateUserBody.safeParse(req.body);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (!body.success) {
-    res.status(400).json({ error: body.error.message });
+
+  // Read current user for audit log
+  const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.userId));
+  if (!existing) {
+    res.status(404).json({ error: "User not found" });
     return;
   }
+
+  const bodyParsed = UpdateUserBody.safeParse(req.body);
+  if (!bodyParsed.success) {
+    res.status(400).json({ error: bodyParsed.error.message });
+    return;
+  }
+
+  const newStatus = bodyParsed.data.status;
+  const suspensionReason = bodyParsed.data.suspensionReason;
+  const kycStatus = bodyParsed.data.kycStatus;
+  const name = bodyParsed.data.name;
+
+  // Validate suspension requires a reason
+  if (newStatus === "suspended" && !suspensionReason?.trim()) {
+    res.status(400).json({ error: "suspensionReason is required when suspending an account" });
+    return;
+  }
+
   const updates: any = { updatedAt: new Date() };
-  if (body.data.status) updates.status = body.data.status;
-  if (body.data.kycStatus) updates.kycStatus = body.data.kycStatus;
-  if (body.data.name !== undefined) updates.name = body.data.name;
+  if (newStatus) updates.status = newStatus;
+  if (kycStatus) updates.kycStatus = kycStatus;
+  if (name !== undefined) updates.name = name;
+  // Set suspension reason, clear it when restoring
+  if (newStatus === "suspended") updates.suspensionReason = suspensionReason?.trim();
+  if (newStatus === "active") updates.suspensionReason = null;
+  if (newStatus === "hold") updates.suspensionReason = null;
 
   const [user] = await db
     .update(usersTable)
@@ -131,7 +157,49 @@ router.patch("/admin/users/:userId", requireAdmin, async (req, res): Promise<voi
     res.status(404).json({ error: "User not found" });
     return;
   }
-  res.json(UpdateUserResponse.parse(serializeUser(user)));
+
+  // Audit log for status changes
+  if (newStatus && newStatus !== existing.status) {
+    await createAuditLog({
+      adminId: admin.id,
+      targetUserId: user.id,
+      action: `status_changed_to_${newStatus}`,
+      reason: suspensionReason?.trim(),
+      prevStatus: existing.status,
+      newStatus,
+    }).catch(() => {});
+
+    // Send user notification
+    if (newStatus === "hold") {
+      await createNotification(user.id, "account_held",
+        "Account Under Review",
+        "Your account has been placed on hold. You can still log in, deposit, and participate in predictions, but withdrawals are temporarily disabled. Please contact support."
+      ).catch(() => {});
+    } else if (newStatus === "suspended") {
+      await createNotification(user.id, "account_suspended",
+        "Account Suspended",
+        `Your account has been suspended. Reason: ${suspensionReason?.trim() ?? "Violation of terms"}. Please contact support.`
+      ).catch(() => {});
+    } else if (newStatus === "active" && existing.status !== "active") {
+      await createNotification(user.id, "account_restored",
+        "Account Restored ✓",
+        "Your account has been restored. All permissions are now active."
+      ).catch(() => {});
+    }
+  }
+
+  // Audit log for KYC changes
+  if (kycStatus && kycStatus !== existing.kycStatus) {
+    await createAuditLog({
+      adminId: admin.id,
+      targetUserId: user.id,
+      action: `kyc_status_changed_to_${kycStatus}`,
+      prevStatus: existing.kycStatus,
+      newStatus: kycStatus,
+    }).catch(() => {});
+  }
+
+  res.json(UpdateUserResponse.parse({ ...serializeUser(user), suspensionReason: user.suspensionReason ?? undefined }));
 });
 
 // ─── User wallet & history ────────────────────────────────────────────────────
@@ -721,6 +789,7 @@ function serializeUser(u: any) {
     walletBalance: Number(u.walletBalance),
     kycStatus: u.kycStatus,
     status: u.status,
+    suspensionReason: u.suspensionReason ?? undefined,
     role: u.role,
     createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : u.createdAt,
   };

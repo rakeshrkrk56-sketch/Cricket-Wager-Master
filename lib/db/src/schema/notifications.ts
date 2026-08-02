@@ -13,6 +13,12 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "prediction_won",
   "prediction_lost",
   "wallet_credited",
+  "account_held",
+  "account_suspended",
+  "account_restored",
+  "kyc_documents_required",
+  "kyc_approved",
+  "kyc_rejected",
 ]);
 
 export const notificationsTable = pgTable("notifications", {

@@ -114,7 +114,8 @@ export const VerifyOtpResponse = zod.object({
   "name": zod.string().optional(),
   "walletBalance": zod.number(),
   "kycStatus": zod.enum(['pending', 'verified', 'rejected']),
-  "status": zod.enum(['active', 'suspended']),
+  "status": zod.enum(['active', 'suspended', 'hold']),
+  "suspensionReason": zod.string().optional(),
   "role": zod.enum(['user', 'admin']),
   "createdAt": zod.coerce.date()
 })
@@ -130,7 +131,8 @@ export const GetMeResponse = zod.object({
   "name": zod.string().optional(),
   "walletBalance": zod.number(),
   "kycStatus": zod.enum(['pending', 'verified', 'rejected']),
-  "status": zod.enum(['active', 'suspended']),
+  "status": zod.enum(['active', 'suspended', 'hold']),
+  "suspensionReason": zod.string().optional(),
   "role": zod.enum(['user', 'admin']),
   "createdAt": zod.coerce.date()
 })
@@ -146,7 +148,7 @@ export const ListUsersQueryParams = zod.object({
   "page": zod.coerce.number().default(listUsersQueryPageDefault),
   "limit": zod.coerce.number().default(listUsersQueryLimitDefault),
   "search": zod.coerce.string().optional(),
-  "status": zod.enum(['active', 'suspended']).optional()
+  "status": zod.enum(['active', 'suspended', 'hold']).optional()
 })
 
 export const ListUsersResponse = zod.object({
@@ -156,7 +158,8 @@ export const ListUsersResponse = zod.object({
   "name": zod.string().optional(),
   "walletBalance": zod.number(),
   "kycStatus": zod.enum(['pending', 'verified', 'rejected']),
-  "status": zod.enum(['active', 'suspended']),
+  "status": zod.enum(['active', 'suspended', 'hold']),
+  "suspensionReason": zod.string().optional(),
   "role": zod.enum(['user', 'admin']),
   "createdAt": zod.coerce.date()
 })),
@@ -179,7 +182,8 @@ export const GetUserResponse = zod.object({
   "name": zod.string().optional(),
   "walletBalance": zod.number(),
   "kycStatus": zod.enum(['pending', 'verified', 'rejected']),
-  "status": zod.enum(['active', 'suspended']),
+  "status": zod.enum(['active', 'suspended', 'hold']),
+  "suspensionReason": zod.string().optional(),
   "role": zod.enum(['user', 'admin']),
   "createdAt": zod.coerce.date()
 }).and(zod.object({
@@ -199,7 +203,8 @@ export const UpdateUserParams = zod.object({
 })
 
 export const UpdateUserBody = zod.object({
-  "status": zod.enum(['active', 'suspended']).optional(),
+  "status": zod.enum(['active', 'suspended', 'hold']).optional(),
+  "suspensionReason": zod.string().optional(),
   "kycStatus": zod.enum(['pending', 'verified', 'rejected']).optional(),
   "name": zod.string().optional()
 })
@@ -210,7 +215,8 @@ export const UpdateUserResponse = zod.object({
   "name": zod.string().optional(),
   "walletBalance": zod.number(),
   "kycStatus": zod.enum(['pending', 'verified', 'rejected']),
-  "status": zod.enum(['active', 'suspended']),
+  "status": zod.enum(['active', 'suspended', 'hold']),
+  "suspensionReason": zod.string().optional(),
   "role": zod.enum(['user', 'admin']),
   "createdAt": zod.coerce.date()
 })

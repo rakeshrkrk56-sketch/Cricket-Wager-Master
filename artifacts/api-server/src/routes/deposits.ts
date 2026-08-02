@@ -11,6 +11,13 @@ const router: IRouter = Router();
 
 router.post("/deposits", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
+
+  // Belt-and-suspenders: suspended users cannot deposit
+  if (user.status === "suspended") {
+    res.status(403).json({ error: "Your account has been suspended. Contact support.", code: "ACCOUNT_SUSPENDED" });
+    return;
+  }
+
   const { amount, method, utrNumber, screenshotBase64 } = req.body;
 
   if (!amount || isNaN(Number(amount)) || Number(amount) < 200) {

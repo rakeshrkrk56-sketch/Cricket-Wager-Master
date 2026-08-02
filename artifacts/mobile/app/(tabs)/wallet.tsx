@@ -235,7 +235,22 @@ export default function WalletScreen() {
         },
         onError: (err: any) => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert(t('wallet_error_title'), err?.data?.error ?? t('wallet_withdraw_upi_msg'));
+          const code = err?.data?.code ?? err?.code;
+          if (code === 'ACCOUNT_HOLD') {
+            Alert.alert(
+              'Withdrawal Unavailable',
+              'Your account is currently under review. You can still deposit and participate in predictions, but withdrawals are temporarily disabled. Please contact support for assistance.',
+              [{ text: 'OK' }],
+            );
+          } else if (code === 'ACCOUNT_SUSPENDED') {
+            Alert.alert(
+              'Account Suspended',
+              'Your account has been suspended. Please contact support.',
+              [{ text: 'OK' }],
+            );
+          } else {
+            Alert.alert(t('wallet_error_title'), err?.data?.error ?? t('wallet_withdraw_upi_msg'));
+          }
         },
       }
     );

@@ -30,6 +30,13 @@ router.post("/markets/:marketId/predict", requireAuth, async (req, res): Promise
   const { choice, amount } = bodyParsed.data;
   const user = (req as any).user;
 
+  // Belt-and-suspenders: suspended users cannot predict
+  // Hold users CAN still predict — only withdrawals are blocked for them
+  if (user.status === "suspended") {
+    res.status(403).json({ error: "Your account has been suspended. Contact support.", code: "ACCOUNT_SUSPENDED" });
+    return;
+  }
+
   // Minimum prediction ₹100
   if (amount < 100) {
     res.status(400).json({ error: "Minimum prediction amount is ₹100" });

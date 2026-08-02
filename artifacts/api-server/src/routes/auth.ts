@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { createToken, requireAuth } from "../middlewares/auth";
+import { createToken, requireAuth, recordLoginHistory } from "../middlewares/auth";
 import {
   SendOtpBody,
   SendOtpResponse,
@@ -51,6 +51,20 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
     const [newUser] = await db.insert(usersTable).values({ phone }).returning();
     user = newUser;
   }
+
+  // Block suspended users from logging in
+  if (user.status === "suspended") {
+    res.status(403).json({
+      error: "Your account has been suspended. Please contact support.",
+      code: "ACCOUNT_SUSPENDED",
+    });
+    return;
+  }
+
+  // Record login history (non-blocking)
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket.remoteAddress ?? undefined;
+  const deviceInfo = req.headers["user-agent"] ?? undefined;
+  recordLoginHistory(user.id, ip, deviceInfo);
 
   const token = createToken(user.id, user.role);
   res.json(

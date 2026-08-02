@@ -3,7 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const kycStatusEnum = pgEnum("kyc_status", ["pending", "verified", "rejected"]);
-export const userStatusEnum = pgEnum("user_status", ["active", "suspended"]);
+export const userStatusEnum = pgEnum("user_status", ["active", "suspended", "hold"]);
 export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
 
 export const usersTable = pgTable("users", {
@@ -13,6 +13,7 @@ export const usersTable = pgTable("users", {
   walletBalance: numeric("wallet_balance", { precision: 12, scale: 2 }).notNull().default("0"),
   kycStatus: kycStatusEnum("kyc_status").notNull().default("pending"),
   status: userStatusEnum("status").notNull().default("active"),
+  suspensionReason: text("suspension_reason"),
   role: userRoleEnum("role").notNull().default("user"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
