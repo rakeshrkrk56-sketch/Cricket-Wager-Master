@@ -2481,9 +2481,17 @@ components:
       properties:
         platformUpiId:
           type: string
-        platformName:
-          type: string
         platformUpiName:
+          type: string
+        platformUpiId2:
+          type: string
+        platformUpiName2:
+          type: string
+        platformUpiId3:
+          type: string
+        platformUpiName3:
+          type: string
+        platformName:
           type: string
         bankName:
           type: string
@@ -2501,9 +2509,17 @@ components:
       properties:
         platformUpiId:
           type: string
-        platformName:
-          type: string
         platformUpiName:
+          type: string
+        platformUpiId2:
+          type: string
+        platformUpiName2:
+          type: string
+        platformUpiId3:
+          type: string
+        platformUpiName3:
+          type: string
+        platformName:
           type: string
         bankName:
           type: string

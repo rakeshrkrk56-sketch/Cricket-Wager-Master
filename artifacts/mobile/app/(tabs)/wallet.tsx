@@ -125,9 +125,18 @@ export default function WalletScreen() {
   const [wdIfsc, setWdIfsc] = useState('');
 
   const { data: platformSettings } = useGetSettings();
-  const platformUpiId = platformSettings?.platformUpiId ?? '';
   const platformName = platformSettings?.platformName ?? 'Jazment';
-  const platformUpiName = platformSettings?.platformUpiName ?? 'Jazment Cricket';
+
+  // Build the list of configured UPI options (only non-empty ones)
+  const upiOptions = [
+    { id: platformSettings?.platformUpiId ?? '', name: platformSettings?.platformUpiName ?? 'Jazment Cricket', label: 'UPI Option 1' },
+    { id: platformSettings?.platformUpiId2 ?? '', name: platformSettings?.platformUpiName2 ?? '', label: 'UPI Option 2' },
+    { id: platformSettings?.platformUpiId3 ?? '', name: platformSettings?.platformUpiName3 ?? '', label: 'UPI Option 3' },
+  ].filter(u => !!u.id);
+
+  // Keep a single primary UPI ID for the UTR submit hint
+  const platformUpiId = upiOptions[0]?.id ?? '';
+  const platformUpiName = upiOptions[0]?.name ?? 'Jazment Cricket';
 
   const { data: wallet, isLoading: walletLoading } = useGetWallet({ query: { enabled: !!token, queryKey: getGetWalletQueryKey() } });
   const { data: txData, isLoading: txLoading } = useGetTransactions({}, { query: { enabled: !!token && walletTab === 'transactions', queryKey: getGetTransactionsQueryKey({}) } });
@@ -139,27 +148,23 @@ export default function WalletScreen() {
 
   const balance = wallet?.balance ?? user?.walletBalance ?? 0;
 
-  const openUpiApp = (appScheme: string, name: string) => {
+  const openUpiDeepLink = (upiId: string, upiName: string) => {
     const amt = parseFloat(depAmount);
     if (!amt || amt < 200) { Alert.alert('न्यूनतम जमा', 'कम से कम ₹200 दर्ज करें'); return; }
-    if (!platformUpiId) {
-      Alert.alert('UPI ID उपलब्ध नहीं', 'अभी UPI ID कॉन्फ़िगर नहीं है। कृपया Manual जमा करें।');
-      return;
-    }
-    const upiUrl = `upi://pay?pa=${platformUpiId}&pn=${encodeURIComponent(platformUpiName)}&am=${amt}&cu=INR&tn=Deposit+to+${encodeURIComponent(platformName)}`;
+    const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(upiName || platformName)}&am=${amt}&cu=INR&tn=Deposit+to+${encodeURIComponent(platformName)}`;
     Linking.openURL(upiUrl).catch(() => {
-      Alert.alert(`${name} नहीं मिला`, `${name} इंस्टॉल नहीं है। कृपया Manual जमा करें।`);
+      Alert.alert('UPI ऐप नहीं मिला', 'कोई UPI ऐप इंस्टॉल नहीं है। UPI ID कॉपी करके अपने ऐप में पेस्ट करें।');
     });
     Alert.alert(
       'भुगतान के बाद',
-      'UPI ऐप से भुगतान करने के बाद, Manual टैब पर जाकर UTR नंबर और स्क्रीनशॉट अपलोड करें।',
+      'UPI ऐप से भुगतान करने के बाद, "UTR Submit" टैब पर जाकर UTR नंबर और स्क्रीनशॉट अपलोड करें।',
       [{ text: 'ठीक है' }]
     );
   };
 
-  const copyUpiId = () => {
-    if (!platformUpiId) return;
-    Clipboard.setString(platformUpiId);
+  const copyUpiId = (id: string) => {
+    if (!id) return;
+    Clipboard.setString(id);
     setUpiCopied(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTimeout(() => setUpiCopied(false), 2000);
@@ -414,34 +419,50 @@ export default function WalletScreen() {
               {/* ── UPI tab ── */}
               {depositTab === 'upi' && (
                 <View style={s.upiSection}>
-                  <Text style={s.upiHint}>नीचे दिए गए बटन से अपना UPI ऐप खोलें:</Text>
-                  <View style={s.upiApps}>
-                    {[
-                      { name: 'PhonePe', icon: 'phone-portrait', scheme: 'phonepe://' },
-                      { name: 'GPay', icon: 'logo-google', scheme: 'tez://' },
-                      { name: 'Paytm', icon: 'wallet', scheme: 'paytmmp://' },
-                    ].map((app) => (
-                      <TouchableOpacity key={app.name} style={s.upiApp} onPress={() => openUpiApp(app.scheme, app.name)} activeOpacity={0.8}>
-                        <Ionicons name={app.icon as any} size={28} color={colors.primary} />
-                        <Text style={s.upiAppName}>{app.name}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  <View style={s.upiIdRow}>
-                    <Text style={s.upiIdLabel}>या इस UPI ID पर भुगतान करें:</Text>
-                    {platformUpiId ? (
-                      <TouchableOpacity style={s.copyRow} onPress={copyUpiId} activeOpacity={0.8}>
-                        <Text style={s.upiId}>{platformUpiId}</Text>
-                        <Ionicons name={upiCopied ? 'checkmark-circle' : 'copy-outline'} size={18} color={upiCopied ? colors.success : colors.primary} />
-                      </TouchableOpacity>
-                    ) : (
-                      <Text style={[s.upiId, { color: colors.mutedForeground, fontSize: 13 }]}>UPI ID उपलब्ध नहीं</Text>
-                    )}
-                  </View>
-                  <View style={s.infoBox}>
-                    <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
-                    <Text style={s.infoText}>भुगतान के बाद "UTR Submit" टैब पर जाकर UTR नंबर अपलोड करें।</Text>
-                  </View>
+                  {upiOptions.length === 0 ? (
+                    <Text style={[s.upiHint, { color: colors.mutedForeground }]}>UPI ID अभी कॉन्फ़िगर नहीं है। कृपया UTR Submit टैब का उपयोग करें।</Text>
+                  ) : (
+                    <>
+                      <Text style={s.upiHint}>किसी एक UPI पर भुगतान करें, फिर UTR Submit करें:</Text>
+                      {upiOptions.map((opt, idx) => (
+                        <View key={idx} style={s.upiOptionCard}>
+                          {/* Option header */}
+                          <View style={s.upiOptionHeader}>
+                            <View style={s.upiOptionBadge}>
+                              <Text style={s.upiOptionBadgeText}>{idx + 1}</Text>
+                            </View>
+                            <Text style={s.upiOptionLabel}>{opt.name || opt.label}</Text>
+                          </View>
+                          {/* UPI ID row with copy */}
+                          <TouchableOpacity
+                            style={s.upiOptionIdRow}
+                            onPress={() => { copyUpiId(opt.id); setBankFieldCopied(`upi_${idx}`); setTimeout(() => setBankFieldCopied(null), 2000); }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={s.upiOptionId} numberOfLines={1}>{opt.id}</Text>
+                            <Ionicons
+                              name={bankFieldCopied === `upi_${idx}` ? 'checkmark-circle' : 'copy-outline'}
+                              size={16}
+                              color={bankFieldCopied === `upi_${idx}` ? colors.success : colors.primary}
+                            />
+                          </TouchableOpacity>
+                          {/* Pay Now button */}
+                          <TouchableOpacity
+                            style={s.upiPayBtn}
+                            onPress={() => openUpiDeepLink(opt.id, opt.name)}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons name="flash" size={15} color="#fff" />
+                            <Text style={s.upiPayBtnText}>Pay Now</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                      <View style={s.infoBox}>
+                        <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
+                        <Text style={s.infoText}>भुगतान के बाद "UTR Submit" टैब पर जाकर UTR नंबर और स्क्रीनशॉट अपलोड करें।</Text>
+                      </View>
+                    </>
+                  )}
                 </View>
               )}
 
@@ -489,15 +510,15 @@ export default function WalletScreen() {
               {/* ── UTR Submit (manual) tab ── */}
               {depositTab === 'manual' && (
                 <View>
-                  <View style={s.upiIdRow}>
-                    <Text style={s.upiIdLabel}>पहले इस UPI ID / बैंक खाते पर भुगतान करें, फिर UTR दर्ज करें:</Text>
-                    {platformUpiId ? (
-                      <TouchableOpacity style={s.copyRow} onPress={copyUpiId} activeOpacity={0.8}>
+                  {platformUpiId ? (
+                    <View style={s.upiIdRow}>
+                      <Text style={s.upiIdLabel}>पहले UPI / बैंक खाते पर भुगतान करें, फिर UTR दर्ज करें:</Text>
+                      <TouchableOpacity style={s.copyRow} onPress={() => copyUpiId(platformUpiId)} activeOpacity={0.8}>
                         <Text style={s.upiId}>{platformUpiId}</Text>
                         <Ionicons name={upiCopied ? 'checkmark-circle' : 'copy-outline'} size={18} color={upiCopied ? colors.success : colors.primary} />
                       </TouchableOpacity>
-                    ) : null}
-                  </View>
+                    </View>
+                  ) : null}
 
                   <Text style={s.amountLabel}>UTR नंबर</Text>
                   <TextInput
@@ -764,11 +785,21 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   quickBtn: { flex: 1, backgroundColor: colors.muted, borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   quickText: { fontSize: 13, fontWeight: '600' as const, color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
   balHint: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 16 },
-  upiSection: { gap: 16 },
+  upiSection: { gap: 12 },
   upiHint: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
   upiApps: { flexDirection: 'row', gap: 12 },
   upiApp: { flex: 1, alignItems: 'center', gap: 8, backgroundColor: colors.muted, borderRadius: 12, paddingVertical: 16, borderWidth: 1, borderColor: colors.border },
   upiAppName: { fontSize: 12, color: colors.foreground, fontFamily: 'Inter_500Medium' },
+  // UPI option cards
+  upiOptionCard: { backgroundColor: colors.muted, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, gap: 10 },
+  upiOptionHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+  upiOptionBadge: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.primary + '25', alignItems: 'center' as const, justifyContent: 'center' as const },
+  upiOptionBadgeText: { fontSize: 11, fontFamily: 'Inter_700Bold', color: colors.primary },
+  upiOptionLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: colors.foreground, flex: 1 },
+  upiOptionIdRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: colors.background, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: colors.primary + '30' },
+  upiOptionId: { flex: 1, fontSize: 14, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
+  upiPayBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 10 },
+  upiPayBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#fff' },
   upiIdRow: { gap: 8 },
   upiIdLabel: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
   copyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.muted, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: colors.primary + '40' },

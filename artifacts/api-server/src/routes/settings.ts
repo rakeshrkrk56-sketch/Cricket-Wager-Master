@@ -7,8 +7,12 @@ const router: IRouter = Router();
 
 const DEFAULTS: Record<string, string> = {
   platform_upi_id: "",
-  platform_name: "Jazment",
   platform_upi_name: "Jazment Cricket",
+  platform_upi_id_2: "",
+  platform_upi_name_2: "",
+  platform_upi_id_3: "",
+  platform_upi_name_3: "",
+  platform_name: "Jazment",
   bank_name: "",
   bank_holder_name: "",
   bank_account_number: "",
@@ -24,10 +28,14 @@ async function getSetting(key: string): Promise<string> {
 }
 
 async function getAllSettings() {
-  const [upiId, name, upiName, bankName, bankHolder, bankAccount, bankIfsc] = await Promise.all([
+  const [upiId, upiName, upiId2, upiName2, upiId3, upiName3, name, bankName, bankHolder, bankAccount, bankIfsc] = await Promise.all([
     getSetting("platform_upi_id"),
-    getSetting("platform_name"),
     getSetting("platform_upi_name"),
+    getSetting("platform_upi_id_2"),
+    getSetting("platform_upi_name_2"),
+    getSetting("platform_upi_id_3"),
+    getSetting("platform_upi_name_3"),
+    getSetting("platform_name"),
     getSetting("bank_name"),
     getSetting("bank_holder_name"),
     getSetting("bank_account_number"),
@@ -35,8 +43,12 @@ async function getAllSettings() {
   ]);
   return {
     platformUpiId: upiId,
-    platformName: name,
     platformUpiName: upiName,
+    platformUpiId2: upiId2,
+    platformUpiName2: upiName2,
+    platformUpiId3: upiId3,
+    platformUpiName3: upiName3,
+    platformName: name,
     bankName,
     bankHolderName: bankHolder,
     bankAccountNumber: bankAccount,
@@ -57,12 +69,16 @@ router.get("/admin/settings", requireAdmin, async (_req, res): Promise<void> => 
 });
 
 router.put("/admin/settings", requireAdmin, async (req, res): Promise<void> => {
-  const { platformUpiId, platformName, platformUpiName, bankName, bankHolderName, bankAccountNumber, bankIfsc } = req.body;
+  const { platformUpiId, platformUpiName, platformUpiId2, platformUpiName2, platformUpiId3, platformUpiName3, platformName, bankName, bankHolderName, bankAccountNumber, bankIfsc } = req.body;
 
   const fieldMap: Record<string, string | undefined> = {
     platform_upi_id: platformUpiId,
-    platform_name: platformName,
     platform_upi_name: platformUpiName,
+    platform_upi_id_2: platformUpiId2,
+    platform_upi_name_2: platformUpiName2,
+    platform_upi_id_3: platformUpiId3,
+    platform_upi_name_3: platformUpiName3,
+    platform_name: platformName,
     bank_name: bankName,
     bank_holder_name: bankHolderName,
     bank_account_number: bankAccountNumber,

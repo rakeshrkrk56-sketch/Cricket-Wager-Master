@@ -737,8 +737,12 @@ export interface NotificationListResponse {
 
 export interface PlatformSettings {
   platformUpiId: string;
-  platformName?: string;
   platformUpiName?: string;
+  platformUpiId2?: string;
+  platformUpiName2?: string;
+  platformUpiId3?: string;
+  platformUpiName3?: string;
+  platformName?: string;
   bankName?: string;
   bankHolderName?: string;
   bankAccountNumber?: string;
@@ -747,8 +751,12 @@ export interface PlatformSettings {
 
 export interface UpdateSettingsRequest {
   platformUpiId?: string;
-  platformName?: string;
   platformUpiName?: string;
+  platformUpiId2?: string;
+  platformUpiName2?: string;
+  platformUpiId3?: string;
+  platformUpiName3?: string;
+  platformName?: string;
   bankName?: string;
   bankHolderName?: string;
   bankAccountNumber?: string;
