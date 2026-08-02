@@ -735,6 +735,18 @@ export interface NotificationListResponse {
   limit: number;
 }
 
+export interface PlatformSettings {
+  platformUpiId: string;
+  platformName: string;
+  platformUpiName: string;
+}
+
+export interface UpdateSettingsRequest {
+  platformUpiId?: string;
+  platformName?: string;
+  platformUpiName?: string;
+}
+
 export interface ApproveRejectRequest {
   remarks?: string;
 }

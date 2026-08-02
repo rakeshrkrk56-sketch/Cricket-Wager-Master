@@ -17,10 +17,10 @@ import {
   useGetMyDeposits, getGetMyDepositsQueryKey,
   useGetMyWithdrawals, getGetMyWithdrawalsQueryKey,
   useCreateDeposit, useCreateWithdrawal,
+  useGetSettings,
 } from '@workspace/api-client-react';
 
-const PLATFORM_UPI = 'jazment@upi';
-const PLATFORM_NAME = 'Jazment';
+// UPI ID is now fetched from the API (configured in admin Settings page)
 
 const TX_CONFIG: Record<string, { label: string; icon: string; positive: boolean }> = {
   deposit: { label: 'जमा', icon: 'arrow-down-circle', positive: true },
@@ -123,6 +123,11 @@ export default function WalletScreen() {
   const [wdConfirmAccountNumber, setWdConfirmAccountNumber] = useState('');
   const [wdIfsc, setWdIfsc] = useState('');
 
+  const { data: platformSettings } = useGetSettings();
+  const platformUpiId = platformSettings?.platformUpiId ?? '';
+  const platformName = platformSettings?.platformName ?? 'Jazment';
+  const platformUpiName = platformSettings?.platformUpiName ?? 'Jazment Cricket';
+
   const { data: wallet, isLoading: walletLoading } = useGetWallet({ query: { enabled: !!token, queryKey: getGetWalletQueryKey() } });
   const { data: txData, isLoading: txLoading } = useGetTransactions({}, { query: { enabled: !!token && walletTab === 'transactions', queryKey: getGetTransactionsQueryKey({}) } });
   const { data: depositsData, isLoading: depositsLoading } = useGetMyDeposits({}, { query: { enabled: !!token && walletTab === 'deposits', queryKey: getGetMyDepositsQueryKey({}) } });
@@ -136,9 +141,12 @@ export default function WalletScreen() {
   const openUpiApp = (appScheme: string, name: string) => {
     const amt = parseFloat(depAmount);
     if (!amt || amt < 200) { Alert.alert('न्यूनतम जमा', 'कम से कम ₹200 दर्ज करें'); return; }
-    const upiUrl = `upi://pay?pa=${PLATFORM_UPI}&pn=${PLATFORM_NAME}&am=${amt}&cu=INR&tn=Deposit+to+Jazment`;
+    if (!platformUpiId) {
+      Alert.alert('UPI ID उपलब्ध नहीं', 'अभी UPI ID कॉन्फ़िगर नहीं है। कृपया Manual जमा करें।');
+      return;
+    }
+    const upiUrl = `upi://pay?pa=${platformUpiId}&pn=${encodeURIComponent(platformUpiName)}&am=${amt}&cu=INR&tn=Deposit+to+${encodeURIComponent(platformName)}`;
     Linking.openURL(upiUrl).catch(() => {
-      // fallback: open Play Store
       Alert.alert(`${name} नहीं मिला`, `${name} इंस्टॉल नहीं है। कृपया Manual जमा करें।`);
     });
     Alert.alert(
@@ -149,7 +157,8 @@ export default function WalletScreen() {
   };
 
   const copyUpiId = () => {
-    Clipboard.setString(PLATFORM_UPI);
+    if (!platformUpiId) return;
+    Clipboard.setString(platformUpiId);
     setUpiCopied(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTimeout(() => setUpiCopied(false), 2000);
@@ -412,10 +421,14 @@ export default function WalletScreen() {
                   </View>
                   <View style={s.upiIdRow}>
                     <Text style={s.upiIdLabel}>या इस UPI ID पर भुगतान करें:</Text>
-                    <TouchableOpacity style={s.copyRow} onPress={copyUpiId} activeOpacity={0.8}>
-                      <Text style={s.upiId}>{PLATFORM_UPI}</Text>
-                      <Ionicons name={upiCopied ? 'checkmark-circle' : 'copy-outline'} size={18} color={upiCopied ? colors.success : colors.primary} />
-                    </TouchableOpacity>
+                    {platformUpiId ? (
+                      <TouchableOpacity style={s.copyRow} onPress={copyUpiId} activeOpacity={0.8}>
+                        <Text style={s.upiId}>{platformUpiId}</Text>
+                        <Ionicons name={upiCopied ? 'checkmark-circle' : 'copy-outline'} size={18} color={upiCopied ? colors.success : colors.primary} />
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={[s.upiId, { color: colors.mutedForeground, fontSize: 13 }]}>UPI ID अभी उपलब्ध नहीं है</Text>
+                    )}
                   </View>
                   <View style={s.infoBox}>
                     <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
@@ -426,10 +439,14 @@ export default function WalletScreen() {
                 <View>
                   <View style={s.upiIdRow}>
                     <Text style={s.upiIdLabel}>पहले इस UPI ID पर भुगतान करें:</Text>
-                    <TouchableOpacity style={s.copyRow} onPress={copyUpiId} activeOpacity={0.8}>
-                      <Text style={s.upiId}>{PLATFORM_UPI}</Text>
-                      <Ionicons name={upiCopied ? 'checkmark-circle' : 'copy-outline'} size={18} color={upiCopied ? colors.success : colors.primary} />
-                    </TouchableOpacity>
+                    {platformUpiId ? (
+                      <TouchableOpacity style={s.copyRow} onPress={copyUpiId} activeOpacity={0.8}>
+                        <Text style={s.upiId}>{platformUpiId}</Text>
+                        <Ionicons name={upiCopied ? 'checkmark-circle' : 'copy-outline'} size={18} color={upiCopied ? colors.success : colors.primary} />
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={[s.upiId, { color: colors.mutedForeground, fontSize: 13 }]}>UPI ID अभी उपलब्ध नहीं है</Text>
+                    )}
                   </View>
 
                   <Text style={s.amountLabel}>UTR नंबर</Text>

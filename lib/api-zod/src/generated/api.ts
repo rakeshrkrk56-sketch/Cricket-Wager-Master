@@ -17,6 +17,42 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Get platform settings (public)
+ */
+export const GetSettingsResponse = zod.object({
+  "platformUpiId": zod.string(),
+  "platformName": zod.string(),
+  "platformUpiName": zod.string()
+})
+
+
+/**
+ * @summary Get platform settings (admin)
+ */
+export const AdminGetSettingsResponse = zod.object({
+  "platformUpiId": zod.string(),
+  "platformName": zod.string(),
+  "platformUpiName": zod.string()
+})
+
+
+/**
+ * @summary Update platform settings
+ */
+export const AdminUpdateSettingsBody = zod.object({
+  "platformUpiId": zod.string().optional(),
+  "platformName": zod.string().optional(),
+  "platformUpiName": zod.string().optional()
+})
+
+export const AdminUpdateSettingsResponse = zod.object({
+  "platformUpiId": zod.string(),
+  "platformName": zod.string(),
+  "platformUpiName": zod.string()
+})
+
+
+/**
  * @summary Send OTP to mobile number
  */
 export const SendOtpBody = zod.object({

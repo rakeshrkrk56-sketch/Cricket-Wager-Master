@@ -203,7 +203,7 @@ router.post("/admin/deposits/:depositId/approve", requireAdmin, async (req, res)
   );
   await createNotification(user.id, "wallet_credited",
     "Wallet Credited",
-    `Wallet updated. New balance: ₹${(balanceAfter as number).toFixed(0)}.`
+    `Wallet updated. New balance: ₹${Number(balanceAfter).toFixed(0)}.`
   );
 
   res.json({ success: true, balanceAfter });
