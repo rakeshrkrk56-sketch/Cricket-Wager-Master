@@ -7,13 +7,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { useGetSupportTicket, useAddTicketMessage } from '@workspace/api-client-react';
 
 const STATUS_COLOR: Record<string, string> = {
   open: '#F59E0B', in_progress: '#3B82F6', resolved: '#10B981', closed: '#6B7280',
-};
-const STATUS_LABEL: Record<string, string> = {
-  open: 'Open', in_progress: 'In Progress', resolved: 'Resolved', closed: 'Closed',
 };
 
 export default function TicketDetailScreen() {
@@ -21,6 +19,13 @@ export default function TicketDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [reply, setReply] = useState('');
+
+  const { t, lang } = useLanguage();
+  const STATUS_LABEL: Record<string, string> = {
+    open: t('support_status_open'), in_progress: t('support_status_in_progress'),
+    resolved: t('support_status_resolved'), closed: t('support_status_closed'),
+  };
+  const locale = lang === 'hi' ? 'hi-IN' : 'en-IN';
 
   const { data, isLoading, refetch } = useGetSupportTicket(ticketId ?? '');
   const addMessage = useAddTicketMessage();
@@ -78,12 +83,12 @@ export default function TicketDetailScreen() {
             <View key={msg.id} style={[s.bubble, msg.isAdmin ? s.adminBubble : s.userBubble]}>
               {msg.isAdmin && (
                 <Text style={s.senderLabel}>
-                  {msg.senderId ? 'Support Agent' : 'Jazment Support'}
+                  {msg.senderId ? t('support_agent') : t('support_agent')}
                 </Text>
               )}
               <Text style={[s.bubbleText, msg.isAdmin && s.adminBubbleText]}>{msg.message}</Text>
               <Text style={[s.bubbleTime, msg.isAdmin && { color: 'rgba(255,255,255,0.6)' }]}>
-                {new Date(msg.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                {new Date(msg.createdAt).toLocaleString(locale, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
               </Text>
             </View>
           ))}

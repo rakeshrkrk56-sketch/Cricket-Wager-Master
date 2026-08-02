@@ -11,6 +11,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import {
   useGetWallet, getGetWalletQueryKey,
   useGetTransactions, getGetTransactionsQueryKey,
@@ -20,47 +21,41 @@ import {
   useGetSettings,
 } from '@workspace/api-client-react';
 
-// UPI ID is now fetched from the API (configured in admin Settings page)
-
-const TX_CONFIG: Record<string, { label: string; icon: string; positive: boolean }> = {
-  deposit: { label: 'जमा', icon: 'arrow-down-circle', positive: true },
-  withdraw: { label: 'निकासी', icon: 'arrow-up-circle', positive: false },
-  win: { label: 'जीत', icon: 'trophy', positive: true },
-  loss: { label: 'लगाया', icon: 'remove-circle', positive: false },
-  bonus: { label: 'बोनस', icon: 'gift', positive: true },
-  refund: { label: 'वापसी', icon: 'refresh-circle', positive: true },
-};
-
-const STATUS_COLORS = (colors: any) => ({
-  pending: colors.warning,
-  approved: colors.success,
-  rejected: colors.destructive,
-});
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'प्रतीक्षारत', approved: 'स्वीकृत', rejected: 'अस्वीकृत',
-};
+type DepositTab   = 'upi' | 'bank' | 'manual';
+type WithdrawMethod = 'upi' | 'bank';
+type WalletTab    = 'transactions' | 'deposits' | 'withdrawals';
 
 function TxItem({ item }: { item: any }) {
-  const colors = useColors();
-  const cfg = TX_CONFIG[item.type] || { label: item.type, icon: 'ellipse', positive: true };
+  const colors  = useColors();
+  const { t, lang } = useLanguage();
+  const locale  = lang === 'hi' ? 'hi-IN' : 'en-IN';
+
+  const TX_CFG: Record<string, { labelKey: string; icon: string; positive: boolean }> = {
+    deposit:  { labelKey: 'wallet_tx_deposit',  icon: 'arrow-down-circle', positive: true  },
+    withdraw: { labelKey: 'wallet_tx_withdraw', icon: 'arrow-up-circle',   positive: false },
+    win:      { labelKey: 'wallet_tx_win',      icon: 'trophy',            positive: true  },
+    loss:     { labelKey: 'wallet_tx_loss',     icon: 'remove-circle',     positive: false },
+    bonus:    { labelKey: 'wallet_tx_bonus',    icon: 'gift',              positive: true  },
+    refund:   { labelKey: 'wallet_tx_refund',   icon: 'refresh-circle',    positive: true  },
+  };
+  const cfg = TX_CFG[item.type] ?? { labelKey: 'wallet_tx_deposit', icon: 'ellipse', positive: true };
   const amt = Number(item.amount);
+
   return (
     <View style={txS(colors).row}>
       <View style={[txS(colors).icon, { backgroundColor: cfg.positive ? colors.success + '20' : colors.destructive + '20' }]}>
         <Ionicons name={cfg.icon as any} size={20} color={cfg.positive ? colors.success : colors.destructive} />
       </View>
       <View style={txS(colors).info}>
-        <Text style={txS(colors).label}>{cfg.label}</Text>
+        <Text style={txS(colors).label}>{t(cfg.labelKey as any)}</Text>
         {item.note && <Text style={txS(colors).note} numberOfLines={1}>{item.note}</Text>}
-        <Text style={txS(colors).time}>{new Date(item.createdAt).toLocaleString('hi-IN', { dateStyle: 'short', timeStyle: 'short' })}</Text>
+        <Text style={txS(colors).time}>{new Date(item.createdAt).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })}</Text>
       </View>
       <View style={txS(colors).amtCol}>
         <Text style={[txS(colors).amt, { color: cfg.positive ? colors.success : colors.destructive }]}>
           {cfg.positive ? '+' : '-'}₹{amt.toFixed(0)}
         </Text>
-        {item.balanceBefore != null && (
-          <Text style={txS(colors).balBefore}>₹{Number(item.balanceBefore).toFixed(0)}</Text>
-        )}
+        {item.balanceBefore != null && <Text style={txS(colors).balBefore}>₹{Number(item.balanceBefore).toFixed(0)}</Text>}
         <Text style={txS(colors).balAfter}>→ ₹{Number(item.balanceAfter).toFixed(0)}</Text>
       </View>
     </View>
@@ -77,655 +72,18 @@ const txS = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
   amtCol: { alignItems: 'flex-end' },
   amt: { fontSize: 15, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   balBefore: { fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 1 },
-  balAfter: { fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  balAfter:  { fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 1 },
 });
 
-function StatusBadge({ status, colors }: { status: string; colors: any }) {
-  const sc = STATUS_COLORS(colors);
-  const color = (sc as any)[status] || colors.mutedForeground;
+function StatusBadge({ status, colors, t }: { status: string; colors: any; t: any }) {
+  const STATUS_COLORS = { pending: colors.warning, approved: colors.success, rejected: colors.destructive };
+  const STATUS_KEYS: Record<string, string> = {
+    pending: 'wallet_status_pending', approved: 'wallet_status_approved', rejected: 'wallet_status_rejected',
+  };
+  const color = (STATUS_COLORS as any)[status] || colors.mutedForeground;
   return (
     <View style={{ backgroundColor: color + '22', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 }}>
-      <Text style={{ fontSize: 11, color, fontFamily: 'Inter_600SemiBold' }}>{STATUS_LABELS[status] || status}</Text>
-    </View>
-  );
-}
-
-type DepositTab = 'upi' | 'bank' | 'manual';
-type WithdrawMethod = 'upi' | 'bank';
-type WalletTab = 'transactions' | 'deposits' | 'withdrawals';
-
-export default function WalletScreen() {
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const { token, user, updateUser } = useAuth();
-  const queryClient = useQueryClient();
-
-  const [walletTab, setWalletTab] = useState<WalletTab>('transactions');
-  const [showDeposit, setShowDeposit] = useState(false);
-  const [showWithdraw, setShowWithdraw] = useState(false);
-  const [depositTab, setDepositTab] = useState<DepositTab>('upi');
-
-  // Deposit form
-  const [depAmount, setDepAmount] = useState('');
-  const [utrNumber, setUtrNumber] = useState('');
-  const [screenshotUri, setScreenshotUri] = useState<string | null>(null);
-  const [screenshotBase64, setScreenshotBase64] = useState<string | null>(null);
-  const [upiCopied, setUpiCopied] = useState(false);
-  const [bankFieldCopied, setBankFieldCopied] = useState<string | null>(null);
-
-  // Withdrawal form
-  const [wdAmount, setWdAmount] = useState('');
-  const [wdMethod, setWdMethod] = useState<WithdrawMethod>('upi');
-  const [wdUpiId, setWdUpiId] = useState('');
-  // Bank fields
-  const [wdBankName, setWdBankName] = useState('');
-  const [wdHolderName, setWdHolderName] = useState('');
-  const [wdAccountNumber, setWdAccountNumber] = useState('');
-  const [wdConfirmAccountNumber, setWdConfirmAccountNumber] = useState('');
-  const [wdIfsc, setWdIfsc] = useState('');
-
-  const { data: platformSettings } = useGetSettings();
-  const platformName = platformSettings?.platformName ?? 'Jazment';
-
-  // Build the list of configured UPI options (only non-empty ones)
-  const upiOptions = [
-    { id: platformSettings?.platformUpiId ?? '', name: platformSettings?.platformUpiName ?? 'Jazment Cricket', label: 'UPI Option 1' },
-    { id: platformSettings?.platformUpiId2 ?? '', name: platformSettings?.platformUpiName2 ?? '', label: 'UPI Option 2' },
-    { id: platformSettings?.platformUpiId3 ?? '', name: platformSettings?.platformUpiName3 ?? '', label: 'UPI Option 3' },
-  ].filter(u => !!u.id);
-
-  // Keep a single primary UPI ID for the UTR submit hint
-  const platformUpiId = upiOptions[0]?.id ?? '';
-  const platformUpiName = upiOptions[0]?.name ?? 'Jazment Cricket';
-
-  const { data: wallet, isLoading: walletLoading } = useGetWallet({ query: { enabled: !!token, queryKey: getGetWalletQueryKey() } });
-  const { data: txData, isLoading: txLoading } = useGetTransactions({}, { query: { enabled: !!token && walletTab === 'transactions', queryKey: getGetTransactionsQueryKey({}) } });
-  const { data: depositsData, isLoading: depositsLoading } = useGetMyDeposits({}, { query: { enabled: !!token && walletTab === 'deposits', queryKey: getGetMyDepositsQueryKey({}) } });
-  const { data: withdrawalsData, isLoading: withdrawalsLoading } = useGetMyWithdrawals({}, { query: { enabled: !!token && walletTab === 'withdrawals', queryKey: getGetMyWithdrawalsQueryKey({}) } });
-
-  const createDeposit = useCreateDeposit();
-  const createWithdrawal = useCreateWithdrawal();
-
-  const balance = wallet?.balance ?? user?.walletBalance ?? 0;
-
-  const openUpiDeepLink = (upiId: string, upiName: string) => {
-    const amt = parseFloat(depAmount);
-    if (!amt || amt < 200) { Alert.alert('न्यूनतम जमा', 'कम से कम ₹200 दर्ज करें'); return; }
-    const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(upiName || platformName)}&am=${amt}&cu=INR&tn=Deposit+to+${encodeURIComponent(platformName)}`;
-    Linking.openURL(upiUrl).catch(() => {
-      Alert.alert('UPI ऐप नहीं मिला', 'कोई UPI ऐप इंस्टॉल नहीं है। UPI ID कॉपी करके अपने ऐप में पेस्ट करें।');
-    });
-    Alert.alert(
-      'भुगतान के बाद',
-      'UPI ऐप से भुगतान करने के बाद, "UTR Submit" टैब पर जाकर UTR नंबर और स्क्रीनशॉट अपलोड करें।',
-      [{ text: 'ठीक है' }]
-    );
-  };
-
-  const copyUpiId = (id: string) => {
-    if (!id) return;
-    Clipboard.setString(id);
-    setUpiCopied(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setTimeout(() => setUpiCopied(false), 2000);
-  };
-
-  const pickScreenshot = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') { Alert.alert('अनुमति आवश्यक', 'गैलरी एक्सेस की अनुमति दें'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.5,
-      base64: true,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setScreenshotUri(result.assets[0].uri);
-      setScreenshotBase64(result.assets[0].base64 ?? null);
-    }
-  };
-
-  const handleManualDeposit = () => {
-    const amt = parseFloat(depAmount);
-    if (!amt || amt < 200) { Alert.alert('न्यूनतम जमा', 'कम से कम ₹200 दर्ज करें'); return; }
-    if (!utrNumber.trim()) { Alert.alert('UTR आवश्यक', 'UTR नंबर दर्ज करें'); return; }
-
-    createDeposit.mutate(
-      { data: { amount: amt, method: 'manual', utrNumber: utrNumber.trim(), screenshotBase64: screenshotBase64 ?? undefined } },
-      {
-        onSuccess: () => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          queryClient.invalidateQueries({ queryKey: getGetMyDepositsQueryKey({}) });
-          setShowDeposit(false);
-          setDepAmount(''); setUtrNumber(''); setScreenshotUri(null); setScreenshotBase64(null);
-          setWalletTab('deposits');
-          Alert.alert('जमा अनुरोध भेजा', 'आपका जमा अनुरोध समीक्षा में है। 24 घंटे में अपडेट मिलेगा।');
-        },
-        onError: (err: any) => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert('त्रुटि', err?.data?.error ?? 'जमा अनुरोध नहीं भेजा जा सका');
-        },
-      }
-    );
-  };
-
-  const resetWithdrawForm = () => {
-    setWdAmount(''); setWdUpiId('');
-    setWdBankName(''); setWdHolderName('');
-    setWdAccountNumber(''); setWdConfirmAccountNumber(''); setWdIfsc('');
-  };
-
-  const handleWithdrawal = () => {
-    const amt = parseFloat(wdAmount);
-    if (!amt || amt < 500) { Alert.alert('न्यूनतम निकासी', 'कम से कम ₹500 निकालें'); return; }
-
-    let payload: any;
-    if (wdMethod === 'upi') {
-      if (!wdUpiId.trim()) { Alert.alert('UPI ID आवश्यक', 'अपना UPI ID दर्ज करें'); return; }
-      payload = { amount: amt, upiId: wdUpiId.trim() };
-    } else {
-      if (!wdBankName.trim()) { Alert.alert('बैंक नाम आवश्यक', 'बैंक का नाम दर्ज करें'); return; }
-      if (!wdHolderName.trim()) { Alert.alert('खाताधारक नाम आवश्यक', 'खाताधारक का नाम दर्ज करें'); return; }
-      if (!wdAccountNumber.trim()) { Alert.alert('खाता नंबर आवश्यक', 'बैंक खाता नंबर दर्ज करें'); return; }
-      if (wdAccountNumber.trim() !== wdConfirmAccountNumber.trim()) { Alert.alert('खाता नंबर मेल नहीं खाता', 'दोनों खाता नंबर समान होने चाहिए'); return; }
-      if (!wdIfsc.trim() || wdIfsc.trim().length < 11) { Alert.alert('IFSC कोड अमान्य', 'सही IFSC कोड दर्ज करें (11 अक्षर)'); return; }
-      payload = {
-        amount: amt,
-        bankAccount: {
-          bankName: wdBankName.trim(),
-          holderName: wdHolderName.trim(),
-          accountNumber: wdAccountNumber.trim(),
-          ifsc: wdIfsc.trim().toUpperCase(),
-        },
-      };
-    }
-
-    createWithdrawal.mutate(
-      { data: payload },
-      {
-        onSuccess: () => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          queryClient.invalidateQueries({ queryKey: getGetMyWithdrawalsQueryKey({}) });
-          queryClient.invalidateQueries({ queryKey: getGetWalletQueryKey() });
-          setShowWithdraw(false);
-          resetWithdrawForm();
-          setWalletTab('withdrawals');
-          Alert.alert(
-            'निकासी अनुरोध भेजा ✓',
-            wdMethod === 'upi'
-              ? 'आपकी निकासी समीक्षा में है। स्वीकृत होने पर धनराशि आपके UPI में भेजी जाएगी।'
-              : 'आपकी निकासी समीक्षा में है। स्वीकृत होने पर धनराशि आपके बैंक खाते में भेजी जाएगी।'
-          );
-        },
-        onError: (err: any) => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert('त्रुटि', err?.data?.error ?? 'निकासी अनुरोध नहीं भेजा जा सका');
-        },
-      }
-    );
-  };
-
-  const s = styles(colors, insets);
-
-  return (
-    <View style={s.root}>
-      {/* Header */}
-      <View style={s.header}>
-        <Text style={s.title}>वॉलेट</Text>
-      </View>
-
-      {/* Balance Card */}
-      <View style={s.balanceCard}>
-        <Text style={s.balanceLabel}>उपलब्ध बैलेंस</Text>
-        {walletLoading
-          ? <ActivityIndicator color={colors.primaryForeground} />
-          : <Text style={s.balance}>₹{balance.toFixed(2)}</Text>
-        }
-        <View style={s.cardActions}>
-          <TouchableOpacity style={s.cardBtn} onPress={() => setShowDeposit(true)} activeOpacity={0.85}>
-            <Ionicons name="arrow-down-circle" size={18} color={colors.primaryForeground} />
-            <Text style={s.cardBtnText}>जमा करें</Text>
-          </TouchableOpacity>
-          <View style={s.divider} />
-          <TouchableOpacity style={s.cardBtn} onPress={() => setShowWithdraw(true)} activeOpacity={0.85}>
-            <Ionicons name="arrow-up-circle" size={18} color={colors.primaryForeground} />
-            <Text style={s.cardBtnText}>निकालें</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Stats */}
-      {wallet && (
-        <View style={s.statsRow}>
-          {[
-            { label: 'कुल जमा', value: wallet.depositTotal },
-            { label: 'कुल निकासी', value: wallet.withdrawTotal },
-            { label: 'जीत', value: wallet.winTotal },
-          ].map((stat) => (
-            <View key={stat.label} style={s.stat}>
-              <Text style={s.statVal}>₹{stat.value.toFixed(0)}</Text>
-              <Text style={s.statLabel}>{stat.label}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* Ledger Tabs */}
-      <View style={s.tabs}>
-        {(['transactions', 'deposits', 'withdrawals'] as WalletTab[]).map((tab) => (
-          <TouchableOpacity key={tab} style={[s.tab, walletTab === tab && s.tabActive]} onPress={() => setWalletTab(tab)}>
-            <Text style={[s.tabText, walletTab === tab && s.tabTextActive]}>
-              {tab === 'transactions' ? 'लेनदेन' : tab === 'deposits' ? 'जमा' : 'निकासी'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Tab Content */}
-      {walletTab === 'transactions' && (
-        txLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 30 }} /> : (
-          <FlatList
-            data={txData?.transactions ?? []}
-            keyExtractor={(t) => t.id}
-            renderItem={({ item }) => <TxItem item={item} />}
-            contentContainerStyle={s.listContent}
-            ListEmptyComponent={<EmptyState icon="receipt-outline" text="कोई लेनदेन नहीं" />}
-          />
-        )
-      )}
-      {walletTab === 'deposits' && (
-        depositsLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 30 }} /> : (
-          <FlatList
-            data={depositsData?.deposits ?? []}
-            keyExtractor={(d: any) => d.id}
-            renderItem={({ item }: { item: any }) => (
-              <View style={s.depRow}>
-                <View style={s.depInfo}>
-                  <Text style={s.depAmt}>₹{Number(item.amount).toFixed(0)}</Text>
-                  <Text style={s.depMethod}>{item.method === 'manual' ? 'Manual' : 'UPI'} • UTR: {item.utrNumber ?? '—'}</Text>
-                  <Text style={s.depTime}>{new Date(item.createdAt).toLocaleString('hi-IN', { dateStyle: 'short', timeStyle: 'short' })}</Text>
-                </View>
-                <StatusBadge status={item.status} colors={colors} />
-              </View>
-            )}
-            contentContainerStyle={s.listContent}
-            ListEmptyComponent={<EmptyState icon="arrow-down-circle-outline" text="कोई जमा नहीं" />}
-          />
-        )
-      )}
-      {walletTab === 'withdrawals' && (
-        withdrawalsLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 30 }} /> : (
-          <FlatList
-            data={withdrawalsData?.withdrawals ?? []}
-            keyExtractor={(w: any) => w.id}
-            renderItem={({ item }: { item: any }) => (
-              <View style={s.depRow}>
-                <View style={s.depInfo}>
-                  <Text style={s.depAmt}>₹{Number(item.amount).toFixed(0)}</Text>
-                  <Text style={s.depMethod}>{item.upiId ?? 'Bank Transfer'}</Text>
-                  <Text style={s.depTime}>{new Date(item.createdAt).toLocaleString('hi-IN', { dateStyle: 'short', timeStyle: 'short' })}</Text>
-                </View>
-                <StatusBadge status={item.status} colors={colors} />
-              </View>
-            )}
-            contentContainerStyle={s.listContent}
-            ListEmptyComponent={<EmptyState icon="arrow-up-circle-outline" text="कोई निकासी नहीं" />}
-          />
-        )
-      )}
-
-      {/* ── Deposit Modal ── */}
-      <Modal visible={showDeposit} transparent animationType="slide">
-        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowDeposit(false)}>
-          <TouchableOpacity activeOpacity={1} style={s.sheet} onPress={() => {}}>
-            <View style={s.sheetHandle} />
-            <Text style={s.sheetTitle}>जमा करें</Text>
-
-            {/* Deposit method tabs */}
-            <View style={s.depTabs}>
-              <TouchableOpacity style={[s.depTab, depositTab === 'upi' && s.depTabActive]} onPress={() => setDepositTab('upi')}>
-                <Ionicons name="phone-portrait-outline" size={14} color={depositTab === 'upi' ? colors.primary : colors.mutedForeground} />
-                <Text style={[s.depTabText, depositTab === 'upi' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>UPI</Text>
-              </TouchableOpacity>
-              {!!(platformSettings?.bankName && platformSettings?.bankAccountNumber) && (
-                <TouchableOpacity style={[s.depTab, depositTab === 'bank' && s.depTabActive]} onPress={() => setDepositTab('bank')}>
-                  <Ionicons name="business-outline" size={14} color={depositTab === 'bank' ? colors.primary : colors.mutedForeground} />
-                  <Text style={[s.depTabText, depositTab === 'bank' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Bank</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity style={[s.depTab, depositTab === 'manual' && s.depTabActive]} onPress={() => setDepositTab('manual')}>
-                <Ionicons name="document-text-outline" size={14} color={depositTab === 'manual' ? colors.primary : colors.mutedForeground} />
-                <Text style={[s.depTabText, depositTab === 'manual' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>UTR Submit</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={s.amountLabel}>राशि (न्यूनतम ₹200)</Text>
-              <TextInput
-                style={s.amountInput}
-                placeholder="₹200"
-                placeholderTextColor={colors.mutedForeground}
-                keyboardType="numeric"
-                value={depAmount}
-                onChangeText={setDepAmount}
-              />
-              <View style={s.quickAmounts}>
-                {[200, 500, 1000, 2000].map((a) => (
-                  <TouchableOpacity key={a} style={s.quickBtn} onPress={() => setDepAmount(String(a))}>
-                    <Text style={s.quickText}>₹{a}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* ── UPI tab ── */}
-              {depositTab === 'upi' && (
-                <View style={s.upiSection}>
-                  {upiOptions.length === 0 ? (
-                    <Text style={[s.upiHint, { color: colors.mutedForeground }]}>UPI ID अभी कॉन्फ़िगर नहीं है। कृपया UTR Submit टैब का उपयोग करें।</Text>
-                  ) : (
-                    <>
-                      <Text style={s.upiHint}>किसी एक UPI पर भुगतान करें, फिर UTR Submit करें:</Text>
-                      {upiOptions.map((opt, idx) => (
-                        <View key={idx} style={s.upiOptionCard}>
-                          {/* Option header */}
-                          <View style={s.upiOptionHeader}>
-                            <View style={s.upiOptionBadge}>
-                              <Text style={s.upiOptionBadgeText}>{idx + 1}</Text>
-                            </View>
-                            <Text style={s.upiOptionLabel}>{opt.name || opt.label}</Text>
-                          </View>
-                          {/* UPI ID row with copy */}
-                          <TouchableOpacity
-                            style={s.upiOptionIdRow}
-                            onPress={() => { copyUpiId(opt.id); setBankFieldCopied(`upi_${idx}`); setTimeout(() => setBankFieldCopied(null), 2000); }}
-                            activeOpacity={0.7}
-                          >
-                            <Text style={s.upiOptionId} numberOfLines={1}>{opt.id}</Text>
-                            <Ionicons
-                              name={bankFieldCopied === `upi_${idx}` ? 'checkmark-circle' : 'copy-outline'}
-                              size={16}
-                              color={bankFieldCopied === `upi_${idx}` ? colors.success : colors.primary}
-                            />
-                          </TouchableOpacity>
-                          {/* Pay Now button */}
-                          <TouchableOpacity
-                            style={s.upiPayBtn}
-                            onPress={() => openUpiDeepLink(opt.id, opt.name)}
-                            activeOpacity={0.8}
-                          >
-                            <Ionicons name="flash" size={15} color="#fff" />
-                            <Text style={s.upiPayBtnText}>Pay Now</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                      <View style={s.infoBox}>
-                        <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
-                        <Text style={s.infoText}>भुगतान के बाद "UTR Submit" टैब पर जाकर UTR नंबर और स्क्रीनशॉट अपलोड करें।</Text>
-                      </View>
-                    </>
-                  )}
-                </View>
-              )}
-
-              {/* ── Bank Transfer tab ── */}
-              {depositTab === 'bank' && (
-                <View style={{ marginTop: 12 }}>
-                  <View style={s.infoBox}>
-                    <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
-                    <Text style={s.infoText}>नीचे दिए गए बैंक खाते में NEFT/IMPS करें, फिर "UTR Submit" टैब पर UTR नंबर डालें।</Text>
-                  </View>
-
-                  {/* Bank detail rows */}
-                  {[
-                    { label: 'बैंक का नाम', value: platformSettings?.bankName, field: 'bankName' },
-                    { label: 'खाताधारक', value: platformSettings?.bankHolderName, field: 'bankHolder' },
-                    { label: 'खाता नंबर', value: platformSettings?.bankAccountNumber, field: 'bankAccount', mono: true },
-                    { label: 'IFSC कोड', value: platformSettings?.bankIfsc, field: 'bankIfsc', mono: true },
-                  ].map(({ label, value, field, mono }) =>
-                    value ? (
-                      <View key={field} style={s.bankRow}>
-                        <Text style={s.bankLabel}>{label}</Text>
-                        <TouchableOpacity
-                          style={s.bankValueRow}
-                          onPress={() => {
-                            Clipboard.setString(value);
-                            setBankFieldCopied(field);
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            setTimeout(() => setBankFieldCopied(null), 2000);
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={[s.bankValue, mono && { fontFamily: 'Inter_600SemiBold', letterSpacing: 0.5 }]}>{value}</Text>
-                          <Ionicons
-                            name={bankFieldCopied === field ? 'checkmark-circle' : 'copy-outline'}
-                            size={16}
-                            color={bankFieldCopied === field ? colors.success : colors.primary}
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    ) : null
-                  )}
-                </View>
-              )}
-
-              {/* ── UTR Submit (manual) tab ── */}
-              {depositTab === 'manual' && (
-                <View>
-                  {platformUpiId ? (
-                    <View style={s.upiIdRow}>
-                      <Text style={s.upiIdLabel}>पहले UPI / बैंक खाते पर भुगतान करें, फिर UTR दर्ज करें:</Text>
-                      <TouchableOpacity style={s.copyRow} onPress={() => copyUpiId(platformUpiId)} activeOpacity={0.8}>
-                        <Text style={s.upiId}>{platformUpiId}</Text>
-                        <Ionicons name={upiCopied ? 'checkmark-circle' : 'copy-outline'} size={18} color={upiCopied ? colors.success : colors.primary} />
-                      </TouchableOpacity>
-                    </View>
-                  ) : null}
-
-                  <Text style={s.amountLabel}>UTR नंबर</Text>
-                  <TextInput
-                    style={s.textInput}
-                    placeholder="12 अंकों का UTR नंबर"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={utrNumber}
-                    onChangeText={setUtrNumber}
-                    keyboardType="numeric"
-                  />
-
-                  <Text style={s.amountLabel}>स्क्रीनशॉट (वैकल्पिक)</Text>
-                  <TouchableOpacity style={s.screenshotBtn} onPress={pickScreenshot} activeOpacity={0.8}>
-                    {screenshotUri ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-                        <Text style={[s.screenshotText, { color: colors.success }]}>स्क्रीनशॉट अपलोड हुआ</Text>
-                      </View>
-                    ) : (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Ionicons name="image-outline" size={20} color={colors.mutedForeground} />
-                        <Text style={s.screenshotText}>गैलरी से चुनें</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[s.confirmBtn, createDeposit.isPending && s.btnDisabled]}
-                    onPress={handleManualDeposit}
-                    disabled={createDeposit.isPending}
-                    activeOpacity={0.85}
-                  >
-                    {createDeposit.isPending
-                      ? <ActivityIndicator color={colors.primaryForeground} />
-                      : <Text style={s.confirmText}>जमा अनुरोध भेजें</Text>
-                    }
-                  </TouchableOpacity>
-                </View>
-              )}
-            </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* ── Withdrawal Modal ── */}
-      <Modal visible={showWithdraw} transparent animationType="slide">
-        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowWithdraw(false)}>
-          <TouchableOpacity activeOpacity={1} style={s.sheet} onPress={() => {}}>
-            <View style={s.sheetHandle} />
-            <Text style={s.sheetTitle}>निकासी</Text>
-
-            {/* Method toggle */}
-            <View style={s.depTabs}>
-              <TouchableOpacity
-                style={[s.depTab, wdMethod === 'upi' && s.depTabActive]}
-                onPress={() => setWdMethod('upi')}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="phone-portrait-outline" size={16} color={wdMethod === 'upi' ? colors.primary : colors.mutedForeground} />
-                <Text style={[s.depTabText, wdMethod === 'upi' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>UPI Transfer</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[s.depTab, wdMethod === 'bank' && s.depTabActive]}
-                onPress={() => setWdMethod('bank')}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="business-outline" size={16} color={wdMethod === 'bank' ? colors.primary : colors.mutedForeground} />
-                <Text style={[s.depTabText, wdMethod === 'bank' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Bank Transfer</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {/* Amount — shared */}
-              <Text style={s.amountLabel}>राशि (न्यूनतम ₹500)</Text>
-              <TextInput
-                style={s.amountInput}
-                placeholder="₹500"
-                placeholderTextColor={colors.mutedForeground}
-                keyboardType="numeric"
-                value={wdAmount}
-                onChangeText={setWdAmount}
-              />
-              <View style={s.quickAmounts}>
-                {[500, 1000, 2000, 5000].map((a) => (
-                  <TouchableOpacity key={a} style={s.quickBtn} onPress={() => setWdAmount(String(a))}>
-                    <Text style={s.quickText}>₹{a}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={s.balHint}>उपलब्ध: ₹{balance.toFixed(0)}</Text>
-
-              {/* UPI section */}
-              {wdMethod === 'upi' && (
-                <View>
-                  <View style={s.infoBox}>
-                    <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
-                    <Text style={s.infoText}>स्वीकृत होने पर धनराशि आपके UPI ID पर भेजी जाएगी।</Text>
-                  </View>
-                  <Text style={[s.amountLabel, { marginTop: 12 }]}>आपका UPI ID *</Text>
-                  <TextInput
-                    style={s.textInput}
-                    placeholder="example@upi"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={wdUpiId}
-                    onChangeText={setWdUpiId}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                  />
-                </View>
-              )}
-
-              {/* Bank section */}
-              {wdMethod === 'bank' && (
-                <View>
-                  <View style={s.infoBox}>
-                    <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
-                    <Text style={s.infoText}>स्वीकृत होने पर धनराशि आपके बैंक खाते में NEFT/IMPS द्वारा भेजी जाएगी। 1–2 कार्यदिवस लग सकते हैं।</Text>
-                  </View>
-
-                  <Text style={[s.amountLabel, { marginTop: 12 }]}>बैंक का नाम *</Text>
-                  <TextInput
-                    style={s.textInput}
-                    placeholder="जैसे: State Bank of India"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={wdBankName}
-                    onChangeText={setWdBankName}
-                    autoCapitalize="words"
-                  />
-
-                  <Text style={s.amountLabel}>खाताधारक का नाम *</Text>
-                  <TextInput
-                    style={s.textInput}
-                    placeholder="जैसे: Rahul Sharma"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={wdHolderName}
-                    onChangeText={setWdHolderName}
-                    autoCapitalize="words"
-                  />
-
-                  <Text style={s.amountLabel}>खाता नंबर *</Text>
-                  <TextInput
-                    style={s.textInput}
-                    placeholder="बैंक खाता नंबर दर्ज करें"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={wdAccountNumber}
-                    onChangeText={setWdAccountNumber}
-                    keyboardType="numeric"
-                    secureTextEntry={false}
-                  />
-
-                  <Text style={s.amountLabel}>खाता नंबर की पुष्टि करें *</Text>
-                  <TextInput
-                    style={[
-                      s.textInput,
-                      wdConfirmAccountNumber.length > 0 && {
-                        borderColor: wdAccountNumber === wdConfirmAccountNumber ? colors.success : colors.destructive,
-                        borderWidth: 1.5,
-                      },
-                    ]}
-                    placeholder="खाता नंबर दोबारा दर्ज करें"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={wdConfirmAccountNumber}
-                    onChangeText={setWdConfirmAccountNumber}
-                    keyboardType="numeric"
-                  />
-                  {wdConfirmAccountNumber.length > 0 && wdAccountNumber !== wdConfirmAccountNumber && (
-                    <View style={s.validationMsg}>
-                      <Ionicons name="close-circle" size={14} color={colors.destructive} />
-                      <Text style={[s.validationText, { color: colors.destructive }]}>खाता नंबर मेल नहीं खाता</Text>
-                    </View>
-                  )}
-                  {wdConfirmAccountNumber.length > 0 && wdAccountNumber === wdConfirmAccountNumber && wdAccountNumber.length > 0 && (
-                    <View style={s.validationMsg}>
-                      <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-                      <Text style={[s.validationText, { color: colors.success }]}>खाता नंबर मेल खाता है</Text>
-                    </View>
-                  )}
-
-                  <Text style={[s.amountLabel, { marginTop: 4 }]}>IFSC कोड *</Text>
-                  <TextInput
-                    style={s.textInput}
-                    placeholder="जैसे: SBIN0001234"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={wdIfsc}
-                    onChangeText={(t) => setWdIfsc(t.toUpperCase())}
-                    autoCapitalize="characters"
-                    maxLength={11}
-                  />
-                  <Text style={s.ifscHint}>IFSC कोड आपकी बैंक पासबुक या चेकबुक पर मिलता है (11 अक्षर)</Text>
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={[s.confirmBtn, createWithdrawal.isPending && s.btnDisabled, { marginTop: 20, marginBottom: 8 }]}
-                onPress={handleWithdrawal}
-                disabled={createWithdrawal.isPending}
-                activeOpacity={0.85}
-              >
-                {createWithdrawal.isPending
-                  ? <ActivityIndicator color={colors.primaryForeground} />
-                  : <Text style={s.confirmText}>निकासी अनुरोध भेजें</Text>
-                }
-              </TouchableOpacity>
-            </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+      <Text style={{ fontSize: 11, color, fontFamily: 'Inter_600SemiBold' }}>{t((STATUS_KEYS[status] ?? 'wallet_status_pending') as any)}</Text>
     </View>
   );
 }
@@ -740,14 +98,478 @@ function EmptyState({ icon, text }: { icon: string; text: string }) {
   );
 }
 
+export default function WalletScreen() {
+  const colors  = useColors();
+  const insets  = useSafeAreaInsets();
+  const { token, user, updateUser } = useAuth();
+  const { t, lang } = useLanguage();
+  const locale  = lang === 'hi' ? 'hi-IN' : 'en-IN';
+  const queryClient = useQueryClient();
+
+  const [walletTab,     setWalletTab]     = useState<WalletTab>('transactions');
+  const [showDeposit,   setShowDeposit]   = useState(false);
+  const [showWithdraw,  setShowWithdraw]  = useState(false);
+  const [depositTab,    setDepositTab]    = useState<DepositTab>('upi');
+
+  // Deposit form
+  const [depAmount,        setDepAmount]        = useState('');
+  const [utrNumber,        setUtrNumber]        = useState('');
+  const [screenshotUri,    setScreenshotUri]    = useState<string | null>(null);
+  const [screenshotBase64, setScreenshotBase64] = useState<string | null>(null);
+  const [upiCopied,        setUpiCopied]        = useState(false);
+  const [bankFieldCopied,  setBankFieldCopied]  = useState<string | null>(null);
+
+  // Withdrawal form
+  const [wdAmount,             setWdAmount]             = useState('');
+  const [wdMethod,             setWdMethod]             = useState<WithdrawMethod>('upi');
+  const [wdUpiId,              setWdUpiId]              = useState('');
+  const [wdBankName,           setWdBankName]           = useState('');
+  const [wdHolderName,         setWdHolderName]         = useState('');
+  const [wdAccountNumber,      setWdAccountNumber]      = useState('');
+  const [wdConfirmAccountNumber,setWdConfirmAccountNumber] = useState('');
+  const [wdIfsc,               setWdIfsc]               = useState('');
+
+  const { data: platformSettings } = useGetSettings();
+  const platformName = platformSettings?.platformName ?? 'Jazment';
+
+  const upiOptions = [
+    { id: platformSettings?.platformUpiId  ?? '', name: platformSettings?.platformUpiName  ?? 'Jazment Cricket', label: t('wallet_upi_label', '1') },
+    { id: platformSettings?.platformUpiId2 ?? '', name: platformSettings?.platformUpiName2 ?? '',                label: t('wallet_upi_label', '2') },
+    { id: platformSettings?.platformUpiId3 ?? '', name: platformSettings?.platformUpiName3 ?? '',                label: t('wallet_upi_label', '3') },
+  ].filter(u => !!u.id);
+
+  const platformUpiId   = upiOptions[0]?.id   ?? '';
+  const platformUpiName = upiOptions[0]?.name ?? 'Jazment Cricket';
+
+  const { data: wallet,         isLoading: walletLoading }      = useGetWallet({ query: { enabled: !!token, queryKey: getGetWalletQueryKey() } });
+  const { data: txData,         isLoading: txLoading }          = useGetTransactions({}, { query: { enabled: !!token && walletTab === 'transactions', queryKey: getGetTransactionsQueryKey({}) } });
+  const { data: depositsData,   isLoading: depositsLoading }    = useGetMyDeposits({}, { query: { enabled: !!token && walletTab === 'deposits',      queryKey: getGetMyDepositsQueryKey({}) } });
+  const { data: withdrawalsData,isLoading: withdrawalsLoading } = useGetMyWithdrawals({}, { query: { enabled: !!token && walletTab === 'withdrawals', queryKey: getGetMyWithdrawalsQueryKey({}) } });
+
+  const createDeposit    = useCreateDeposit();
+  const createWithdrawal = useCreateWithdrawal();
+
+  const balance = wallet?.balance ?? user?.walletBalance ?? 0;
+
+  const openUpiDeepLink = (upiId: string, upiName: string) => {
+    const amt = parseFloat(depAmount);
+    if (!amt || amt < 200) { Alert.alert(t('wallet_min_deposit_title'), t('wallet_min_deposit_msg')); return; }
+    const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(upiName || platformName)}&am=${amt}&cu=INR&tn=Deposit+to+${encodeURIComponent(platformName)}`;
+    Linking.openURL(upiUrl).catch(() => Alert.alert(t('wallet_no_upi_app_title'), t('wallet_no_upi_app_msg')));
+    Alert.alert(t('wallet_after_payment_title'), t('wallet_after_payment_msg'), [{ text: t('wallet_ok') }]);
+  };
+
+  const copyUpiId = (id: string) => {
+    if (!id) return;
+    Clipboard.setString(id);
+    setUpiCopied(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTimeout(() => setUpiCopied(false), 2000);
+  };
+
+  const pickScreenshot = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { Alert.alert(t('wallet_permission_title'), t('wallet_permission_msg')); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: true });
+    if (!result.canceled && result.assets[0]) {
+      setScreenshotUri(result.assets[0].uri);
+      setScreenshotBase64(result.assets[0].base64 ?? null);
+    }
+  };
+
+  const handleManualDeposit = () => {
+    const amt = parseFloat(depAmount);
+    if (!amt || amt < 200) { Alert.alert(t('wallet_min_deposit_title'), t('wallet_min_deposit_msg')); return; }
+    if (!utrNumber.trim()) { Alert.alert(t('wallet_utr_required_title'), t('wallet_utr_required_msg')); return; }
+    createDeposit.mutate(
+      { data: { amount: amt, method: 'manual', utrNumber: utrNumber.trim(), screenshotBase64: screenshotBase64 ?? undefined } },
+      {
+        onSuccess: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          queryClient.invalidateQueries({ queryKey: getGetMyDepositsQueryKey({}) });
+          setShowDeposit(false);
+          setDepAmount(''); setUtrNumber(''); setScreenshotUri(null); setScreenshotBase64(null);
+          setWalletTab('deposits');
+          Alert.alert(t('wallet_deposit_success_title'), t('wallet_deposit_success_msg'));
+        },
+        onError: (err: any) => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert(t('wallet_error_title'), err?.data?.error ?? t('wallet_deposit_success_msg'));
+        },
+      }
+    );
+  };
+
+  const resetWithdrawForm = () => {
+    setWdAmount(''); setWdUpiId('');
+    setWdBankName(''); setWdHolderName('');
+    setWdAccountNumber(''); setWdConfirmAccountNumber(''); setWdIfsc('');
+  };
+
+  const handleWithdrawal = () => {
+    const amt = parseFloat(wdAmount);
+    if (!amt || amt < 500) { Alert.alert(t('wallet_min_withdraw_title'), t('wallet_min_withdraw_msg')); return; }
+    let payload: any;
+    if (wdMethod === 'upi') {
+      if (!wdUpiId.trim()) { Alert.alert(t('wallet_upi_required_title'), t('wallet_upi_required_msg')); return; }
+      payload = { amount: amt, upiId: wdUpiId.trim() };
+    } else {
+      if (!wdBankName.trim())    { Alert.alert(t('wallet_bank_name_required'), t('wallet_bank_name_msg')); return; }
+      if (!wdHolderName.trim())  { Alert.alert(t('wallet_holder_required'),    t('wallet_holder_msg'));    return; }
+      if (!wdAccountNumber.trim()){ Alert.alert(t('wallet_account_required'),  t('wallet_account_msg'));   return; }
+      if (wdAccountNumber.trim() !== wdConfirmAccountNumber.trim()) { Alert.alert(t('wallet_account_mismatch'), t('wallet_account_mismatch_msg')); return; }
+      if (!wdIfsc.trim() || wdIfsc.trim().length < 11) { Alert.alert(t('wallet_ifsc_invalid'), t('wallet_ifsc_msg')); return; }
+      payload = { amount: amt, bankAccount: { bankName: wdBankName.trim(), holderName: wdHolderName.trim(), accountNumber: wdAccountNumber.trim(), ifsc: wdIfsc.trim().toUpperCase() } };
+    }
+    createWithdrawal.mutate(
+      { data: payload },
+      {
+        onSuccess: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          queryClient.invalidateQueries({ queryKey: getGetMyWithdrawalsQueryKey({}) });
+          queryClient.invalidateQueries({ queryKey: getGetWalletQueryKey() });
+          setShowWithdraw(false);
+          resetWithdrawForm();
+          setWalletTab('withdrawals');
+          Alert.alert(t('wallet_withdraw_success_title'), wdMethod === 'upi' ? t('wallet_withdraw_upi_msg') : t('wallet_withdraw_bank_msg'));
+        },
+        onError: (err: any) => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert(t('wallet_error_title'), err?.data?.error ?? t('wallet_withdraw_upi_msg'));
+        },
+      }
+    );
+  };
+
+  const s = styles(colors, insets);
+
+  return (
+    <View style={s.root}>
+      <View style={s.header}><Text style={s.title}>{t('wallet_title')}</Text></View>
+
+      {/* Balance Card */}
+      <View style={s.balanceCard}>
+        <Text style={s.balanceLabel}>{t('wallet_balance_label')}</Text>
+        {walletLoading
+          ? <ActivityIndicator color={colors.primaryForeground} />
+          : <Text style={s.balance}>₹{balance.toFixed(2)}</Text>
+        }
+        <View style={s.cardActions}>
+          <TouchableOpacity style={s.cardBtn} onPress={() => setShowDeposit(true)} activeOpacity={0.85}>
+            <Ionicons name="arrow-down-circle" size={18} color={colors.primaryForeground} />
+            <Text style={s.cardBtnText}>{t('wallet_deposit_btn')}</Text>
+          </TouchableOpacity>
+          <View style={s.divider} />
+          <TouchableOpacity style={s.cardBtn} onPress={() => setShowWithdraw(true)} activeOpacity={0.85}>
+            <Ionicons name="arrow-up-circle" size={18} color={colors.primaryForeground} />
+            <Text style={s.cardBtnText}>{t('wallet_withdraw_btn')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Stats */}
+      {wallet && (
+        <View style={s.statsRow}>
+          {[
+            { labelKey: 'wallet_stat_deposit',  value: wallet.depositTotal },
+            { labelKey: 'wallet_stat_withdraw', value: wallet.withdrawTotal },
+            { labelKey: 'wallet_stat_win',      value: wallet.winTotal },
+          ].map((stat) => (
+            <View key={stat.labelKey} style={s.stat}>
+              <Text style={s.statVal}>₹{stat.value.toFixed(0)}</Text>
+              <Text style={s.statLabel}>{t(stat.labelKey as any)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Ledger Tabs */}
+      <View style={s.tabs}>
+        {(['transactions', 'deposits', 'withdrawals'] as WalletTab[]).map((tab) => (
+          <TouchableOpacity key={tab} style={[s.tab, walletTab === tab && s.tabActive]} onPress={() => setWalletTab(tab)}>
+            <Text style={[s.tabText, walletTab === tab && s.tabTextActive]}>
+              {tab === 'transactions' ? t('wallet_tab_tx') : tab === 'deposits' ? t('wallet_tab_deposits') : t('wallet_tab_withdrawals')}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {walletTab === 'transactions' && (
+        txLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 30 }} /> : (
+          <FlatList
+            data={txData?.transactions ?? []}
+            keyExtractor={(tx) => tx.id}
+            renderItem={({ item }) => <TxItem item={item} />}
+            contentContainerStyle={s.listContent}
+            ListEmptyComponent={<EmptyState icon="receipt-outline" text={t('wallet_empty_tx')} />}
+          />
+        )
+      )}
+      {walletTab === 'deposits' && (
+        depositsLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 30 }} /> : (
+          <FlatList
+            data={depositsData?.deposits ?? []}
+            keyExtractor={(d: any) => d.id}
+            renderItem={({ item }: { item: any }) => (
+              <View style={s.depRow}>
+                <View style={s.depInfo}>
+                  <Text style={s.depAmt}>₹{Number(item.amount).toFixed(0)}</Text>
+                  <Text style={s.depMethod}>{item.method === 'manual' ? 'Manual' : 'UPI'} • UTR: {item.utrNumber ?? '—'}</Text>
+                  <Text style={s.depTime}>{new Date(item.createdAt).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })}</Text>
+                </View>
+                <StatusBadge status={item.status} colors={colors} t={t} />
+              </View>
+            )}
+            contentContainerStyle={s.listContent}
+            ListEmptyComponent={<EmptyState icon="arrow-down-circle-outline" text={t('wallet_empty_deposits')} />}
+          />
+        )
+      )}
+      {walletTab === 'withdrawals' && (
+        withdrawalsLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 30 }} /> : (
+          <FlatList
+            data={withdrawalsData?.withdrawals ?? []}
+            keyExtractor={(w: any) => w.id}
+            renderItem={({ item }: { item: any }) => (
+              <View style={s.depRow}>
+                <View style={s.depInfo}>
+                  <Text style={s.depAmt}>₹{Number(item.amount).toFixed(0)}</Text>
+                  <Text style={s.depMethod}>{item.upiId ?? 'Bank Transfer'}</Text>
+                  <Text style={s.depTime}>{new Date(item.createdAt).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })}</Text>
+                </View>
+                <StatusBadge status={item.status} colors={colors} t={t} />
+              </View>
+            )}
+            contentContainerStyle={s.listContent}
+            ListEmptyComponent={<EmptyState icon="arrow-up-circle-outline" text={t('wallet_empty_withdrawals')} />}
+          />
+        )
+      )}
+
+      {/* ── Deposit Modal ── */}
+      <Modal visible={showDeposit} transparent animationType="slide">
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowDeposit(false)}>
+          <TouchableOpacity activeOpacity={1} style={s.sheet} onPress={() => {}}>
+            <View style={s.sheetHandle} />
+            <Text style={s.sheetTitle}>{t('wallet_deposit_btn')}</Text>
+
+            <View style={s.depTabs}>
+              <TouchableOpacity style={[s.depTab, depositTab === 'upi' && s.depTabActive]} onPress={() => setDepositTab('upi')}>
+                <Ionicons name="phone-portrait-outline" size={14} color={depositTab === 'upi' ? colors.primary : colors.mutedForeground} />
+                <Text style={[s.depTabText, depositTab === 'upi' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>UPI</Text>
+              </TouchableOpacity>
+              {!!(platformSettings?.bankName && platformSettings?.bankAccountNumber) && (
+                <TouchableOpacity style={[s.depTab, depositTab === 'bank' && s.depTabActive]} onPress={() => setDepositTab('bank')}>
+                  <Ionicons name="business-outline" size={14} color={depositTab === 'bank' ? colors.primary : colors.mutedForeground} />
+                  <Text style={[s.depTabText, depositTab === 'bank' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Bank</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[s.depTab, depositTab === 'manual' && s.depTabActive]} onPress={() => setDepositTab('manual')}>
+                <Ionicons name="document-text-outline" size={14} color={depositTab === 'manual' ? colors.primary : colors.mutedForeground} />
+                <Text style={[s.depTabText, depositTab === 'manual' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{t('wallet_utr_tab')}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={s.amountLabel}>{t('wallet_amount_label')} (min ₹200)</Text>
+              <TextInput style={s.amountInput} placeholder="₹200" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" value={depAmount} onChangeText={setDepAmount} />
+              <View style={s.quickAmounts}>
+                {[200, 500, 1000, 2000].map((a) => (
+                  <TouchableOpacity key={a} style={s.quickBtn} onPress={() => setDepAmount(String(a))}>
+                    <Text style={s.quickText}>₹{a}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* UPI tab */}
+              {depositTab === 'upi' && (
+                <View style={s.upiSection}>
+                  {upiOptions.length === 0 ? (
+                    <Text style={[s.upiHint, { color: colors.mutedForeground }]}>UPI ID not configured yet. Please use {t('wallet_utr_tab')} tab.</Text>
+                  ) : (
+                    <>
+                      <Text style={s.upiHint}>{lang === 'hi' ? 'किसी एक UPI पर भुगतान करें, फिर UTR Submit करें:' : 'Pay to any UPI below, then submit UTR:'}</Text>
+                      {upiOptions.map((opt, idx) => (
+                        <View key={idx} style={s.upiOptionCard}>
+                          <View style={s.upiOptionHeader}>
+                            <View style={s.upiOptionBadge}><Text style={s.upiOptionBadgeText}>{idx + 1}</Text></View>
+                            <Text style={s.upiOptionLabel}>{opt.name || opt.label}</Text>
+                          </View>
+                          <TouchableOpacity
+                            style={s.upiOptionIdRow}
+                            onPress={() => { copyUpiId(opt.id); setBankFieldCopied(`upi_${idx}`); setTimeout(() => setBankFieldCopied(null), 2000); }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={s.upiOptionId} numberOfLines={1}>{opt.id}</Text>
+                            <Ionicons name={bankFieldCopied === `upi_${idx}` ? 'checkmark-circle' : 'copy-outline'} size={16} color={bankFieldCopied === `upi_${idx}` ? colors.success : colors.primary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity style={s.upiPayBtn} onPress={() => openUpiDeepLink(opt.id, opt.name)} activeOpacity={0.8}>
+                            <Ionicons name="flash" size={15} color="#fff" />
+                            <Text style={s.upiPayBtnText}>{t('wallet_pay_now')}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                      <View style={s.infoBox}>
+                        <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
+                        <Text style={s.infoText}>{lang === 'hi' ? 'भुगतान के बाद "UTR Submit" टैब पर जाकर UTR नंबर और स्क्रीनशॉट अपलोड करें।' : 'After payment, go to UTR Submit tab and upload your UTR number and screenshot.'}</Text>
+                      </View>
+                    </>
+                  )}
+                </View>
+              )}
+
+              {/* Bank Transfer tab */}
+              {depositTab === 'bank' && (
+                <View style={{ marginTop: 12 }}>
+                  <View style={s.infoBox}>
+                    <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
+                    <Text style={s.infoText}>{lang === 'hi' ? 'नीचे दिए बैंक खाते में NEFT/IMPS करें, फिर UTR Submit टैब पर UTR नंबर डालें।' : 'Transfer via NEFT/IMPS to the bank account below, then enter your UTR in the UTR Submit tab.'}</Text>
+                  </View>
+                  {[
+                    { label: lang === 'hi' ? 'बैंक का नाम' : 'Bank Name',    value: platformSettings?.bankName,          field: 'bankName' },
+                    { label: lang === 'hi' ? 'खाताधारक'   : 'Account Holder',value: platformSettings?.bankHolderName,    field: 'bankHolder' },
+                    { label: lang === 'hi' ? 'खाता नंबर'  : 'Account Number', value: platformSettings?.bankAccountNumber, field: 'bankAccount', mono: true },
+                    { label: 'IFSC',                                            value: platformSettings?.bankIfsc,          field: 'bankIfsc',    mono: true },
+                  ].map(({ label, value, field, mono }) =>
+                    value ? (
+                      <View key={field} style={s.bankRow}>
+                        <Text style={s.bankLabel}>{label}</Text>
+                        <TouchableOpacity style={s.bankValueRow} onPress={() => { Clipboard.setString(value); setBankFieldCopied(field); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTimeout(() => setBankFieldCopied(null), 2000); }} activeOpacity={0.7}>
+                          <Text style={[s.bankValue, mono && { fontFamily: 'Inter_600SemiBold', letterSpacing: 0.5 }]}>{value}</Text>
+                          <Ionicons name={bankFieldCopied === field ? 'checkmark-circle' : 'copy-outline'} size={16} color={bankFieldCopied === field ? colors.success : colors.primary} />
+                        </TouchableOpacity>
+                      </View>
+                    ) : null
+                  )}
+                </View>
+              )}
+
+              {/* UTR Submit tab */}
+              {depositTab === 'manual' && (
+                <View>
+                  {platformUpiId ? (
+                    <View style={s.upiIdRow}>
+                      <Text style={s.upiIdLabel}>{lang === 'hi' ? 'पहले UPI / बैंक खाते पर भुगतान करें, फिर UTR दर्ज करें:' : 'First pay via UPI / Bank, then enter your UTR below:'}</Text>
+                      <TouchableOpacity style={s.copyRow} onPress={() => copyUpiId(platformUpiId)} activeOpacity={0.8}>
+                        <Text style={s.upiId}>{platformUpiId}</Text>
+                        <Ionicons name={upiCopied ? 'checkmark-circle' : 'copy-outline'} size={18} color={upiCopied ? colors.success : colors.primary} />
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
+                  <Text style={s.amountLabel}>{t('wallet_utr_label')}</Text>
+                  <TextInput style={s.textInput} placeholder={t('wallet_utr_placeholder')} placeholderTextColor={colors.mutedForeground} value={utrNumber} onChangeText={setUtrNumber} keyboardType="numeric" />
+                  <Text style={s.amountLabel}>{t('wallet_screenshot_label')}</Text>
+                  <TouchableOpacity style={s.screenshotBtn} onPress={pickScreenshot} activeOpacity={0.8}>
+                    {screenshotUri ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                        <Text style={[s.screenshotText, { color: colors.success }]}>{lang === 'hi' ? 'स्क्रीनशॉट अपलोड हुआ' : 'Screenshot uploaded'}</Text>
+                      </View>
+                    ) : (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Ionicons name="image-outline" size={20} color={colors.mutedForeground} />
+                        <Text style={s.screenshotText}>{lang === 'hi' ? 'गैलरी से चुनें' : 'Choose from gallery'}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[s.confirmBtn, createDeposit.isPending && s.btnDisabled]} onPress={handleManualDeposit} disabled={createDeposit.isPending} activeOpacity={0.85}>
+                    {createDeposit.isPending ? <ActivityIndicator color={colors.primaryForeground} /> : <Text style={s.confirmText}>{t('wallet_submit_deposit')}</Text>}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Withdrawal Modal ── */}
+      <Modal visible={showWithdraw} transparent animationType="slide">
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowWithdraw(false)}>
+          <TouchableOpacity activeOpacity={1} style={s.sheet} onPress={() => {}}>
+            <View style={s.sheetHandle} />
+            <Text style={s.sheetTitle}>{t('wallet_withdraw_btn')}</Text>
+
+            <View style={s.depTabs}>
+              <TouchableOpacity style={[s.depTab, wdMethod === 'upi' && s.depTabActive]} onPress={() => setWdMethod('upi')} activeOpacity={0.7}>
+                <Ionicons name="phone-portrait-outline" size={16} color={wdMethod === 'upi' ? colors.primary : colors.mutedForeground} />
+                <Text style={[s.depTabText, wdMethod === 'upi' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{t('wallet_via_upi')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.depTab, wdMethod === 'bank' && s.depTabActive]} onPress={() => setWdMethod('bank')} activeOpacity={0.7}>
+                <Ionicons name="business-outline" size={16} color={wdMethod === 'bank' ? colors.primary : colors.mutedForeground} />
+                <Text style={[s.depTabText, wdMethod === 'bank' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{t('wallet_via_bank')}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Text style={s.amountLabel}>{t('wallet_amount_label')} (min ₹500)</Text>
+              <TextInput style={s.amountInput} placeholder="₹500" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" value={wdAmount} onChangeText={setWdAmount} />
+              <View style={s.quickAmounts}>
+                {[500, 1000, 2000, 5000].map((a) => (
+                  <TouchableOpacity key={a} style={s.quickBtn} onPress={() => setWdAmount(String(a))}>
+                    <Text style={s.quickText}>₹{a}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={s.balHint}>{lang === 'hi' ? 'उपलब्ध' : 'Available'}: ₹{balance.toFixed(0)}</Text>
+
+              {wdMethod === 'upi' && (
+                <View>
+                  <View style={s.infoBox}>
+                    <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
+                    <Text style={s.infoText}>{lang === 'hi' ? 'स्वीकृत होने पर धनराशि आपके UPI ID पर भेजी जाएगी।' : 'On approval, amount will be sent to your UPI ID.'}</Text>
+                  </View>
+                  <Text style={[s.amountLabel, { marginTop: 12 }]}>{t('wallet_your_upi_id')} *</Text>
+                  <TextInput style={s.textInput} placeholder={t('wallet_upi_placeholder')} placeholderTextColor={colors.mutedForeground} value={wdUpiId} onChangeText={setWdUpiId} autoCapitalize="none" keyboardType="email-address" />
+                </View>
+              )}
+
+              {wdMethod === 'bank' && (
+                <View>
+                  <View style={s.infoBox}>
+                    <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
+                    <Text style={s.infoText}>{lang === 'hi' ? 'स्वीकृत होने पर धनराशि आपके बैंक खाते में NEFT/IMPS द्वारा भेजी जाएगी।' : 'On approval, amount will be sent to your bank account via NEFT/IMPS.'}</Text>
+                  </View>
+                  <Text style={[s.amountLabel, { marginTop: 12 }]}>{t('wallet_bank_name')} *</Text>
+                  <TextInput style={s.textInput} placeholder={lang === 'hi' ? 'जैसे: State Bank of India' : 'e.g. State Bank of India'} placeholderTextColor={colors.mutedForeground} value={wdBankName} onChangeText={setWdBankName} autoCapitalize="words" />
+                  <Text style={s.amountLabel}>{t('wallet_holder_name')} *</Text>
+                  <TextInput style={s.textInput} placeholder={lang === 'hi' ? 'जैसे: Rahul Sharma' : 'e.g. Rahul Sharma'} placeholderTextColor={colors.mutedForeground} value={wdHolderName} onChangeText={setWdHolderName} autoCapitalize="words" />
+                  <Text style={s.amountLabel}>{t('wallet_account_number')} *</Text>
+                  <TextInput style={s.textInput} placeholder={lang === 'hi' ? 'बैंक खाता नंबर दर्ज करें' : 'Enter bank account number'} placeholderTextColor={colors.mutedForeground} value={wdAccountNumber} onChangeText={setWdAccountNumber} keyboardType="numeric" />
+                  <Text style={s.amountLabel}>{t('wallet_confirm_account')} *</Text>
+                  <TextInput
+                    style={[s.textInput, wdConfirmAccountNumber.length > 0 && { borderColor: wdAccountNumber === wdConfirmAccountNumber ? colors.success : colors.destructive, borderWidth: 1.5 }]}
+                    placeholder={lang === 'hi' ? 'खाता नंबर दोबारा दर्ज करें' : 'Re-enter account number'}
+                    placeholderTextColor={colors.mutedForeground}
+                    value={wdConfirmAccountNumber} onChangeText={setWdConfirmAccountNumber} keyboardType="numeric"
+                  />
+                  {wdConfirmAccountNumber.length > 0 && wdAccountNumber !== wdConfirmAccountNumber && (
+                    <View style={s.validationMsg}><Ionicons name="close-circle" size={14} color={colors.destructive} /><Text style={[s.validationText, { color: colors.destructive }]}>{t('wallet_account_mismatch')}</Text></View>
+                  )}
+                  {wdConfirmAccountNumber.length > 0 && wdAccountNumber === wdConfirmAccountNumber && wdAccountNumber.length > 0 && (
+                    <View style={s.validationMsg}><Ionicons name="checkmark-circle" size={14} color={colors.success} /><Text style={[s.validationText, { color: colors.success }]}>{lang === 'hi' ? 'खाता नंबर मेल खाता है' : 'Account numbers match'}</Text></View>
+                  )}
+                  <Text style={[s.amountLabel, { marginTop: 4 }]}>{t('wallet_ifsc')} *</Text>
+                  <TextInput style={s.textInput} placeholder={lang === 'hi' ? 'जैसे: SBIN0001234' : 'e.g. SBIN0001234'} placeholderTextColor={colors.mutedForeground} value={wdIfsc} onChangeText={(v) => setWdIfsc(v.toUpperCase())} autoCapitalize="characters" maxLength={11} />
+                  <Text style={s.ifscHint}>{lang === 'hi' ? 'IFSC कोड आपकी बैंक पासबुक या चेकबुक पर मिलता है (11 अक्षर)' : 'IFSC code is on your bank passbook or cheque (11 characters)'}</Text>
+                </View>
+              )}
+
+              <TouchableOpacity style={[s.confirmBtn, createWithdrawal.isPending && s.btnDisabled, { marginTop: 20, marginBottom: 8 }]} onPress={handleWithdrawal} disabled={createWithdrawal.isPending} activeOpacity={0.85}>
+                {createWithdrawal.isPending ? <ActivityIndicator color={colors.primaryForeground} /> : <Text style={s.confirmText}>{t('wallet_submit_withdraw')}</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+}
+
 const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: 20, paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 16), paddingBottom: 16 },
   title: { fontSize: 24, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold' },
-  balanceCard: {
-    marginHorizontal: 20, borderRadius: 16, padding: 24, backgroundColor: colors.primary,
-    shadowColor: colors.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 8, marginBottom: 16,
-  },
+  balanceCard: { marginHorizontal: 20, borderRadius: 16, padding: 24, backgroundColor: colors.primary, shadowColor: colors.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 8, marginBottom: 16 },
   balanceLabel: { fontSize: 13, color: colors.primaryForeground + 'AA', fontFamily: 'Inter_500Medium', marginBottom: 4 },
   balance: { fontSize: 38, fontWeight: '700' as const, color: colors.primaryForeground, fontFamily: 'Inter_700Bold', marginBottom: 20 },
   cardActions: { flexDirection: 'row', alignItems: 'center' },
@@ -769,7 +591,6 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   depAmt: { fontSize: 16, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold' },
   depMethod: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 2 },
   depTime: { fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  // Modal
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24, maxHeight: '90%' },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 20 },
@@ -787,10 +608,6 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   balHint: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 16 },
   upiSection: { gap: 12 },
   upiHint: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-  upiApps: { flexDirection: 'row', gap: 12 },
-  upiApp: { flex: 1, alignItems: 'center', gap: 8, backgroundColor: colors.muted, borderRadius: 12, paddingVertical: 16, borderWidth: 1, borderColor: colors.border },
-  upiAppName: { fontSize: 12, color: colors.foreground, fontFamily: 'Inter_500Medium' },
-  // UPI option cards
   upiOptionCard: { backgroundColor: colors.muted, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, gap: 10 },
   upiOptionHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
   upiOptionBadge: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.primary + '25', alignItems: 'center' as const, justifyContent: 'center' as const },

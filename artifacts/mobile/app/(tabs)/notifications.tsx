@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import {
   useGetNotifications,
   useMarkAllNotificationsRead,
@@ -16,23 +17,33 @@ import {
   getGetNotificationsQueryKey,
 } from '@workspace/api-client-react';
 
-const TYPE_CONFIG: Record<string, { icon: string; color: (c: any) => string; positive: boolean }> = {
-  deposit_submitted: { icon: 'time-outline', color: (c) => c.warning, positive: true },
-  deposit_approved: { icon: 'checkmark-circle', color: (c) => c.success, positive: true },
-  deposit_rejected: { icon: 'close-circle', color: (c) => c.destructive, positive: false },
-  withdrawal_submitted: { icon: 'time-outline', color: (c) => c.warning, positive: true },
-  withdrawal_approved: { icon: 'checkmark-circle', color: (c) => c.success, positive: true },
-  withdrawal_rejected: { icon: 'close-circle', color: (c) => c.destructive, positive: false },
-  prediction_won: { icon: 'trophy', color: (c) => c.success, positive: true },
-  prediction_lost: { icon: 'remove-circle', color: (c) => c.destructive, positive: false },
-  wallet_credited: { icon: 'wallet', color: (c) => c.primary, positive: true },
+const TYPE_CONFIG: Record<string, { icon: string; color: (c: any) => string }> = {
+  deposit_submitted:   { icon: 'time-outline',       color: (c) => c.warning },
+  deposit_approved:    { icon: 'checkmark-circle',   color: (c) => c.success },
+  deposit_rejected:    { icon: 'close-circle',       color: (c) => c.destructive },
+  withdrawal_submitted:{ icon: 'time-outline',       color: (c) => c.warning },
+  withdrawal_approved: { icon: 'checkmark-circle',   color: (c) => c.success },
+  withdrawal_rejected: { icon: 'close-circle',       color: (c) => c.destructive },
+  prediction_won:      { icon: 'trophy',             color: (c) => c.success },
+  prediction_lost:     { icon: 'remove-circle',      color: (c) => c.destructive },
+  wallet_credited:     { icon: 'wallet',             color: (c) => c.primary },
 };
 
 function NotifItem({ item, onRead }: { item: any; onRead: (id: string) => void }) {
   const colors = useColors();
-  const cfg = TYPE_CONFIG[item.type] ?? { icon: 'notifications-outline', color: (c: any) => c.primary, positive: true };
+  const { t, lang } = useLanguage();
+  const cfg = TYPE_CONFIG[item.type] ?? { icon: 'notifications-outline', color: (c: any) => c.primary };
   const iconColor = cfg.color(colors);
   const s = notifStyles(colors);
+
+  const formatTime = (iso: string) => {
+    const d = new Date(iso);
+    const diff = (Date.now() - d.getTime()) / 1000;
+    if (diff < 60) return t('notif_just_now');
+    if (diff < 3600) return t('notif_min_ago', Math.floor(diff / 60));
+    if (diff < 86400) return t('notif_hour_ago', Math.floor(diff / 3600));
+    return d.toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short' });
+  };
 
   return (
     <TouchableOpacity
@@ -55,22 +66,8 @@ function NotifItem({ item, onRead }: { item: any; onRead: (id: string) => void }
   );
 }
 
-function formatTime(iso: string) {
-  const d = new Date(iso);
-  const now = new Date();
-  const diff = (now.getTime() - d.getTime()) / 1000;
-  if (diff < 60) return 'अभी';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m पहले`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h पहले`;
-  return d.toLocaleDateString('hi-IN', { day: 'numeric', month: 'short' });
-}
-
 const notifStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
-  row: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    paddingVertical: 14, paddingHorizontal: 20,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
   unread: { backgroundColor: colors.primary + '08' },
   iconCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   content: { flex: 1 },
@@ -85,6 +82,7 @@ export default function NotificationsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useGetNotifications(
@@ -115,14 +113,12 @@ export default function NotificationsScreen() {
     <View style={s.root}>
       <View style={s.header}>
         <View>
-          <Text style={s.title}>सूचनाएं</Text>
-          {unreadCount > 0 && (
-            <Text style={s.subtitle}>{unreadCount} अपठित</Text>
-          )}
+          <Text style={s.title}>{t('notif_title')}</Text>
+          {unreadCount > 0 && <Text style={s.subtitle}>{t('notif_unread', unreadCount)}</Text>}
         </View>
         {unreadCount > 0 && (
           <TouchableOpacity onPress={handleMarkAll} style={s.readAllBtn} activeOpacity={0.7}>
-            <Text style={s.readAllText}>सभी पढ़ें</Text>
+            <Text style={s.readAllText}>{t('notif_mark_all')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -138,8 +134,8 @@ export default function NotificationsScreen() {
           ListEmptyComponent={
             <View style={s.empty}>
               <Ionicons name="notifications-off-outline" size={52} color={colors.mutedForeground} />
-              <Text style={s.emptyTitle}>कोई सूचना नहीं</Text>
-              <Text style={s.emptySub}>यहाँ आपकी जमा, निकासी और भविष्यवाणी की सूचनाएं दिखेंगी</Text>
+              <Text style={s.emptyTitle}>{t('notif_empty_title')}</Text>
+              <Text style={s.emptySub}>{t('notif_empty_sub')}</Text>
             </View>
           }
         />

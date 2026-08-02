@@ -15,10 +15,10 @@ import { Redirect, Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { setBaseUrl } from '@workspace/api-client-react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { LanguageProvider, useLanguage } from '@/contexts/LanguageContext';
 import { TouchableOpacity, Linking, View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-// Set base URL for all API calls (Expo bundles run outside the proxy)
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 
 SplashScreen.preventAutoHideAsync();
@@ -31,8 +31,6 @@ const WHATSAPP_NUMBER = '919955286970';
 
 function FloatingWhatsAppButton() {
   const { token } = useAuth();
-  const pathname = usePathname();
-  // Don't show on login screen
   if (!token) return null;
   const openWhatsApp = () => {
     const msg = encodeURIComponent('Hello, I need help regarding my account.');
@@ -47,53 +45,42 @@ function FloatingWhatsAppButton() {
 
 const fabStyles = StyleSheet.create({
   fab: {
-    position: 'absolute',
-    bottom: 100,
-    right: 20,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    position: 'absolute', bottom: 100, right: 20,
+    width: 52, height: 52, borderRadius: 26,
     backgroundColor: '#25D366',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#25D366',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 8,
-    zIndex: 999,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#25D366', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5, shadowRadius: 8, elevation: 8, zIndex: 999,
   },
 });
 
 function RootLayoutNav() {
-  const { token, isLoading } = useAuth();
+  const { token, isLoading: authLoading } = useAuth();
+  const { isFirstLaunch, isReady: langReady } = useLanguage();
 
-  if (isLoading) return null;
+  if (authLoading || !langReady) return null;
+
+  // First-time launch → language selection before anything else
+  if (isFirstLaunch) {
+    return (
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="select-language" />
+      </Stack>
+    );
+  }
 
   return (
     <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="select-language" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="match/[matchId]"
-          options={{ headerShown: false, presentation: 'card' }}
-        />
-        <Stack.Screen
-          name="support/ticket/[ticketId]"
-          options={{ headerShown: false, presentation: 'card' }}
-        />
+        <Stack.Screen name="match/[matchId]" options={{ headerShown: false, presentation: 'card' }} />
+        <Stack.Screen name="support/ticket/[ticketId]" options={{ headerShown: false, presentation: 'card' }} />
       </Stack>
       <FloatingWhatsAppButton />
     </View>
   );
-}
-
-function AuthGate() {
-  const { token, isLoading } = useAuth();
-  if (isLoading) return null;
-  if (!token) return <Redirect href="/login" />;
-  return null;
 }
 
 export default function RootLayout() {
@@ -105,9 +92,7 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
+    if (fontsLoaded || fontError) SplashScreen.hideAsync();
   }, [fontsLoaded, fontError]);
 
   if (!fontsLoaded && !fontError) return null;
@@ -115,15 +100,17 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <KeyboardProvider>
-                <RootLayoutNav />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </AuthProvider>
-        </QueryClientProvider>
+        <LanguageProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <KeyboardProvider>
+                  <RootLayoutNav />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </AuthProvider>
+          </QueryClientProvider>
+        </LanguageProvider>
       </ErrorBoundary>
     </SafeAreaProvider>
   );

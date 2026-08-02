@@ -8,62 +8,11 @@ import { Redirect, Tabs } from 'expo-router';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import {
   useGetNotifications,
   getGetNotificationsQueryKey,
 } from '@workspace/api-client-react';
-
-function UnreadBadge() {
-  const { token } = useAuth();
-  const colors = useColors();
-  const { data } = useGetNotifications(
-    { limit: 30 },
-    { query: { enabled: !!token, queryKey: getGetNotificationsQueryKey({ limit: 30 }), refetchInterval: 30000 } }
-  );
-  const count = data?.unreadCount ?? 0;
-  if (count === 0) return null;
-  return (
-    <View style={{
-      position: 'absolute', top: -4, right: -6,
-      backgroundColor: colors.destructive, borderRadius: 8,
-      minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center',
-      paddingHorizontal: 3,
-    }}>
-      <View style={{ /* badge content */ }} />
-    </View>
-  );
-}
-
-function NativeTabLayout() {
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: 'cricket.ball', selected: 'cricket.ball.fill' }} />
-        <Label>मैच</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="predictions">
-        <Icon sf={{ default: 'chart.bar', selected: 'chart.bar.fill' }} />
-        <Label>भविष्यवाणी</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="wallet">
-        <Icon sf={{ default: 'wallet.pass', selected: 'wallet.pass.fill' }} />
-        <Label>वॉलेट</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="notifications">
-        <Icon sf={{ default: 'bell', selected: 'bell.fill' }} />
-        <Label>सूचनाएं</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="support">
-        <Icon sf={{ default: 'questionmark.circle', selected: 'questionmark.circle.fill' }} />
-        <Label>सहायता</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: 'person', selected: 'person.fill' }} />
-        <Label>प्रोफाइल</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
-}
 
 function NotificationsTabIcon({ color, size }: { color: string; size: number }) {
   const { token } = useAuth();
@@ -73,7 +22,6 @@ function NotificationsTabIcon({ color, size }: { color: string; size: number }) 
     { query: { enabled: !!token, queryKey: getGetNotificationsQueryKey({ limit: 1 }), refetchInterval: 30000 } }
   );
   const unread = data?.unreadCount ?? 0;
-
   return (
     <View>
       {Platform.OS === 'ios'
@@ -93,12 +41,45 @@ function NotificationsTabIcon({ color, size }: { color: string; size: number }) 
   );
 }
 
+function NativeTabLayout() {
+  const { t } = useLanguage();
+  return (
+    <NativeTabs>
+      <NativeTabs.Trigger name="index">
+        <Icon sf={{ default: 'cricket.ball', selected: 'cricket.ball.fill' }} />
+        <Label>{t('tab_matches')}</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="predictions">
+        <Icon sf={{ default: 'chart.bar', selected: 'chart.bar.fill' }} />
+        <Label>{t('tab_predictions')}</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="wallet">
+        <Icon sf={{ default: 'wallet.pass', selected: 'wallet.pass.fill' }} />
+        <Label>{t('tab_wallet')}</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="notifications">
+        <Icon sf={{ default: 'bell', selected: 'bell.fill' }} />
+        <Label>{t('tab_notifications')}</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="support">
+        <Icon sf={{ default: 'questionmark.circle', selected: 'questionmark.circle.fill' }} />
+        <Label>{t('tab_support')}</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="profile">
+        <Icon sf={{ default: 'person', selected: 'person.fill' }} />
+        <Label>{t('tab_profile')}</Label>
+      </NativeTabs.Trigger>
+    </NativeTabs>
+  );
+}
+
 function ClassicTabLayout() {
   const colors = useColors();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const isIOS = Platform.OS === 'ios';
   const isWeb = Platform.OS === 'web';
+  const { t } = useLanguage();
 
   return (
     <Tabs
@@ -120,17 +101,13 @@ function ClassicTabLayout() {
           ) : (
             <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
           ),
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontFamily: 'Inter_500Medium',
-          marginBottom: isWeb ? 0 : 2,
-        },
+        tabBarLabelStyle: { fontSize: 11, fontFamily: 'Inter_500Medium', marginBottom: isWeb ? 0 : 2 },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'मैच',
+          title: t('tab_matches'),
           tabBarIcon: ({ color, size }) =>
             isIOS ? <SymbolView name="sportscourt" tintColor={color} size={size} /> : <Ionicons name="trophy-outline" size={22} color={color} />,
         }}
@@ -138,7 +115,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="predictions"
         options={{
-          title: 'भविष्यवाणी',
+          title: t('tab_predictions'),
           tabBarIcon: ({ color, size }) =>
             isIOS ? <SymbolView name="chart.bar.fill" tintColor={color} size={size} /> : <Ionicons name="analytics-outline" size={22} color={color} />,
         }}
@@ -146,7 +123,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="wallet"
         options={{
-          title: 'वॉलेट',
+          title: t('tab_wallet'),
           tabBarIcon: ({ color, size }) =>
             isIOS ? <SymbolView name="wallet.pass" tintColor={color} size={size} /> : <Ionicons name="wallet-outline" size={22} color={color} />,
         }}
@@ -154,14 +131,14 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="notifications"
         options={{
-          title: 'सूचनाएं',
+          title: t('tab_notifications'),
           tabBarIcon: ({ color, size }) => <NotificationsTabIcon color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="support"
         options={{
-          title: 'सहायता',
+          title: t('tab_support'),
           tabBarIcon: ({ color, size }) =>
             isIOS ? <SymbolView name="questionmark.circle" tintColor={color} size={size} /> : <Ionicons name="help-circle-outline" size={22} color={color} />,
         }}
@@ -169,7 +146,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'प्रोफाइल',
+          title: t('tab_profile'),
           tabBarIcon: ({ color, size }) =>
             isIOS ? <SymbolView name="person" tintColor={color} size={size} /> : <Ionicons name="person-outline" size={22} color={color} />,
         }}
@@ -182,9 +159,6 @@ export default function TabLayout() {
   const { token, isLoading } = useAuth();
   if (isLoading) return null;
   if (!token) return <Redirect href="/login" />;
-
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
+  if (isLiquidGlassAvailable()) return <NativeTabLayout />;
   return <ClassicTabLayout />;
 }
