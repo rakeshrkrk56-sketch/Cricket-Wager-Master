@@ -778,7 +778,7 @@ router.get("/admin/stats/chart", requireAdmin, async (req, res): Promise<void> =
     LEFT JOIN daily_payout dp ON dp.day = ds.day
     ORDER BY ds.day
   `);
-  res.json({ data: rows });
+  res.json({ data: rows.rows });
 });
 
 function serializeUser(u: any) {

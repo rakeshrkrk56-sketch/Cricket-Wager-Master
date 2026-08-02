@@ -2,6 +2,10 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { useLocation } from "wouter";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 
+// Register once at module load — reads the latest value from localStorage on
+// every request so there is never a stale-token window between renders.
+setAuthTokenGetter(() => localStorage.getItem("jazment_admin_token"));
+
 interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
@@ -21,12 +25,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       localStorage.removeItem("jazment_admin_token");
     }
-  }, [token]);
-
-  // Wire the token into the generated API client so every hook sends
-  // Authorization: Bearer <token> automatically.
-  useEffect(() => {
-    setAuthTokenGetter(token ? () => token : null);
   }, [token]);
 
   const login = (newToken: string) => {
