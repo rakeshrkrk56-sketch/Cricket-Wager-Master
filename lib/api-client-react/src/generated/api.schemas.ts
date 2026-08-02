@@ -221,6 +221,37 @@ export interface UpdateUserRequest {
   name?: string;
 }
 
+export type AdminWalletAdjustRequestType = typeof AdminWalletAdjustRequestType[keyof typeof AdminWalletAdjustRequestType];
+
+
+export const AdminWalletAdjustRequestType = {
+  credit: 'credit',
+  debit: 'debit',
+} as const;
+
+export interface AdminWalletAdjustRequest {
+  type: AdminWalletAdjustRequestType;
+  /** @minimum 1 */
+  amount: number;
+  reason: string;
+}
+
+export type AdminWalletAdjustResponseType = typeof AdminWalletAdjustResponseType[keyof typeof AdminWalletAdjustResponseType];
+
+
+export const AdminWalletAdjustResponseType = {
+  credit: 'credit',
+  debit: 'debit',
+} as const;
+
+export interface AdminWalletAdjustResponse {
+  success: boolean;
+  balanceBefore: number;
+  balanceAfter: number;
+  type: AdminWalletAdjustResponseType;
+  amount: number;
+}
+
 export interface Wallet {
   userId: string;
   balance: number;
@@ -786,6 +817,16 @@ export const ListUsersStatus = {
   active: 'active',
   suspended: 'suspended',
 } as const;
+
+export type AdminGetUserDepositsParams = {
+page?: number;
+limit?: number;
+};
+
+export type AdminGetUserWithdrawalsParams = {
+page?: number;
+limit?: number;
+};
 
 export type GetTransactionsParams = {
 page?: number;

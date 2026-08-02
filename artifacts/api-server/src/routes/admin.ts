@@ -134,6 +134,128 @@ router.patch("/admin/users/:userId", requireAdmin, async (req, res): Promise<voi
   res.json(UpdateUserResponse.parse(serializeUser(user)));
 });
 
+// ─── User wallet & history ────────────────────────────────────────────────────
+
+router.post("/admin/users/:userId/wallet/adjust", requireAdmin, async (req, res): Promise<void> => {
+  const userId = req.params["userId"] as string;
+  const { type, amount, reason } = req.body;
+
+  if (!type || !["credit", "debit"].includes(type)) {
+    res.status(400).json({ error: "type must be 'credit' or 'debit'" });
+    return;
+  }
+  if (!amount || isNaN(Number(amount)) || Number(amount) < 1) {
+    res.status(400).json({ error: "amount must be at least 1" });
+    return;
+  }
+  if (!reason || !String(reason).trim()) {
+    res.status(400).json({ error: "reason is required" });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  const balanceBefore = Number(user.walletBalance);
+  const amt = Number(amount);
+  const balanceAfter = type === "credit" ? balanceBefore + amt : balanceBefore - amt;
+
+  if (balanceAfter < 0) {
+    res.status(400).json({ error: `Insufficient balance. Current: ₹${balanceBefore.toFixed(0)}, debit: ₹${amt.toFixed(0)}` });
+    return;
+  }
+
+  await db.update(usersTable).set({ walletBalance: String(balanceAfter), updatedAt: new Date() }).where(eq(usersTable.id, userId));
+
+  await db.insert(transactionsTable).values({
+    userId,
+    type: type === "credit" ? "bonus" : "withdraw",
+    amount: String(amt),
+    balanceBefore: String(balanceBefore),
+    balanceAfter: String(balanceAfter),
+    status: "completed",
+    note: `Admin ${type}: ${String(reason).trim()}`,
+  });
+
+  await createNotification(
+    userId,
+    "wallet_credited",
+    type === "credit" ? "Wallet Credited by Admin" : "Wallet Debited by Admin",
+    type === "credit"
+      ? `₹${amt.toFixed(0)} credited. Reason: ${String(reason).trim()}. New balance: ₹${balanceAfter.toFixed(0)}`
+      : `₹${amt.toFixed(0)} debited. Reason: ${String(reason).trim()}. New balance: ₹${balanceAfter.toFixed(0)}`
+  );
+
+  res.json({ success: true, balanceBefore, balanceAfter, type, amount: amt });
+});
+
+router.get("/admin/users/:userId/deposits", requireAdmin, async (req, res): Promise<void> => {
+  const userId = req.params["userId"] as string;
+  const page = Number(req.query["page"] ?? 1);
+  const limit = Number(req.query["limit"] ?? 20);
+  const offset = (page - 1) * limit;
+
+  const [user] = await db.select({ id: usersTable.id, phone: usersTable.phone, name: usersTable.name })
+    .from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  const deposits = await db.select().from(depositsTable)
+    .where(eq(depositsTable.userId, userId))
+    .orderBy(desc(depositsTable.createdAt))
+    .limit(limit).offset(offset);
+
+  const [{ total }] = await db.select({ total: count() }).from(depositsTable).where(eq(depositsTable.userId, userId));
+
+  const serialize = (d: any) => ({
+    id: d.id, userId: d.userId,
+    amount: Number(d.amount),
+    method: d.method,
+    utrNumber: d.utrNumber ?? undefined,
+    hasScreenshot: !!d.screenshotBase64 || !!d.screenshotHash,
+    status: d.status,
+    remarks: d.remarks ?? undefined,
+    createdAt: d.createdAt instanceof Date ? d.createdAt.toISOString() : d.createdAt,
+    updatedAt: d.updatedAt instanceof Date ? d.updatedAt.toISOString() : d.updatedAt,
+    approvedAt: d.approvedAt instanceof Date ? d.approvedAt.toISOString() : (d.approvedAt ?? undefined),
+    user,
+  });
+
+  res.json({ deposits: deposits.map(serialize), total: Number(total), page, limit });
+});
+
+router.get("/admin/users/:userId/withdrawals", requireAdmin, async (req, res): Promise<void> => {
+  const userId = req.params["userId"] as string;
+  const page = Number(req.query["page"] ?? 1);
+  const limit = Number(req.query["limit"] ?? 20);
+  const offset = (page - 1) * limit;
+
+  const [user] = await db.select({ id: usersTable.id, phone: usersTable.phone, name: usersTable.name, walletBalance: usersTable.walletBalance })
+    .from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  const withdrawals = await db.select().from(withdrawalsTable)
+    .where(eq(withdrawalsTable.userId, userId))
+    .orderBy(desc(withdrawalsTable.createdAt))
+    .limit(limit).offset(offset);
+
+  const [{ total }] = await db.select({ total: count() }).from(withdrawalsTable).where(eq(withdrawalsTable.userId, userId));
+
+  const serializeW = (w: any) => ({
+    id: w.id, userId: w.userId,
+    amount: Number(w.amount),
+    upiId: w.upiId ?? undefined,
+    bankAccount: w.bankAccount ?? undefined,
+    status: w.status,
+    remarks: w.remarks ?? undefined,
+    createdAt: w.createdAt instanceof Date ? w.createdAt.toISOString() : w.createdAt,
+    updatedAt: w.updatedAt instanceof Date ? w.updatedAt.toISOString() : w.updatedAt,
+    approvedAt: w.approvedAt instanceof Date ? w.approvedAt.toISOString() : (w.approvedAt ?? undefined),
+    user: { ...user, walletBalance: Number(user.walletBalance) },
+  });
+
+  res.json({ withdrawals: withdrawals.map(serializeW), total: Number(total), page, limit });
+});
+
 // ─── Matches ──────────────────────────────────────────────────────────────────
 
 router.get("/admin/matches", requireAdmin, async (req, res): Promise<void> => {

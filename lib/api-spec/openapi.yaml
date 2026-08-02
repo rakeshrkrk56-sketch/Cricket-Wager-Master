@@ -231,6 +231,95 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
 
+  /admin/users/{userId}/wallet/adjust:
+    post:
+      operationId: adminAdjustWallet
+      tags: [admin, users]
+      summary: Manually credit or debit a user wallet (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminWalletAdjustRequest"
+      responses:
+        "200":
+          description: Wallet adjusted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminWalletAdjustResponse"
+
+  /admin/users/{userId}/deposits:
+    get:
+      operationId: adminGetUserDeposits
+      tags: [admin, users, deposits]
+      summary: List all deposits for a specific user (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: User deposit list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminDepositListResponse"
+
+  /admin/users/{userId}/withdrawals:
+    get:
+      operationId: adminGetUserWithdrawals
+      tags: [admin, users, withdrawals]
+      summary: List all withdrawals for a specific user (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: User withdrawal list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminWithdrawalListResponse"
+
   # ─── Wallet ───────────────────────────────────────────────────────────────────
   /wallet:
     get:
@@ -1625,6 +1714,43 @@ components:
           enum: [pending, verified, rejected]
         name:
           type: string
+
+    AdminWalletAdjustRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [credit, debit]
+        amount:
+          type: number
+          minimum: 1
+        reason:
+          type: string
+      required:
+        - type
+        - amount
+        - reason
+
+    AdminWalletAdjustResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        balanceBefore:
+          type: number
+        balanceAfter:
+          type: number
+        type:
+          type: string
+          enum: [credit, debit]
+        amount:
+          type: number
+      required:
+        - success
+        - balanceBefore
+        - balanceAfter
+        - type
+        - amount
 
     # ─── Wallet ────────────────────────────────────────────────────────────────
     Wallet:

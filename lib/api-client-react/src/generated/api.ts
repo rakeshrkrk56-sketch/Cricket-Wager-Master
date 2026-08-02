@@ -23,6 +23,8 @@ import type {
   AddTicketMessageRequest,
   AdminChartResponse,
   AdminDepositListResponse,
+  AdminGetUserDepositsParams,
+  AdminGetUserWithdrawalsParams,
   AdminListDepositsParams,
   AdminListMatchesParams,
   AdminListSupportTicketsParams,
@@ -30,6 +32,8 @@ import type {
   AdminStats,
   AdminTicketDetailResponse,
   AdminTicketListResponse,
+  AdminWalletAdjustRequest,
+  AdminWalletAdjustResponse,
   AdminWithdrawalListResponse,
   ApproveRejectRequest,
   AuthResponse,
@@ -868,6 +872,256 @@ export const useUpdateUser = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getUpdateUserMutationOptions(options));
     }
+
+export const getAdminAdjustWalletUrl = (userId: string,) => {
+
+
+
+
+  return `/api/admin/users/${userId}/wallet/adjust`
+}
+
+/**
+ * @summary Manually credit or debit a user wallet (admin)
+ */
+export const adminAdjustWallet = async (userId: string,
+    adminWalletAdjustRequest: AdminWalletAdjustRequest, options?: RequestInit): Promise<AdminWalletAdjustResponse> => {
+
+  return customFetch<AdminWalletAdjustResponse>(getAdminAdjustWalletUrl(userId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminWalletAdjustRequest)
+  }
+);}
+
+
+
+
+
+export const getAdminAdjustWalletMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminAdjustWallet>>, TError,{userId: string;data: BodyType<AdminWalletAdjustRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminAdjustWallet>>, TError,{userId: string;data: BodyType<AdminWalletAdjustRequest>}, TContext> => {
+
+const mutationKey = ['adminAdjustWallet'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminAdjustWallet>>, {userId: string;data: BodyType<AdminWalletAdjustRequest>}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  adminAdjustWallet(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminAdjustWalletMutationResult = NonNullable<Awaited<ReturnType<typeof adminAdjustWallet>>>
+    export type AdminAdjustWalletMutationBody = BodyType<AdminWalletAdjustRequest>
+    export type AdminAdjustWalletMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Manually credit or debit a user wallet (admin)
+ */
+export const useAdminAdjustWallet = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminAdjustWallet>>, TError,{userId: string;data: BodyType<AdminWalletAdjustRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminAdjustWallet>>,
+        TError,
+        {userId: string;data: BodyType<AdminWalletAdjustRequest>},
+        TContext
+      > => {
+      return useMutation(getAdminAdjustWalletMutationOptions(options));
+    }
+
+export const getAdminGetUserDepositsUrl = (userId: string,
+    params?: AdminGetUserDepositsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/users/${userId}/deposits?${stringifiedParams}` : `/api/admin/users/${userId}/deposits`
+}
+
+/**
+ * @summary List all deposits for a specific user (admin)
+ */
+export const adminGetUserDeposits = async (userId: string,
+    params?: AdminGetUserDepositsParams, options?: RequestInit): Promise<AdminDepositListResponse> => {
+
+  return customFetch<AdminDepositListResponse>(getAdminGetUserDepositsUrl(userId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetUserDepositsQueryKey = (userId: string,
+    params?: AdminGetUserDepositsParams,) => {
+    return [
+    `/api/admin/users/${userId}/deposits`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminGetUserDepositsQueryOptions = <TData = Awaited<ReturnType<typeof adminGetUserDeposits>>, TError = ErrorType<unknown>>(userId: string,
+    params?: AdminGetUserDepositsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetUserDeposits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetUserDepositsQueryKey(userId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetUserDeposits>>> = ({ signal }) => adminGetUserDeposits(userId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetUserDeposits>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetUserDepositsQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetUserDeposits>>>
+export type AdminGetUserDepositsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all deposits for a specific user (admin)
+ */
+
+export function useAdminGetUserDeposits<TData = Awaited<ReturnType<typeof adminGetUserDeposits>>, TError = ErrorType<unknown>>(
+ userId: string,
+    params?: AdminGetUserDepositsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetUserDeposits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetUserDepositsQueryOptions(userId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminGetUserWithdrawalsUrl = (userId: string,
+    params?: AdminGetUserWithdrawalsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/users/${userId}/withdrawals?${stringifiedParams}` : `/api/admin/users/${userId}/withdrawals`
+}
+
+/**
+ * @summary List all withdrawals for a specific user (admin)
+ */
+export const adminGetUserWithdrawals = async (userId: string,
+    params?: AdminGetUserWithdrawalsParams, options?: RequestInit): Promise<AdminWithdrawalListResponse> => {
+
+  return customFetch<AdminWithdrawalListResponse>(getAdminGetUserWithdrawalsUrl(userId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminGetUserWithdrawalsQueryKey = (userId: string,
+    params?: AdminGetUserWithdrawalsParams,) => {
+    return [
+    `/api/admin/users/${userId}/withdrawals`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminGetUserWithdrawalsQueryOptions = <TData = Awaited<ReturnType<typeof adminGetUserWithdrawals>>, TError = ErrorType<unknown>>(userId: string,
+    params?: AdminGetUserWithdrawalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetUserWithdrawals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminGetUserWithdrawalsQueryKey(userId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetUserWithdrawals>>> = ({ signal }) => adminGetUserWithdrawals(userId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminGetUserWithdrawals>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminGetUserWithdrawalsQueryResult = NonNullable<Awaited<ReturnType<typeof adminGetUserWithdrawals>>>
+export type AdminGetUserWithdrawalsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all withdrawals for a specific user (admin)
+ */
+
+export function useAdminGetUserWithdrawals<TData = Awaited<ReturnType<typeof adminGetUserWithdrawals>>, TError = ErrorType<unknown>>(
+ userId: string,
+    params?: AdminGetUserWithdrawalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminGetUserWithdrawals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminGetUserWithdrawalsQueryOptions(userId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetWalletUrl = () => {
 

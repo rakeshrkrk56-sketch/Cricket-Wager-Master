@@ -217,6 +217,120 @@ export const UpdateUserResponse = zod.object({
 
 
 /**
+ * @summary Manually credit or debit a user wallet (admin)
+ */
+export const AdminAdjustWalletParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+
+
+
+export const AdminAdjustWalletBody = zod.object({
+  "type": zod.enum(['credit', 'debit']),
+  "amount": zod.number().min(1),
+  "reason": zod.string()
+})
+
+export const AdminAdjustWalletResponse = zod.object({
+  "success": zod.boolean(),
+  "balanceBefore": zod.number(),
+  "balanceAfter": zod.number(),
+  "type": zod.enum(['credit', 'debit']),
+  "amount": zod.number()
+})
+
+
+/**
+ * @summary List all deposits for a specific user (admin)
+ */
+export const AdminGetUserDepositsParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const adminGetUserDepositsQueryPageDefault = 1;
+export const adminGetUserDepositsQueryLimitDefault = 20;
+
+export const AdminGetUserDepositsQueryParams = zod.object({
+  "page": zod.coerce.number().default(adminGetUserDepositsQueryPageDefault),
+  "limit": zod.coerce.number().default(adminGetUserDepositsQueryLimitDefault)
+})
+
+export const AdminGetUserDepositsResponse = zod.object({
+  "deposits": zod.array(zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "amount": zod.number(),
+  "method": zod.enum(['upi_deeplink', 'manual']),
+  "utrNumber": zod.string().optional(),
+  "hasScreenshot": zod.boolean(),
+  "screenshotBase64": zod.string().optional(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "remarks": zod.string().optional(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "approvedAt": zod.coerce.date().optional()
+}).and(zod.object({
+  "user": zod.object({
+  "id": zod.string().optional(),
+  "phone": zod.string().optional(),
+  "name": zod.string().optional()
+}).optional()
+}))),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary List all withdrawals for a specific user (admin)
+ */
+export const AdminGetUserWithdrawalsParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const adminGetUserWithdrawalsQueryPageDefault = 1;
+export const adminGetUserWithdrawalsQueryLimitDefault = 20;
+
+export const AdminGetUserWithdrawalsQueryParams = zod.object({
+  "page": zod.coerce.number().default(adminGetUserWithdrawalsQueryPageDefault),
+  "limit": zod.coerce.number().default(adminGetUserWithdrawalsQueryLimitDefault)
+})
+
+export const AdminGetUserWithdrawalsResponse = zod.object({
+  "withdrawals": zod.array(zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "amount": zod.number(),
+  "upiId": zod.string().optional(),
+  "bankAccount": zod.object({
+  "bankName": zod.string(),
+  "holderName": zod.string(),
+  "accountNumber": zod.string(),
+  "confirmAccountNumber": zod.string().optional(),
+  "ifsc": zod.string()
+}).optional(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "remarks": zod.string().optional(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "approvedAt": zod.coerce.date().optional()
+}).and(zod.object({
+  "user": zod.object({
+  "id": zod.string().optional(),
+  "phone": zod.string().optional(),
+  "name": zod.string().optional(),
+  "walletBalance": zod.number().optional()
+}).optional()
+}))),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
  * @summary Get current user wallet
  */
 export const GetWalletResponse = zod.object({
