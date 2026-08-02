@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -61,9 +61,18 @@ export default function LoginScreen() {
   const s = styles(colors, insets);
 
   return (
-    <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={s.container}>
-        {/* Logo / Brand */}
+    <KeyboardAvoidingView
+      style={s.root}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {/* Brand — compact, sits near top third */}
         <View style={s.brand}>
           <View style={s.logoCircle}>
             <Text style={s.logoLetter}>J</Text>
@@ -85,7 +94,9 @@ export default function LoginScreen() {
 
           {step === 'phone' ? (
             <View style={s.inputRow}>
-              <View style={s.prefix}><Text style={s.prefixText}>+91</Text></View>
+              <View style={s.prefix}>
+                <Text style={s.prefixText}>+91</Text>
+              </View>
               <TextInput
                 style={s.input}
                 placeholder="10 अंकों का मोबाइल नंबर"
@@ -134,25 +145,37 @@ export default function LoginScreen() {
             </TouchableOpacity>
           )}
         </View>
-      </View>
+
+        {/* Bottom spacer so card doesn't sit flush at bottom */}
+        <View style={s.bottomSpacer} />
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  container: {
+  root: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingTop: insets.top,
-    paddingBottom: insets.bottom + 24,
+    backgroundColor: colors.background,
   },
-  brand: { alignItems: 'center', marginBottom: 40 },
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: insets.top + 32,
+    paddingBottom: insets.bottom + 24,
+    justifyContent: 'flex-end',
+  },
+  brand: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
   logoCircle: {
-    width: 72, height: 72, borderRadius: 36,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: colors.primary,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 8 },
@@ -160,9 +183,25 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
     shadowRadius: 16,
     elevation: 8,
   },
-  logoLetter: { fontSize: 36, fontWeight: '800' as const, color: colors.primaryForeground, fontFamily: 'Inter_700Bold' },
-  appName: { fontSize: 32, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold', letterSpacing: -0.5 },
-  tagline: { fontSize: 13, color: colors.mutedForeground, marginTop: 4, fontFamily: 'Inter_400Regular' },
+  logoLetter: {
+    fontSize: 34,
+    fontWeight: '800' as const,
+    color: colors.primaryForeground,
+    fontFamily: 'Inter_700Bold',
+  },
+  appName: {
+    fontSize: 30,
+    fontWeight: '700' as const,
+    color: colors.foreground,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: -0.5,
+  },
+  tagline: {
+    fontSize: 13,
+    color: colors.mutedForeground,
+    marginTop: 4,
+    fontFamily: 'Inter_400Regular',
+  },
   card: {
     backgroundColor: colors.card,
     borderRadius: 16,
@@ -170,23 +209,62 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
     borderWidth: 1,
     borderColor: colors.border,
   },
-  cardTitle: { fontSize: 20, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 6 },
-  cardSubtitle: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 20, lineHeight: 20 },
-  inputRow: { flexDirection: 'row', marginBottom: 16, alignItems: 'center' },
-  prefix: {
-    backgroundColor: colors.muted, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 14,
-    borderWidth: 1, borderColor: colors.border, marginRight: 8,
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: colors.foreground,
+    fontFamily: 'Inter_700Bold',
+    marginBottom: 6,
   },
-  prefixText: { color: colors.foreground, fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  cardSubtitle: {
+    fontSize: 14,
+    color: colors.mutedForeground,
+    fontFamily: 'Inter_400Regular',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  prefix: {
+    backgroundColor: colors.muted,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginRight: 8,
+  },
+  prefixText: {
+    color: colors.foreground,
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+  },
   input: {
     flex: 1,
-    backgroundColor: colors.muted, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 14,
-    borderWidth: 1, borderColor: colors.border, color: colors.foreground,
-    fontSize: 16, fontFamily: 'Inter_400Regular', marginBottom: 16,
+    backgroundColor: colors.muted,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    color: colors.foreground,
+    fontSize: 16,
+    fontFamily: 'Inter_400Regular',
+    marginBottom: 16,
   },
-  otpInput: { letterSpacing: 6, fontSize: 22, textAlign: 'center' as const, fontFamily: 'Inter_600SemiBold' },
+  otpInput: {
+    letterSpacing: 6,
+    fontSize: 22,
+    textAlign: 'center' as const,
+    fontFamily: 'Inter_600SemiBold',
+  },
   btn: {
-    backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 16,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 16,
     alignItems: 'center',
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
@@ -195,7 +273,13 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
     elevation: 4,
   },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: colors.primaryForeground, fontSize: 16, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
+  btnText: {
+    color: colors.primaryForeground,
+    fontSize: 16,
+    fontWeight: '700' as const,
+    fontFamily: 'Inter_700Bold',
+  },
   backBtn: { marginTop: 16, alignItems: 'center' },
   backText: { color: colors.primary, fontSize: 14, fontFamily: 'Inter_500Medium' },
+  bottomSpacer: { height: 16 },
 });
