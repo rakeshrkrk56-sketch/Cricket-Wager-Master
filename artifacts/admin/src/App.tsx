@@ -13,7 +13,6 @@ import { Deposits } from '@/pages/Deposits';
 import { Withdrawals } from '@/pages/Withdrawals';
 import { Support } from '@/pages/Support';
 import { SupportDetail } from '@/pages/SupportDetail';
-import { Settings } from '@/pages/Settings';
 import { BankAccount } from '@/pages/BankAccount';
 import { Login } from '@/pages/Login';
 
@@ -72,9 +71,6 @@ function Router() {
       </Route>
       <Route path="/support/:ticketId">
         <ProtectedRoute component={SupportDetail} />
-      </Route>
-      <Route path="/settings">
-        <ProtectedRoute component={Settings} />
       </Route>
       <Route path="/bank-account">
         <ProtectedRoute component={BankAccount} />

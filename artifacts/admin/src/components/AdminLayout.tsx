@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { ReactNode, useState, useEffect } from "react";
-import { LayoutDashboard, Swords, Users, LogOut, Activity, ArrowDownCircle, ArrowUpCircle, MessageSquare, Settings2, Building2, Menu, X } from "lucide-react";
+import { LayoutDashboard, Swords, Users, LogOut, Activity, ArrowDownCircle, ArrowUpCircle, MessageSquare, Building2, Menu, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useAdminListDeposits, useAdminListWithdrawals, useAdminListSupportTickets } from "@workspace/api-client-react";
@@ -12,8 +12,7 @@ const NAV_ITEMS = [
   { href: "/deposits", label: "Deposits (जमा)", icon: ArrowDownCircle },
   { href: "/withdrawals", label: "Withdrawals (निकासी)", icon: ArrowUpCircle },
   { href: "/support", label: "Support (सहायता)", icon: MessageSquare },
-  { href: "/bank-account", label: "Bank Account", icon: Building2 },
-  { href: "/settings", label: "Settings", icon: Settings2 },
+  { href: "/bank-account", label: "Bank Management", icon: Building2 },
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {
