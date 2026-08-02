@@ -14,6 +14,7 @@ import { Withdrawals } from '@/pages/Withdrawals';
 import { Support } from '@/pages/Support';
 import { SupportDetail } from '@/pages/SupportDetail';
 import { Settings } from '@/pages/Settings';
+import { BankAccount } from '@/pages/BankAccount';
 import { Login } from '@/pages/Login';
 
 const queryClient = new QueryClient({
@@ -74,6 +75,9 @@ function Router() {
       </Route>
       <Route path="/settings">
         <ProtectedRoute component={Settings} />
+      </Route>
+      <Route path="/bank-account">
+        <ProtectedRoute component={BankAccount} />
       </Route>
       
       <Route>

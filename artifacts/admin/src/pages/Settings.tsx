@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Settings2, Copy, CheckCheck, QrCode, Building2, AlertCircle } from "lucide-react";
+import { Loader2, Save, Settings2, Copy, CheckCheck, QrCode, AlertCircle } from "lucide-react";
 
 // ── Helper: one UPI slot editor ──────────────────────────────────────────────
 function UpiSlot({
@@ -87,13 +87,6 @@ export function Settings() {
   // Platform
   const [platformName, setPlatformName] = useState("");
 
-  // Bank fields
-  const [bankName, setBankName] = useState("");
-  const [bankHolder, setBankHolder] = useState("");
-  const [bankAccount, setBankAccount] = useState("");
-  const [bankIfsc, setBankIfsc] = useState("");
-  const [copiedAccount, setCopiedAccount] = useState(false);
-
   useEffect(() => {
     if (data) {
       setUpiId1(data.platformUpiId ?? "");
@@ -103,10 +96,6 @@ export function Settings() {
       setUpiId3(data.platformUpiId3 ?? "");
       setUpiName3(data.platformUpiName3 ?? "");
       setPlatformName(data.platformName ?? "");
-      setBankName(data.bankName ?? "");
-      setBankHolder(data.bankHolderName ?? "");
-      setBankAccount(data.bankAccountNumber ?? "");
-      setBankIfsc(data.bankIfsc ?? "");
     }
   }, [data]);
 
@@ -121,10 +110,11 @@ export function Settings() {
           platformUpiId3: upiId3.trim() || undefined,
           platformUpiName3: upiName3.trim() || undefined,
           platformName: platformName.trim() || undefined,
-          bankName: bankName.trim() || undefined,
-          bankHolderName: bankHolder.trim() || undefined,
-          bankAccountNumber: bankAccount.trim() || undefined,
-          bankIfsc: bankIfsc.trim().toUpperCase() || undefined,
+          // Preserve existing bank details — managed via Bank Account page
+          bankName: data?.bankName,
+          bankHolderName: data?.bankHolderName,
+          bankAccountNumber: data?.bankAccountNumber,
+          bankIfsc: data?.bankIfsc,
         },
       },
       {
@@ -132,12 +122,6 @@ export function Settings() {
         onError: (err: any) => toast({ variant: "destructive", title: "Failed to save", description: err?.message }),
       }
     );
-  };
-
-  const copyText = (text: string, setter: (v: boolean) => void) => {
-    navigator.clipboard.writeText(text);
-    setter(true);
-    setTimeout(() => setter(false), 2000);
   };
 
   if (isLoading) {
@@ -149,7 +133,6 @@ export function Settings() {
   }
 
   const anyUpiConfigured = !!(upiId1 || upiId2 || upiId3);
-  const bankConfigured = !!(data?.bankName && data?.bankAccountNumber && data?.bankIfsc);
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -161,13 +144,13 @@ export function Settings() {
       </div>
 
       {/* Warning if nothing configured */}
-      {!anyUpiConfigured && !bankConfigured && (
+      {!anyUpiConfigured && (
         <div className="flex items-start gap-3 p-4 rounded-lg border border-destructive/40 bg-destructive/10">
           <AlertCircle className="w-5 h-5 text-destructive mt-0.5 flex-shrink-0" />
           <div>
             <p className="text-sm font-medium text-destructive">No payment method configured</p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Users cannot deposit right now. Add at least one UPI ID and/or bank account below.
+              Users cannot deposit via UPI right now. Add at least one UPI ID below.
             </p>
           </div>
         </div>
@@ -204,68 +187,6 @@ export function Settings() {
         </CardContent>
       </Card>
 
-      {/* ── Bank Account Settings ── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-primary" />
-            Bank Account Details
-            {bankConfigured && <span className="ml-auto text-xs font-normal text-green-500 bg-green-500/10 px-2 py-0.5 rounded-full">Active</span>}
-          </CardTitle>
-          <CardDescription>
-            Shown when users choose Bank Transfer (NEFT / IMPS) on the deposit screen. Leave blank to hide this option.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Bank Name</label>
-              <Input
-                value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                placeholder="e.g. State Bank of India"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Account Holder Name</label>
-              <Input
-                value={bankHolder}
-                onChange={(e) => setBankHolder(e.target.value)}
-                placeholder="e.g. Jazment Pvt Ltd"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Account Number</label>
-            <div className="flex gap-2">
-              <Input
-                value={bankAccount}
-                onChange={(e) => setBankAccount(e.target.value)}
-                placeholder="e.g. 1234567890123"
-                className="font-mono"
-              />
-              {bankAccount && (
-                <Button variant="outline" size="icon" onClick={() => copyText(bankAccount, setCopiedAccount)} title="Copy">
-                  {copiedAccount ? <CheckCheck className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">IFSC Code</label>
-            <Input
-              value={bankIfsc}
-              onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
-              placeholder="e.g. SBIN0001234"
-              className="font-mono"
-              maxLength={11}
-            />
-            <p className="text-xs text-muted-foreground">11-character code found on your cheque book or passbook.</p>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Save button */}
       <Button
@@ -283,7 +204,7 @@ export function Settings() {
       <p className="text-xs text-muted-foreground -mt-4">UPI Option 1 is required. All other fields are optional.</p>
 
       {/* Live preview */}
-      {(upiId1 || upiId2 || upiId3 || bankAccount) && (
+      {anyUpiConfigured && (
         <Card className="border-primary/30 bg-primary/5">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm text-primary">What users will see</CardTitle>
@@ -301,16 +222,6 @@ export function Settings() {
                 {u.name && <div className="flex justify-between"><span className="text-muted-foreground">Name:</span><span className="text-white">{u.name}</span></div>}
               </div>
             ))}
-            {bankAccount && (
-              <>
-                <div className="border-t border-border/50 pt-2 mt-2" />
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Bank Transfer</p>
-                {bankName && <div className="flex justify-between"><span className="text-muted-foreground">Bank:</span><span className="text-white">{bankName}</span></div>}
-                {bankHolder && <div className="flex justify-between"><span className="text-muted-foreground">Holder:</span><span className="text-white">{bankHolder}</span></div>}
-                <div className="flex justify-between"><span className="text-muted-foreground">Account:</span><span className="font-mono text-white">{bankAccount}</span></div>
-                {bankIfsc && <div className="flex justify-between"><span className="text-muted-foreground">IFSC:</span><span className="font-mono text-white">{bankIfsc}</span></div>}
-              </>
-            )}
           </CardContent>
         </Card>
       )}
