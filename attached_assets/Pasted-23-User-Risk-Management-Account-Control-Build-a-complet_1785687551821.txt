@@ -1,0 +1,102 @@
+23. User Risk Management & Account Control
+
+Build a complete User Risk Management System in the Admin Panel.
+
+Admin should have the following actions for every user:
+
+1. Active
+- User can log in.
+- Deposit allowed.
+- Withdraw allowed.
+- Participate in predictions.
+
+2. Hold Account
+When Admin places an account on Hold:
+- User can log in.
+- User cannot place any predictions.
+- User cannot make deposits.
+- User cannot request withdrawals.
+- Wallet balance remains safe.
+- Display a message:
+  "Your account is temporarily under review. Please contact support."
+
+3. Suspend Account
+When Admin suspends an account:
+- User cannot log in.
+- All active sessions are immediately logged out.
+- All predictions are blocked.
+- Deposits and withdrawals are blocked.
+- Admin must enter a suspension reason.
+
+4. Verification Required
+Admin can request additional verification.
+
+User must upload:
+- Government ID
+- Selfie (optional)
+- Address Proof (optional)
+
+Admin can:
+- Approve Verification
+- Reject Verification
+- Request More Information
+
+5. Restore Account
+Admin can restore a Hold or Suspended account.
+All account functionality is automatically re-enabled.
+
+6. Permanent Delete
+Only Super Admin can permanently delete a user.
+
+Before deletion:
+- Confirm all predictions are settled.
+- Confirm no pending deposit.
+- Confirm no pending withdrawal.
+- Confirm wallet balance is ₹0.
+
+Show warning:
+"This action cannot be undone."
+
+7. Admin Notes
+Admin can add internal notes for every user.
+These notes are visible only to admins.
+
+8. User Timeline
+Maintain a full activity history:
+- Login History
+- Device Information
+- IP Address
+- Deposits
+- Withdrawals
+- Predictions
+- KYC Updates
+- Support Tickets
+- Hold/Suspend History
+
+9. Security
+Every admin action must be recorded:
+- Admin Name
+- Date & Time
+- Action
+- Reason
+- Previous Status
+- New Status
+
+10. Notifications
+Notify users when:
+- Account placed on Hold
+- Account Suspended
+- Verification Required
+- Verification Approved
+- Account Restored
+
+11. Permissions
+Normal Admin:
+- Hold Account
+- Suspend Account
+- Restore Account
+
+Super Admin:
+- Permanent Delete User
+- Wallet Adjustment
+- Admin Management

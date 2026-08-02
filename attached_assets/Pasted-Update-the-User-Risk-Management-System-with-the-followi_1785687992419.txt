@@ -1,0 +1,108 @@
+Update the User Risk Management System with the following changes:
+
+1. Active Account
+- User can log in.
+- Deposit allowed.
+- Withdraw allowed.
+- Participate in predictions.
+
+2. Hold Account
+When an account is placed on Hold:
+- User can still log in.
+- User can still deposit money.
+- User can still participate in prediction markets.
+- User CANNOT withdraw any money.
+- Show the message:
+  "Your withdrawal access has been temporarily disabled while your account is under review. Please contact support."
+
+3. Suspend Account
+When an account is Suspended:
+- User cannot log in.
+- Immediately log out all active sessions.
+- Block deposits.
+- Block withdrawals.
+- Block participation in prediction markets.
+- Admin must enter a suspension reason.
+
+4. Verification Review
+Admin can request additional information from the user.
+
+User can upload:
+- Government ID
+- Selfie (optional)
+- Address Proof (optional)
+- Any additional document requested by Admin
+
+Admin can:
+- Approve Verification
+- Reject Verification
+- Request More Information
+
+5. Restore Account
+Admin can restore any Hold or Suspended account at any time.
+All permissions are automatically restored.
+
+6. Permanent Delete
+Only the Admin can permanently delete a user account.
+
+Do NOT require:
+- Wallet balance to be ₹0.
+- No pending deposits.
+- No pending withdrawals.
+
+Simply show a warning:
+
+"Warning: This action permanently deletes the user account and cannot be undone."
+
+Require Admin confirmation before deletion.
+
+7. Admin Notes
+Admin can save private notes for each user.
+These notes are visible only in the Admin Panel.
+
+8. User Activity Timeline
+Display:
+- Login History
+- Device Information
+- IP Address
+- Deposits
+- Withdrawals
+- Predictions
+- KYC Status
+- Support Tickets
+- Hold/Suspend History
+
+9. Audit Logs
+Record every admin action:
+- Admin Name
+- Date & Time
+- Action
+- Reason
+- Previous Status
+- New Status
+
+10. User Notifications
+Notify users when:
+- Account placed on Hold
+- Account Suspended
+- Verification Required
+- Verification Approved
+- Account Restored
+
+11. Admin Permissions
+This project is currently in the testing phase.
+
+There is only one Admin role.
+
+The Admin has full permissions to:
+- Hold accounts
+- Suspend accounts
+- Restore accounts
+- Permanently delete users
+- Adjust wallets
+- Approve deposits
+- Approve withdrawals
+- Manage matches
+- Manage prediction markets
+- Manage support tickets
+- Manage notifications
