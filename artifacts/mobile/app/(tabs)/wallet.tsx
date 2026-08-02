@@ -90,7 +90,7 @@ function StatusBadge({ status, colors }: { status: string; colors: any }) {
   );
 }
 
-type DepositTab = 'upi' | 'manual';
+type DepositTab = 'upi' | 'bank' | 'manual';
 type WithdrawMethod = 'upi' | 'bank';
 type WalletTab = 'transactions' | 'deposits' | 'withdrawals';
 
@@ -111,6 +111,7 @@ export default function WalletScreen() {
   const [screenshotUri, setScreenshotUri] = useState<string | null>(null);
   const [screenshotBase64, setScreenshotBase64] = useState<string | null>(null);
   const [upiCopied, setUpiCopied] = useState(false);
+  const [bankFieldCopied, setBankFieldCopied] = useState<string | null>(null);
 
   // Withdrawal form
   const [wdAmount, setWdAmount] = useState('');
@@ -377,12 +378,18 @@ export default function WalletScreen() {
             {/* Deposit method tabs */}
             <View style={s.depTabs}>
               <TouchableOpacity style={[s.depTab, depositTab === 'upi' && s.depTabActive]} onPress={() => setDepositTab('upi')}>
-                <Ionicons name="phone-portrait-outline" size={16} color={depositTab === 'upi' ? colors.primary : colors.mutedForeground} />
-                <Text style={[s.depTabText, depositTab === 'upi' && { color: colors.primary }]}>UPI ऐप</Text>
+                <Ionicons name="phone-portrait-outline" size={14} color={depositTab === 'upi' ? colors.primary : colors.mutedForeground} />
+                <Text style={[s.depTabText, depositTab === 'upi' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>UPI</Text>
               </TouchableOpacity>
+              {!!(platformSettings?.bankName && platformSettings?.bankAccountNumber) && (
+                <TouchableOpacity style={[s.depTab, depositTab === 'bank' && s.depTabActive]} onPress={() => setDepositTab('bank')}>
+                  <Ionicons name="business-outline" size={14} color={depositTab === 'bank' ? colors.primary : colors.mutedForeground} />
+                  <Text style={[s.depTabText, depositTab === 'bank' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Bank</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity style={[s.depTab, depositTab === 'manual' && s.depTabActive]} onPress={() => setDepositTab('manual')}>
-                <Ionicons name="document-text-outline" size={16} color={depositTab === 'manual' ? colors.primary : colors.mutedForeground} />
-                <Text style={[s.depTabText, depositTab === 'manual' && { color: colors.primary }]}>Manual</Text>
+                <Ionicons name="document-text-outline" size={14} color={depositTab === 'manual' ? colors.primary : colors.mutedForeground} />
+                <Text style={[s.depTabText, depositTab === 'manual' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>UTR Submit</Text>
               </TouchableOpacity>
             </View>
 
@@ -404,7 +411,8 @@ export default function WalletScreen() {
                 ))}
               </View>
 
-              {depositTab === 'upi' ? (
+              {/* ── UPI tab ── */}
+              {depositTab === 'upi' && (
                 <View style={s.upiSection}>
                   <Text style={s.upiHint}>नीचे दिए गए बटन से अपना UPI ऐप खोलें:</Text>
                   <View style={s.upiApps}>
@@ -427,26 +435,68 @@ export default function WalletScreen() {
                         <Ionicons name={upiCopied ? 'checkmark-circle' : 'copy-outline'} size={18} color={upiCopied ? colors.success : colors.primary} />
                       </TouchableOpacity>
                     ) : (
-                      <Text style={[s.upiId, { color: colors.mutedForeground, fontSize: 13 }]}>UPI ID अभी उपलब्ध नहीं है</Text>
+                      <Text style={[s.upiId, { color: colors.mutedForeground, fontSize: 13 }]}>UPI ID उपलब्ध नहीं</Text>
                     )}
                   </View>
                   <View style={s.infoBox}>
                     <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
-                    <Text style={s.infoText}>भुगतान के बाद Manual टैब पर UTR नंबर और स्क्रीनशॉट अपलोड करें।</Text>
+                    <Text style={s.infoText}>भुगतान के बाद "UTR Submit" टैब पर जाकर UTR नंबर अपलोड करें।</Text>
                   </View>
                 </View>
-              ) : (
+              )}
+
+              {/* ── Bank Transfer tab ── */}
+              {depositTab === 'bank' && (
+                <View style={{ marginTop: 12 }}>
+                  <View style={s.infoBox}>
+                    <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
+                    <Text style={s.infoText}>नीचे दिए गए बैंक खाते में NEFT/IMPS करें, फिर "UTR Submit" टैब पर UTR नंबर डालें।</Text>
+                  </View>
+
+                  {/* Bank detail rows */}
+                  {[
+                    { label: 'बैंक का नाम', value: platformSettings?.bankName, field: 'bankName' },
+                    { label: 'खाताधारक', value: platformSettings?.bankHolderName, field: 'bankHolder' },
+                    { label: 'खाता नंबर', value: platformSettings?.bankAccountNumber, field: 'bankAccount', mono: true },
+                    { label: 'IFSC कोड', value: platformSettings?.bankIfsc, field: 'bankIfsc', mono: true },
+                  ].map(({ label, value, field, mono }) =>
+                    value ? (
+                      <View key={field} style={s.bankRow}>
+                        <Text style={s.bankLabel}>{label}</Text>
+                        <TouchableOpacity
+                          style={s.bankValueRow}
+                          onPress={() => {
+                            Clipboard.setString(value);
+                            setBankFieldCopied(field);
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setTimeout(() => setBankFieldCopied(null), 2000);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[s.bankValue, mono && { fontFamily: 'Inter_600SemiBold', letterSpacing: 0.5 }]}>{value}</Text>
+                          <Ionicons
+                            name={bankFieldCopied === field ? 'checkmark-circle' : 'copy-outline'}
+                            size={16}
+                            color={bankFieldCopied === field ? colors.success : colors.primary}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    ) : null
+                  )}
+                </View>
+              )}
+
+              {/* ── UTR Submit (manual) tab ── */}
+              {depositTab === 'manual' && (
                 <View>
                   <View style={s.upiIdRow}>
-                    <Text style={s.upiIdLabel}>पहले इस UPI ID पर भुगतान करें:</Text>
+                    <Text style={s.upiIdLabel}>पहले इस UPI ID / बैंक खाते पर भुगतान करें, फिर UTR दर्ज करें:</Text>
                     {platformUpiId ? (
                       <TouchableOpacity style={s.copyRow} onPress={copyUpiId} activeOpacity={0.8}>
                         <Text style={s.upiId}>{platformUpiId}</Text>
                         <Ionicons name={upiCopied ? 'checkmark-circle' : 'copy-outline'} size={18} color={upiCopied ? colors.success : colors.primary} />
                       </TouchableOpacity>
-                    ) : (
-                      <Text style={[s.upiId, { color: colors.mutedForeground, fontSize: 13 }]}>UPI ID अभी उपलब्ध नहीं है</Text>
-                    )}
+                    ) : null}
                   </View>
 
                   <Text style={s.amountLabel}>UTR नंबर</Text>
@@ -733,4 +783,8 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   validationMsg: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: -10, marginBottom: 12 },
   validationText: { fontSize: 12, fontFamily: 'Inter_400Regular' },
   ifscHint: { fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: -10, marginBottom: 16 },
+  bankRow: { marginBottom: 14 },
+  bankLabel: { fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },
+  bankValueRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, backgroundColor: colors.muted, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  bankValue: { fontSize: 15, color: colors.foreground, fontFamily: 'Inter_400Regular', flex: 1, marginRight: 8 },
 });

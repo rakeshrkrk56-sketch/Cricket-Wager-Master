@@ -737,14 +737,22 @@ export interface NotificationListResponse {
 
 export interface PlatformSettings {
   platformUpiId: string;
-  platformName: string;
-  platformUpiName: string;
+  platformName?: string;
+  platformUpiName?: string;
+  bankName?: string;
+  bankHolderName?: string;
+  bankAccountNumber?: string;
+  bankIfsc?: string;
 }
 
 export interface UpdateSettingsRequest {
   platformUpiId?: string;
   platformName?: string;
   platformUpiName?: string;
+  bankName?: string;
+  bankHolderName?: string;
+  bankAccountNumber?: string;
+  bankIfsc?: string;
 }
 
 export interface ApproveRejectRequest {

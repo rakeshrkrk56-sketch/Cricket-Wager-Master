@@ -21,8 +21,12 @@ export const HealthCheckResponse = zod.object({
  */
 export const GetSettingsResponse = zod.object({
   "platformUpiId": zod.string(),
-  "platformName": zod.string(),
-  "platformUpiName": zod.string()
+  "platformName": zod.string().optional(),
+  "platformUpiName": zod.string().optional(),
+  "bankName": zod.string().optional(),
+  "bankHolderName": zod.string().optional(),
+  "bankAccountNumber": zod.string().optional(),
+  "bankIfsc": zod.string().optional()
 })
 
 
@@ -31,8 +35,12 @@ export const GetSettingsResponse = zod.object({
  */
 export const AdminGetSettingsResponse = zod.object({
   "platformUpiId": zod.string(),
-  "platformName": zod.string(),
-  "platformUpiName": zod.string()
+  "platformName": zod.string().optional(),
+  "platformUpiName": zod.string().optional(),
+  "bankName": zod.string().optional(),
+  "bankHolderName": zod.string().optional(),
+  "bankAccountNumber": zod.string().optional(),
+  "bankIfsc": zod.string().optional()
 })
 
 
@@ -42,13 +50,21 @@ export const AdminGetSettingsResponse = zod.object({
 export const AdminUpdateSettingsBody = zod.object({
   "platformUpiId": zod.string().optional(),
   "platformName": zod.string().optional(),
-  "platformUpiName": zod.string().optional()
+  "platformUpiName": zod.string().optional(),
+  "bankName": zod.string().optional(),
+  "bankHolderName": zod.string().optional(),
+  "bankAccountNumber": zod.string().optional(),
+  "bankIfsc": zod.string().optional()
 })
 
 export const AdminUpdateSettingsResponse = zod.object({
   "platformUpiId": zod.string(),
-  "platformName": zod.string(),
-  "platformUpiName": zod.string()
+  "platformName": zod.string().optional(),
+  "platformUpiName": zod.string().optional(),
+  "bankName": zod.string().optional(),
+  "bankHolderName": zod.string().optional(),
+  "bankAccountNumber": zod.string().optional(),
+  "bankIfsc": zod.string().optional()
 })
 
 

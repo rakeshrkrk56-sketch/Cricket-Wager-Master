@@ -2485,10 +2485,16 @@ components:
           type: string
         platformUpiName:
           type: string
+        bankName:
+          type: string
+        bankHolderName:
+          type: string
+        bankAccountNumber:
+          type: string
+        bankIfsc:
+          type: string
       required:
         - platformUpiId
-        - platformName
-        - platformUpiName
 
     UpdateSettingsRequest:
       type: object
@@ -2498,6 +2504,14 @@ components:
         platformName:
           type: string
         platformUpiName:
+          type: string
+        bankName:
+          type: string
+        bankHolderName:
+          type: string
+        bankAccountNumber:
+          type: string
+        bankIfsc:
           type: string
 
     # ─── Shared ────────────────────────────────────────────────────────────────

@@ -9,6 +9,10 @@ const DEFAULTS: Record<string, string> = {
   platform_upi_id: "",
   platform_name: "Jazment",
   platform_upi_name: "Jazment Cricket",
+  bank_name: "",
+  bank_holder_name: "",
+  bank_account_number: "",
+  bank_ifsc: "",
 };
 
 async function getSetting(key: string): Promise<string> {
@@ -19,35 +23,55 @@ async function getSetting(key: string): Promise<string> {
   return row?.value ?? DEFAULTS[key] ?? "";
 }
 
-// ─── Public endpoint (used by mobile app) ────────────────────────────────────
-
-router.get("/settings", async (_req, res): Promise<void> => {
-  const [upiId, name, upiName] = await Promise.all([
+async function getAllSettings() {
+  const [upiId, name, upiName, bankName, bankHolder, bankAccount, bankIfsc] = await Promise.all([
     getSetting("platform_upi_id"),
     getSetting("platform_name"),
     getSetting("platform_upi_name"),
+    getSetting("bank_name"),
+    getSetting("bank_holder_name"),
+    getSetting("bank_account_number"),
+    getSetting("bank_ifsc"),
   ]);
-  res.json({ platformUpiId: upiId, platformName: name, platformUpiName: upiName });
+  return {
+    platformUpiId: upiId,
+    platformName: name,
+    platformUpiName: upiName,
+    bankName,
+    bankHolderName: bankHolder,
+    bankAccountNumber: bankAccount,
+    bankIfsc,
+  };
+}
+
+// ─── Public endpoint (used by mobile app) ────────────────────────────────────
+
+router.get("/settings", async (_req, res): Promise<void> => {
+  res.json(await getAllSettings());
 });
 
 // ─── Admin endpoints ──────────────────────────────────────────────────────────
 
 router.get("/admin/settings", requireAdmin, async (_req, res): Promise<void> => {
-  const [upiId, name, upiName] = await Promise.all([
-    getSetting("platform_upi_id"),
-    getSetting("platform_name"),
-    getSetting("platform_upi_name"),
-  ]);
-  res.json({ platformUpiId: upiId, platformName: name, platformUpiName: upiName });
+  res.json(await getAllSettings());
 });
 
 router.put("/admin/settings", requireAdmin, async (req, res): Promise<void> => {
-  const { platformUpiId, platformName, platformUpiName } = req.body;
+  const { platformUpiId, platformName, platformUpiName, bankName, bankHolderName, bankAccountNumber, bankIfsc } = req.body;
 
-  const updates: { key: string; value: string }[] = [];
-  if (platformUpiId !== undefined) updates.push({ key: "platform_upi_id", value: String(platformUpiId).trim() });
-  if (platformName !== undefined) updates.push({ key: "platform_name", value: String(platformName).trim() });
-  if (platformUpiName !== undefined) updates.push({ key: "platform_upi_name", value: String(platformUpiName).trim() });
+  const fieldMap: Record<string, string | undefined> = {
+    platform_upi_id: platformUpiId,
+    platform_name: platformName,
+    platform_upi_name: platformUpiName,
+    bank_name: bankName,
+    bank_holder_name: bankHolderName,
+    bank_account_number: bankAccountNumber,
+    bank_ifsc: bankIfsc,
+  };
+
+  const updates = Object.entries(fieldMap)
+    .filter(([, v]) => v !== undefined)
+    .map(([key, value]) => ({ key, value: String(value).trim() }));
 
   if (updates.length === 0) {
     res.status(400).json({ error: "No settings provided" });
@@ -66,12 +90,7 @@ router.put("/admin/settings", requireAdmin, async (req, res): Promise<void> => {
     )
   );
 
-  const [upiId, name, upiName] = await Promise.all([
-    getSetting("platform_upi_id"),
-    getSetting("platform_name"),
-    getSetting("platform_upi_name"),
-  ]);
-  res.json({ platformUpiId: upiId, platformName: name, platformUpiName: upiName });
+  res.json(await getAllSettings());
 });
 
 export default router;
