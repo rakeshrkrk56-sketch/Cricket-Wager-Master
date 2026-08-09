@@ -26,7 +26,9 @@ app.use(
   }),
 );
 app.use(cors());
-app.use(express.json());
+// 10mb limit: deposit/KYC screenshots are sent as base64 in JSON bodies —
+// the express default of 100kb silently rejects them with 413.
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
