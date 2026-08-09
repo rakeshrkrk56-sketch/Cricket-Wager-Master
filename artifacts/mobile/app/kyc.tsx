@@ -14,8 +14,6 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 const DOC_TYPES = [
   { id: 'govt_id', label: 'Government ID', sublabel: 'Aadhaar, PAN, Voter ID, Passport', required: true },
   { id: 'selfie', label: 'Selfie', sublabel: 'Clear photo of your face', required: false },
-  { id: 'address_proof', label: 'Address Proof', sublabel: 'Utility bill, bank statement', required: false },
-  { id: 'other', label: 'Additional Document', sublabel: 'Any other document requested', required: false },
 ];
 
 const STATUS_COLOR: Record<string, string> = {

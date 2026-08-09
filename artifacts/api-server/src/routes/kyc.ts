@@ -14,7 +14,10 @@ router.post("/kyc/documents", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
   const { docType, label, dataBase64 } = req.body;
 
-  const validTypes = ["govt_id", "selfie", "address_proof", "other"];
+  // The user-facing KYC flow intentionally requires only identity proof and
+  // selfie. Keep older address/other records readable for admin history, but
+  // do not accept new uploads of those types.
+  const validTypes = ["govt_id", "selfie"];
   if (!docType || !validTypes.includes(docType)) {
     res.status(400).json({ error: `docType must be one of: ${validTypes.join(", ")}` });
     return;
