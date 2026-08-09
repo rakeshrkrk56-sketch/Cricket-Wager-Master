@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, Modal, TextInput, Alert, ScrollView,
-  Platform, Linking, Clipboard,
+  Platform, Linking, Clipboard, RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -150,6 +150,27 @@ export default function WalletScreen() {
   const createWithdrawal = useCreateWithdrawal();
 
   const balance = wallet?.balance ?? user?.walletBalance ?? 0;
+
+  // Keep AuthContext in sync so the home-screen wallet badge reflects the latest balance
+  useEffect(() => {
+    if (wallet && user && wallet.balance !== user.walletBalance) {
+      updateUser({ ...user, walletBalance: wallet.balance });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wallet?.balance]);
+
+  // Pull-to-refresh: reload balance + active ledger tab
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: getGetWalletQueryKey() }),
+      queryClient.invalidateQueries({ queryKey: getGetTransactionsQueryKey({}) }),
+      queryClient.invalidateQueries({ queryKey: getGetMyDepositsQueryKey({}) }),
+      queryClient.invalidateQueries({ queryKey: getGetMyWithdrawalsQueryKey({}) }),
+    ]);
+    setRefreshing(false);
+  }, [queryClient]);
 
   const openUpiDeepLink = (upiId: string, upiName: string) => {
     const amt = parseFloat(depAmount);
@@ -318,6 +339,7 @@ export default function WalletScreen() {
             keyExtractor={(tx) => tx.id}
             renderItem={({ item }) => <TxItem item={item} />}
             contentContainerStyle={s.listContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
             ListEmptyComponent={<EmptyState icon="receipt-outline" text={t('wallet_empty_tx')} />}
           />
         )
@@ -338,6 +360,7 @@ export default function WalletScreen() {
               </View>
             )}
             contentContainerStyle={s.listContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
             ListEmptyComponent={<EmptyState icon="arrow-down-circle-outline" text={t('wallet_empty_deposits')} />}
           />
         )
@@ -358,6 +381,7 @@ export default function WalletScreen() {
               </View>
             )}
             contentContainerStyle={s.listContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
             ListEmptyComponent={<EmptyState icon="arrow-up-circle-outline" text={t('wallet_empty_withdrawals')} />}
           />
         )

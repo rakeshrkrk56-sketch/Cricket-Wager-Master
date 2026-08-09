@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   RefreshControl, ActivityIndicator, Platform,
@@ -9,7 +9,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { useListMatches, getListMatchesQueryKey } from '@workspace/api-client-react';
+import {
+  useListMatches, getListMatchesQueryKey,
+  useGetWallet, getGetWalletQueryKey,
+} from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 function StatusBadge({ status }: { status: string }) {
@@ -93,15 +96,32 @@ const matchCardStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.cre
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { t } = useLanguage();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'live' | 'upcoming' | 'completed'>('live');
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { data, isLoading, refetch } = useListMatches(
+  const { data, isLoading } = useListMatches(
     { status: activeTab },
     { query: { queryKey: getListMatchesQueryKey({ status: activeTab }) } }
   );
+
+  // Live wallet balance — replaces the stale AsyncStorage snapshot in AuthContext
+  const { data: walletData } = useGetWallet({
+    query: { enabled: !!token, queryKey: getGetWalletQueryKey() },
+  });
+  const liveBalance = walletData?.balance ?? user?.walletBalance ?? 0;
+
+  // Pull-to-refresh: reload matches + wallet together
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: getListMatchesQueryKey({ status: activeTab }) }),
+      queryClient.invalidateQueries({ queryKey: getGetWalletQueryKey() }),
+    ]);
+    setRefreshing(false);
+  }, [queryClient, activeTab]);
 
   const s = styles(colors, insets);
   const matches = data?.matches ?? [];
@@ -121,7 +141,7 @@ export default function HomeScreen() {
         </View>
         <TouchableOpacity style={s.walletBadge} onPress={() => router.push('/(tabs)/wallet')}>
           <Ionicons name="wallet-outline" size={14} color={colors.primary} />
-          <Text style={s.walletText}>₹{user?.walletBalance?.toFixed(0) ?? '0'}</Text>
+          <Text style={s.walletText}>₹{liveBalance.toFixed(0)}</Text>
         </TouchableOpacity>
       </View>
 
@@ -144,7 +164,7 @@ export default function HomeScreen() {
           renderItem={({ item }) => <MatchCard match={item} />}
           contentContainerStyle={s.list}
           scrollEnabled={!!matches.length}
-          refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor={colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing || isLoading} onRefresh={handleRefresh} tintColor={colors.primary} />}
           ListEmptyComponent={
             <View style={s.empty}>
               <Ionicons name="trophy-outline" size={48} color={colors.mutedForeground} />
