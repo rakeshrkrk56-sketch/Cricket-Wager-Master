@@ -139,13 +139,27 @@ router.get("/admin/deposits", requireAdmin, async (req, res): Promise<void> => {
 
   res.json({
     deposits: deposits.map(({ deposit, user }) => ({
-      ...serializeDeposit(deposit),
+      // Omit screenshotBase64 from the list — screenshots are fetched
+      // individually via GET /admin/deposits/:id/screenshot to keep the
+      // list response small regardless of how many deposits exist.
+      ...serializeDeposit(deposit, false),
       user,
     })),
     total: Number(total),
     page,
     limit,
   });
+});
+
+router.get("/admin/deposits/:depositId/screenshot", requireAdmin, async (req, res): Promise<void> => {
+  const depositId = req.params["depositId"] as string;
+  const [row] = await db
+    .select({ screenshotBase64: depositsTable.screenshotBase64 })
+    .from(depositsTable)
+    .where(eq(depositsTable.id, depositId));
+  if (!row) { res.status(404).json({ error: "Deposit not found" }); return; }
+  if (!row.screenshotBase64) { res.status(404).json({ error: "No screenshot for this deposit" }); return; }
+  res.json({ screenshotBase64: row.screenshotBase64 });
 });
 
 router.post("/admin/deposits/:depositId/approve", requireAdmin, async (req, res): Promise<void> => {

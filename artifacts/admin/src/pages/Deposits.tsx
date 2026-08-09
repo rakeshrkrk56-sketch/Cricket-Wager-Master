@@ -5,6 +5,7 @@ import {
   useApproveDeposit,
   useRejectDeposit,
 } from '@workspace/api-client-react';
+import { useAdminFetch } from '@/hooks/useAdminFetch';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,8 @@ export function Deposits() {
   const [page, setPage] = useState(1);
   const [remarksMap, setRemarksMap] = useState<Record<string, string>>({});
   const [screenshotOpen, setScreenshotOpen] = useState<string | null>(null);
+  const [screenshotLoading, setScreenshotLoading] = useState<string | null>(null);
+  const adminFetch = useAdminFetch();
 
   const apiStatus = statusFilter === 'all' ? undefined : statusFilter;
   const qKey = getAdminListDepositsQueryKey({ status: apiStatus, limit: PAGE_SIZE, page, search: debouncedSearch || undefined });
@@ -84,6 +87,20 @@ export function Deposits() {
         onError: (err: any) => toast({ variant: 'destructive', title: 'Error', description: err?.data?.error ?? 'Failed' }),
       }
     );
+  };
+
+  const handleViewScreenshot = async (depositId: string) => {
+    setScreenshotLoading(depositId);
+    try {
+      const data = await adminFetch<{ screenshotBase64: string }>(
+        `/api/admin/deposits/${depositId}/screenshot`
+      );
+      setScreenshotOpen(data.screenshotBase64);
+    } catch {
+      toast({ variant: 'destructive', title: 'Failed to load screenshot' });
+    } finally {
+      setScreenshotLoading(null);
+    }
   };
 
   const handleExport = () => {
@@ -184,9 +201,16 @@ export function Deposits() {
                       <p>{format(new Date(dep.createdAt), 'dd MMM yyyy, HH:mm')}</p>
                     </div>
                   </div>
-                  {dep.hasScreenshot && dep.screenshotBase64 && (
-                    <Button variant="outline" size="sm" onClick={() => setScreenshotOpen(dep.screenshotBase64)}>
-                      <Image className="w-4 h-4 mr-1" /> Screenshot
+                  {dep.hasScreenshot && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={screenshotLoading === dep.id}
+                      onClick={() => handleViewScreenshot(dep.id)}
+                    >
+                      {screenshotLoading === dep.id
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : <><Image className="w-4 h-4 mr-1" /> Screenshot</>}
                     </Button>
                   )}
                 </div>

@@ -190,11 +190,13 @@ export default function WalletScreen() {
           setShowDeposit(false);
           setDepAmount(''); setUtrNumber(''); setScreenshotUri(null); setScreenshotBase64(null);
           setWalletTab('deposits');
-          Alert.alert(t('wallet_deposit_success_title'), t('wallet_deposit_success_msg'));
+          // Delay alert so the modal dismiss animation finishes first —
+          // on iOS an alert fired during modal teardown is silently dropped.
+          setTimeout(() => Alert.alert(t('wallet_deposit_success_title'), t('wallet_deposit_success_msg')), 400);
         },
         onError: (err: any) => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert(t('wallet_error_title'), err?.data?.error ?? t('wallet_deposit_success_msg'));
+          Alert.alert(t('wallet_error_title'), err?.data?.error ?? 'Submission failed. Please try again.');
         },
       }
     );
@@ -231,7 +233,7 @@ export default function WalletScreen() {
           setShowWithdraw(false);
           resetWithdrawForm();
           setWalletTab('withdrawals');
-          Alert.alert(t('wallet_withdraw_success_title'), wdMethod === 'upi' ? t('wallet_withdraw_upi_msg') : t('wallet_withdraw_bank_msg'));
+          setTimeout(() => Alert.alert(t('wallet_withdraw_success_title'), wdMethod === 'upi' ? t('wallet_withdraw_upi_msg') : t('wallet_withdraw_bank_msg')), 400);
         },
         onError: (err: any) => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
