@@ -24,11 +24,20 @@ export function normalizePhone(raw: string): string {
   return `+${digits}`;
 }
 
-const MSG91_OTP_URL = "https://control.msg91.com/api/v5/otp";
-const MSG91_AUTHKEY = process.env.MSG91_AUTHKEY;
-const MSG91_TEMPLATE_ID = process.env.MSG91_TEMPLATE_ID;
+const FAST2SMS_OTP_URL = "https://www.fast2sms.com/dev/otp";
+const FAST2SMS_API_KEY = process.env.FAST2SMS_API_KEY;
+const FAST2SMS_OTP_ID = process.env.FAST2SMS_OTP_ID;
+const OTP_EXPIRY_MINUTES = 10;
 const otpSentAt = new Map<string, number>();
 const OTP_RESEND_COOLDOWN_MS = 60_000;
+
+// Fast2SMS expects a bare 10-digit Indian mobile number.
+function toFast2smsMobile(phone: string): string | null {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
+  if (digits.length === 10) return digits;
+  return null;
+}
 
 function maskPhone(phone: string): string {
   return phone.length > 4 ? `${phone.slice(0, 3)}******${phone.slice(-2)}` : "***";
@@ -44,12 +53,11 @@ async function readProviderResponse(response: Response): Promise<Record<string, 
 }
 
 function providerSucceeded(response: Response, body: Record<string, unknown>): boolean {
-  const type = String(body.type ?? body.status ?? "").toLowerCase();
-  return response.ok && (!type || type === "success" || type === "ok");
+  return response.ok && body.return === true;
 }
 
-function msg91Configured(): boolean {
-  return Boolean(MSG91_AUTHKEY && MSG91_TEMPLATE_ID);
+function otpProviderConfigured(): boolean {
+  return Boolean(FAST2SMS_API_KEY && FAST2SMS_OTP_ID);
 }
 
 router.post("/auth/send-otp", async (req, res): Promise<void> => {
@@ -63,12 +71,17 @@ router.post("/auth/send-otp", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid phone number" });
     return;
   }
-  if (!msg91Configured()) {
+  if (!otpProviderConfigured()) {
     req.log.error(
-      { hasAuthkey: Boolean(MSG91_AUTHKEY), hasTemplateId: Boolean(MSG91_TEMPLATE_ID) },
-      "MSG91 OTP service is not configured",
+      { hasApiKey: Boolean(FAST2SMS_API_KEY), hasOtpId: Boolean(FAST2SMS_OTP_ID) },
+      "Fast2SMS OTP service is not configured",
     );
     res.status(503).json({ error: "OTP service is not configured" });
+    return;
+  }
+  const mobile = toFast2smsMobile(phone);
+  if (!mobile) {
+    res.status(400).json({ error: "Only Indian mobile numbers are supported" });
     return;
   }
 
@@ -78,39 +91,36 @@ router.post("/auth/send-otp", async (req, res): Promise<void> => {
     return;
   }
 
-  const url = new URL(MSG91_OTP_URL);
-  url.searchParams.set("template_id", MSG91_TEMPLATE_ID!);
-  url.searchParams.set("mobile", phone.slice(1));
-  url.searchParams.set("authkey", MSG91_AUTHKEY!);
-
   try {
-    const providerResponse = await fetch(url, {
+    const providerResponse = await fetch(`${FAST2SMS_OTP_URL}/send`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: FAST2SMS_API_KEY!,
+      },
+      body: JSON.stringify({
+        mobile,
+        otp_id: FAST2SMS_OTP_ID,
+        otp_length: 6,
+        otp_expiry: OTP_EXPIRY_MINUTES,
+      }),
     });
     const providerBody = await readProviderResponse(providerResponse);
     if (!providerSucceeded(providerResponse, providerBody)) {
       req.log.error(
-        {
-          status: providerResponse.status,
-          providerType: providerBody.type ?? providerBody.status,
-          providerMessage: providerBody.message ?? providerBody.msg ?? providerBody.error,
-        },
-        "MSG91 rejected OTP request",
+        { status: providerResponse.status, providerMessage: providerBody.message },
+        "Fast2SMS rejected OTP request",
       );
       res.status(502).json({ error: "Unable to send OTP right now" });
       return;
     }
-    req.log.info(
-      { providerType: providerBody.type ?? providerBody.status, requestId: providerBody.request_id },
-      "MSG91 accepted OTP request",
-    );
+    req.log.info({ requestId: providerBody.request_id }, "Fast2SMS accepted OTP request");
 
     otpSentAt.set(phone, Date.now());
     req.log.info({ phone: maskPhone(phone) }, "OTP sent");
     res.json(SendOtpResponse.parse({ success: true, message: "OTP sent successfully" }));
   } catch (error) {
-    req.log.error({ err: error instanceof Error ? error.message : "unknown error" }, "MSG91 OTP request failed");
+    req.log.error({ err: error instanceof Error ? error.message : "unknown error" }, "Fast2SMS OTP request failed");
     res.status(502).json({ error: "Unable to send OTP right now" });
   }
 });
@@ -123,37 +133,43 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
   }
   const { otp } = parsed.data;
   const phone = normalizePhone(parsed.data.phone);
-  if (!msg91Configured()) {
+  if (!otpProviderConfigured()) {
     req.log.error(
-      { hasAuthkey: Boolean(MSG91_AUTHKEY), hasTemplateId: Boolean(MSG91_TEMPLATE_ID) },
-      "MSG91 OTP service is not configured",
+      { hasApiKey: Boolean(FAST2SMS_API_KEY), hasOtpId: Boolean(FAST2SMS_OTP_ID) },
+      "Fast2SMS OTP service is not configured",
     );
     res.status(503).json({ error: "OTP service is not configured" });
     return;
   }
-
-  const url = new URL(`${MSG91_OTP_URL}/verify`);
-  url.searchParams.set("otp", otp);
-  url.searchParams.set("mobile", phone.slice(1));
+  const mobile = toFast2smsMobile(phone);
+  if (!mobile) {
+    res.status(400).json({ error: "Only Indian mobile numbers are supported" });
+    return;
+  }
 
   try {
-    const providerResponse = await fetch(url, {
-      method: "GET",
-      headers: { authkey: MSG91_AUTHKEY! },
+    const providerResponse = await fetch(`${FAST2SMS_OTP_URL}/verify`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: FAST2SMS_API_KEY!,
+      },
+      body: JSON.stringify({ mobile, otp }),
     });
     const providerBody = await readProviderResponse(providerResponse);
     if (!providerSucceeded(providerResponse, providerBody)) {
       if (providerResponse.status === 401) {
-        req.log.error("MSG91 rejected the configured authkey");
+        req.log.error("Fast2SMS rejected the configured API key");
         res.status(502).json({ error: "OTP service configuration is invalid" });
         return;
       }
+      req.log.info({ status: providerResponse.status, providerMessage: providerBody.message }, "OTP verification rejected");
       res.status(400).json({ error: "Invalid or expired OTP" });
       return;
     }
     otpSentAt.delete(phone);
   } catch (error) {
-    req.log.error({ err: error instanceof Error ? error.message : "unknown error" }, "MSG91 OTP verification failed");
+    req.log.error({ err: error instanceof Error ? error.message : "unknown error" }, "Fast2SMS OTP verification failed");
     res.status(502).json({ error: "Unable to verify OTP right now" });
     return;
   }

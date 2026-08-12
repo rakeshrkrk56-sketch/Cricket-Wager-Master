@@ -10,16 +10,14 @@ description: How authentication works in Jazment — real SMS via MSG91 OTP API
 - Token format: base64(`userId:role:timestamp`) stored in `AsyncStorage` (mobile)
 - `parseToken()` in `middlewares/auth.ts` decodes and validates it
 
-## SMS Provider: MSG91 OTP API
-- Send OTP: `POST https://control.msg91.com/api/v5/otp?template_id=...&mobile=...&authkey=...`
-- Verify OTP: `GET https://control.msg91.com/api/v5/otp/verify?otp=...&mobile=...` (authkey in header)
-- MSG91 generates, sends, expires, and validates the OTP — Jazment stores nothing
-- Credentials stored in Replit Secrets: `MSG91_AUTHKEY`, `MSG91_TEMPLATE_ID` (shared env var)
-- Indian business SMS still requires the account owner's DLT entity, approved sender header, and approved content template; MSG91 helps map these but does not remove the DLT requirement
-- MSG91 returns `type: "success"` + request_id when it ACCEPTS a send — this does NOT mean the SMS was delivered. Without DLT approval carriers silently drop it; check SendOTP → Logs delivery status in the MSG91 dashboard
+## SMS Provider: Fast2SMS OTP API (switched from MSG91)
+- MSG91 was abandoned: it accepted sends (`type: success` + request_id) but Indian carriers silently dropped delivery because the user has no DLT entity/sender/template registration. Fast2SMS handles DLT on the reseller side.
+- Send: `POST https://www.fast2sms.com/dev/otp/send` body `{ mobile, otp_id, otp_length, otp_expiry }`, API key in `Authorization` header
+- Verify: `POST https://www.fast2sms.com/dev/otp/verify` body `{ mobile, otp }`
+- Success check: `response.ok && body.return === true` (providers can return HTTP 200 with error body)
+- Fast2SMS wants a bare 10-digit mobile (strip `+91`); Jazment still canonicalizes to `+91XXXXXXXXXX` internally
+- Config: `FAST2SMS_API_KEY` (secret), `FAST2SMS_OTP_ID` (OTP template ID from Fast2SMS dashboard)
 - 60-second resend cooldown tracked in-memory (`otpSentAt` Map)
-- Phone passed to MSG91 as digits only (no leading `+`): `phone.slice(1)` from the `+91XXXXXXXXXX` form
-- `providerSucceeded()` checks `response.ok` AND `body.type/status === "success"` — MSG91 can return HTTP 200 with an error body
 
 **Why:** Replaced mock `1234` OTP to prevent unauthorized account access before real users deposit money.
 
