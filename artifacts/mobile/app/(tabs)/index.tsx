@@ -12,6 +12,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import {
   useListMatches, getListMatchesQueryKey,
   useGetWallet, getGetWalletQueryKey,
+  useGetLiveCricketMatches, getGetLiveCricketMatchesQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -36,7 +37,12 @@ function MatchCard({ match }: { match: any }) {
   const s = matchCardStyles(colors);
   const locale = lang === 'hi' ? 'hi-IN' : 'en-IN';
   return (
-    <TouchableOpacity style={s.card} onPress={() => router.push(`/match/${match.id}`)} activeOpacity={0.8}>
+    <TouchableOpacity
+      style={[s.card, match.isProviderOnly && { opacity: 0.85 }]}
+      onPress={() => router.push(`/match/${match.id}`)}
+      activeOpacity={0.8}
+      disabled={!!match.isProviderOnly}
+    >
       <View style={s.header}>
         <Text style={s.tournament}>{match.tournament}</Text>
         <StatusBadge status={match.status} />
@@ -58,7 +64,7 @@ function MatchCard({ match }: { match: any }) {
           <Text style={s.teamName}>{match.team2}</Text>
         </View>
       </View>
-      {match.status === 'live' && (
+      {match.status === 'live' && !match.isProviderOnly && (
         <View style={s.liveBar}>
           <Ionicons name="radio-button-on" size={12} color={colors.destructive} />
           <Text style={[s.liveText, { color: colors.destructive }]}> {t('home_live_predict')}</Text>
@@ -68,6 +74,9 @@ function MatchCard({ match }: { match: any }) {
         <Text style={s.time}>
           {new Date(match.startTime).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}
         </Text>
+      )}
+      {match.isProviderOnly && (
+        <Text style={[s.time, { marginTop: 4, fontStyle: 'italic' }]}>{t('home_markets_soon')}</Text>
       )}
     </TouchableOpacity>
   );
@@ -107,6 +116,16 @@ export default function HomeScreen() {
     { query: { queryKey: getListMatchesQueryKey({ status: activeTab }) } }
   );
 
+  // Real cricket schedule from the provider — shown alongside admin-created
+  // matches so users always see the full live + upcoming calendar.
+  const { data: cricketData } = useGetLiveCricketMatches({
+    query: {
+      queryKey: getGetLiveCricketMatchesQueryKey(),
+      enabled: activeTab !== 'completed',
+      staleTime: 120_000,
+    } as any,
+  });
+
   // Live wallet balance — replaces the stale AsyncStorage snapshot in AuthContext
   const { data: walletData } = useGetWallet({
     query: { enabled: !!token, queryKey: getGetWalletQueryKey() },
@@ -124,7 +143,35 @@ export default function HomeScreen() {
   }, [queryClient, activeTab]);
 
   const s = styles(colors, insets);
-  const matches = data?.matches ?? [];
+  const adminMatches = data?.matches ?? [];
+
+  // Merge in provider matches not already covered by an admin-created match.
+  // These are display-only (no betting markets yet).
+  const linkedIds = new Set(adminMatches.map((m: any) => m.cricApiMatchId).filter(Boolean));
+  const providerOnly = (cricketData?.matches ?? [])
+    .filter((cm: any) => {
+      if (linkedIds.has(cm.id)) return false;
+      const isLive = cm.matchStarted === true && cm.matchEnded !== true;
+      const isUpcoming = cm.matchStarted !== true && cm.matchEnded !== true;
+      return activeTab === 'live' ? isLive : activeTab === 'upcoming' ? isUpcoming : false;
+    })
+    .map((cm: any) => {
+      const [t1, t2] = (cm.teams?.length ?? 0) >= 2 ? [cm.teams[0], cm.teams[1]] : cm.name.split(',')[0].split(' vs ');
+      const tournament = cm.name.split(',').slice(1).join(',').trim() || (cm.matchType ?? '').toUpperCase();
+      return {
+        id: `cric-${cm.id}`,
+        team1: (t1 ?? '').trim() || 'TBC',
+        team2: (t2 ?? '').trim() || 'TBC',
+        tournament,
+        startTime: cm.dateTimeGMT ? cm.dateTimeGMT + (cm.dateTimeGMT.endsWith('Z') ? '' : 'Z') : new Date().toISOString(),
+        status: activeTab,
+        isProviderOnly: true,
+      };
+    })
+    .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
+
+  // Admin matches (with betting markets) always come first.
+  const matches = [...adminMatches, ...providerOnly];
 
   const TAB_LABELS = {
     live: t('home_live'),

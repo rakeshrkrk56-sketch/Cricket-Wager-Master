@@ -47,6 +47,7 @@ const translations = {
     home_live_badge: '● Live',
     home_no_matches: 'No matches found',
     home_live_predict: 'Live Match • Predict',
+    home_markets_soon: 'Prediction markets coming soon',
 
     // Match detail
     match_yes: 'Yes',
@@ -313,6 +314,7 @@ const translations = {
     home_live_badge: '● लाइव',
     home_no_matches: 'कोई मैच नहीं मिला',
     home_live_predict: 'लाइव मैच • भविष्यवाणी करें',
+    home_markets_soon: 'भविष्यवाणी बाज़ार जल्द आ रहे हैं',
 
     // Match detail
     match_yes: 'हाँ',
