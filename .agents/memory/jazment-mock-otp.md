@@ -16,6 +16,7 @@ description: How authentication works in Jazment — real SMS via MSG91 OTP API
 - MSG91 generates, sends, expires, and validates the OTP — Jazment stores nothing
 - Credentials stored in Replit Secrets: `MSG91_AUTHKEY`, `MSG91_TEMPLATE_ID` (shared env var)
 - Indian business SMS still requires the account owner's DLT entity, approved sender header, and approved content template; MSG91 helps map these but does not remove the DLT requirement
+- MSG91 returns `type: "success"` + request_id when it ACCEPTS a send — this does NOT mean the SMS was delivered. Without DLT approval carriers silently drop it; check SendOTP → Logs delivery status in the MSG91 dashboard
 - 60-second resend cooldown tracked in-memory (`otpSentAt` Map)
 - Phone passed to MSG91 as digits only (no leading `+`): `phone.slice(1)` from the `+91XXXXXXXXXX` form
 - `providerSucceeded()` checks `response.ok` AND `body.type/status === "success"` — MSG91 can return HTTP 200 with an error body
