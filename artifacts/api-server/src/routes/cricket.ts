@@ -19,6 +19,9 @@ type CacheEntry<T> = {
 
 let liveMatchesCache: CacheEntry<unknown> | undefined;
 const scoreCache = new Map<string, CacheEntry<unknown>>();
+// Fixture lists per series barely change — cache aggressively to save quota.
+const seriesFixturesCache = new Map<string, CacheEntry<any[]>>();
+const SERIES_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 function getCached<T>(entry: CacheEntry<T> | undefined): T | undefined {
   return entry && entry.expiresAt > Date.now() ? entry.value : undefined;
@@ -84,7 +87,7 @@ router.get("/cricket/live", async (req, res): Promise<void> => {
   }
 
   try {
-    // currentMatches = live/recent; matches = series list incl. upcoming fixtures.
+    // currentMatches = live/recent; matches = broader fixture list.
     const [current, upcoming] = await Promise.all([
       fetchCricApi("currentMatches", { offset: "0" }) as Promise<{ data?: any[] }>,
       fetchCricApi("matches", { offset: "0" }) as Promise<{ data?: any[] }>,
@@ -94,6 +97,36 @@ router.get("/cricket/live", async (req, res): Promise<void> => {
     for (const m of current.data || []) byId.set(m.id, toCricketMatch(m));
     for (const m of upcoming.data || []) {
       if (!byId.has(m.id) && m.matchEnded !== true) byId.set(m.id, toCricketMatch(m));
+    }
+
+    // The two list endpoints only cover live/recent matches — upcoming fixtures
+    // of active series (e.g. the next ODI of a live tour, remaining TNPL games)
+    // are only in series_info. Fetch fixtures for each series that currently
+    // has a live/recent match, with long caching to protect the daily quota.
+    const seriesIds = Array.from(
+      new Set((current.data || []).map((m: any) => m.series_id).filter(Boolean))
+    ) as string[];
+
+    const fixtureLists = await Promise.all(
+      seriesIds.map(async (sid) => {
+        const cached = getCached(seriesFixturesCache.get(sid));
+        if (cached) return cached;
+        try {
+          const info = await fetchCricApi("series_info", { id: sid }) as { data?: { matchList?: any[] } };
+          const list = info.data?.matchList ?? [];
+          seriesFixturesCache.set(sid, { value: list, expiresAt: Date.now() + SERIES_CACHE_TTL_MS });
+          return list;
+        } catch (err) {
+          logger.warn({ err, seriesId: sid }, "CricAPI series fixtures unavailable, skipping");
+          return [] as any[];
+        }
+      })
+    );
+
+    for (const list of fixtureLists) {
+      for (const m of list) {
+        if (!byId.has(m.id) && m.matchEnded !== true) byId.set(m.id, toCricketMatch(m));
+      }
     }
 
     // Live/in-progress first, then upcoming by start time
