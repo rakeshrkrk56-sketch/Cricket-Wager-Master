@@ -91,12 +91,20 @@ router.post("/auth/send-otp", async (req, res): Promise<void> => {
     const providerBody = await readProviderResponse(providerResponse);
     if (!providerSucceeded(providerResponse, providerBody)) {
       req.log.error(
-        { status: providerResponse.status, providerType: providerBody.type ?? providerBody.status },
+        {
+          status: providerResponse.status,
+          providerType: providerBody.type ?? providerBody.status,
+          providerMessage: providerBody.message ?? providerBody.msg ?? providerBody.error,
+        },
         "MSG91 rejected OTP request",
       );
       res.status(502).json({ error: "Unable to send OTP right now" });
       return;
     }
+    req.log.info(
+      { providerType: providerBody.type ?? providerBody.status, requestId: providerBody.request_id },
+      "MSG91 accepted OTP request",
+    );
 
     otpSentAt.set(phone, Date.now());
     req.log.info({ phone: maskPhone(phone) }, "OTP sent");
