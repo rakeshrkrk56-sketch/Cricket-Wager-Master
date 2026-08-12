@@ -10,8 +10,9 @@ description: How authentication works in Jazment — real SMS via MSG91 OTP API
 - Token format: base64(`userId:role:timestamp`) stored in `AsyncStorage` (mobile)
 - `parseToken()` in `middlewares/auth.ts` decodes and validates it
 
-## SMS Provider: Fast2SMS OTP API (switched from MSG91)
-- MSG91 was abandoned: it accepted sends (`type: success` + request_id) but Indian carriers silently dropped delivery because the user has no DLT entity/sender/template registration. Fast2SMS handles DLT on the reseller side.
+## SMS Provider: Fast2SMS OTP API (prepared but not activated)
+- MSG91 was abandoned: it accepted sends (`type: success` + request_id) but Indian carriers silently dropped delivery because the user has no DLT entity/sender/template registration. Fast2SMS SMS channel also requires the customer's own DLT IDs; NOT a DLT bypass.
+- Fast2SMS Smart OTP has a WhatsApp channel that needs NO DLT — only a one-time Meta template approval. Same /dev/otp send/verify API; the channel is chosen when creating the OTP template in the dashboard.
 - Send: `POST https://www.fast2sms.com/dev/otp/send` body `{ mobile, otp_id, otp_length, otp_expiry }`, API key in `Authorization` header
 - Verify: `POST https://www.fast2sms.com/dev/otp/verify` body `{ mobile, otp }`
 - Success check: `response.ok && body.return === true` (providers can return HTTP 200 with error body)
