@@ -6,6 +6,8 @@ description: How authentication works in Jazment (no real SMS provider)
 ## How it works
 - Any phone number can register/login
 - OTP field always accepts `1234` (hardcoded in `artifacts/api-server/src/routes/auth.ts`)
+- Phone numbers are normalized SERVER-side to `+91XXXXXXXXXX` in both send-otp and verify-otp (`normalizePhone()` in routes/auth.ts). Never rely on clients formatting consistently — inconsistent formats ("9876543210" vs "+919876543210") once created duplicate accounts for the same number, losing wallet/prediction history on re-login.
+- User creation is race-safe via `onConflictDoNothing` on the unique phone constraint + re-select.
 - Token format: base64(`userId:role:timestamp`) stored in `localStorage` (web) / `AsyncStorage` (mobile)
 - `parseToken()` in `middlewares/auth.ts` decodes and validates it
 
