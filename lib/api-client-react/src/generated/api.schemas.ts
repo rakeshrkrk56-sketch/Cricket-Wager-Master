@@ -582,6 +582,10 @@ export interface CricketMatch {
   venue?: string;
   date?: string;
   teams?: string[];
+  dateTimeGMT?: string;
+  matchType?: string;
+  matchStarted?: boolean;
+  matchEnded?: boolean;
 }
 
 export interface CricketLiveResponse {

@@ -8,6 +8,9 @@ const CRICAPI_KEY = process.env.CRICAPI_KEY;
 const CRICAPI_BASE = "https://api.cricapi.com/v1";
 const PROVIDER_TIMEOUT_MS = 8_000;
 const CACHE_TTL_MS = 15_000;
+// The match list changes rarely (fixtures/status), and this endpoint costs
+// two provider hits — cache it longer to stay inside the daily quota.
+const LIVE_LIST_CACHE_TTL_MS = 120_000;
 
 type CacheEntry<T> = {
   value: T;
@@ -57,6 +60,21 @@ async function fetchCricApi(endpoint: string, params: Record<string, string> = {
   }
 }
 
+function toCricketMatch(m: any) {
+  return {
+    id: m.id,
+    name: m.name,
+    status: m.status,
+    venue: m.venue ?? undefined,
+    date: m.date ?? undefined,
+    teams: m.teams ?? [],
+    dateTimeGMT: m.dateTimeGMT ?? undefined,
+    matchType: m.matchType ?? undefined,
+    matchStarted: m.matchStarted ?? undefined,
+    matchEnded: m.matchEnded ?? undefined,
+  };
+}
+
 router.get("/cricket/live", async (req, res): Promise<void> => {
   // Return cached response if still fresh
   const cached = getCached(liveMatchesCache);
@@ -66,22 +84,32 @@ router.get("/cricket/live", async (req, res): Promise<void> => {
   }
 
   try {
-    const data = await fetchCricApi("currentMatches", { offset: "0" }) as { data?: any[] };
-    const matches = (data.data || []).map((m: any) => ({
-      id: m.id,
-      name: m.name,
-      status: m.status,
-      venue: m.venue ?? undefined,
-      date: m.date ?? undefined,
-      teams: m.teams ?? [],
-    }));
+    // currentMatches = live/recent; matches = series list incl. upcoming fixtures.
+    const [current, upcoming] = await Promise.all([
+      fetchCricApi("currentMatches", { offset: "0" }) as Promise<{ data?: any[] }>,
+      fetchCricApi("matches", { offset: "0" }) as Promise<{ data?: any[] }>,
+    ]);
+
+    const byId = new Map<string, any>();
+    for (const m of current.data || []) byId.set(m.id, toCricketMatch(m));
+    for (const m of upcoming.data || []) {
+      if (!byId.has(m.id) && m.matchEnded !== true) byId.set(m.id, toCricketMatch(m));
+    }
+
+    // Live/in-progress first, then upcoming by start time
+    const matches = Array.from(byId.values()).sort((a, b) => {
+      const aLive = a.matchStarted === true && a.matchEnded !== true ? 0 : 1;
+      const bLive = b.matchStarted === true && b.matchEnded !== true ? 0 : 1;
+      if (aLive !== bLive) return aLive - bLive;
+      return String(a.dateTimeGMT ?? "").localeCompare(String(b.dateTimeGMT ?? ""));
+    });
 
     const response = GetLiveCricketMatchesResponse.parse({
       matches,
       total: matches.length,
     });
 
-    liveMatchesCache = { value: response, expiresAt: Date.now() + CACHE_TTL_MS };
+    liveMatchesCache = { value: response, expiresAt: Date.now() + LIVE_LIST_CACHE_TTL_MS };
     res.json(response);
   } catch (err) {
     logger.warn({ err }, "CricAPI live matches unavailable");

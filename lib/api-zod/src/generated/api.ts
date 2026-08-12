@@ -885,7 +885,11 @@ export const GetLiveCricketMatchesResponse = zod.object({
   "status": zod.string(),
   "venue": zod.string().optional(),
   "date": zod.string().optional(),
-  "teams": zod.array(zod.string()).optional()
+  "teams": zod.array(zod.string()).optional(),
+  "dateTimeGMT": zod.string().optional(),
+  "matchType": zod.string().optional(),
+  "matchStarted": zod.boolean().optional(),
+  "matchEnded": zod.boolean().optional()
 })),
   "total": zod.number()
 })

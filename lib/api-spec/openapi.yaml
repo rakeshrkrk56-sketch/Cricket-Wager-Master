@@ -2254,6 +2254,14 @@ components:
           type: array
           items:
             type: string
+        dateTimeGMT:
+          type: string
+        matchType:
+          type: string
+        matchStarted:
+          type: boolean
+        matchEnded:
+          type: boolean
       required:
         - id
         - name

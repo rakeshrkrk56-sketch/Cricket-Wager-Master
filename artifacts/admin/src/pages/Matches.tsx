@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useAdminListMatches, useCreateMatch } from "@workspace/api-client-react";
+import { useState, useMemo } from "react";
+import { useAdminListMatches, useCreateMatch, useGetLiveCricketMatches } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -173,10 +173,39 @@ function StatusBadge({ status }: { status: string }) {
 function CreateMatchDialog({ open, onOpenChange, onSuccess }: { open: boolean; onOpenChange: (o: boolean) => void; onSuccess: () => void }) {
   const { toast } = useToast();
   const createMatch = useCreateMatch();
+  const [pickerSearch, setPickerSearch] = useState("");
+  const [selectedCricId, setSelectedCricId] = useState<string | null>(null);
+  const { data: cricData, isLoading: cricLoading, isError: cricError } = useGetLiveCricketMatches({
+    query: { enabled: open, staleTime: 60_000 } as any,
+  });
   const [formData, setFormData] = useState({
-    team1: "", team2: "", tournament: "IPL 2024",
+    team1: "", team2: "", tournament: "",
     date: format(new Date(), "yyyy-MM-dd"), time: "19:30", cricApiMatchId: "",
   });
+
+  const cricMatches = useMemo(() => {
+    const list = cricData?.matches ?? [];
+    const q = pickerSearch.trim().toLowerCase();
+    return q ? list.filter((m) => m.name.toLowerCase().includes(q)) : list;
+  }, [cricData, pickerSearch]);
+
+  const handlePick = (m: NonNullable<typeof cricData>["matches"][number]) => {
+    setSelectedCricId(m.id);
+    const [team1, team2] = (m.teams?.length ?? 0) >= 2
+      ? [m.teams![0], m.teams![1]]
+      : m.name.split(",")[0].split(" vs ");
+    // "Ireland vs Afghanistan, 4th ODI, Afghanistan tour of Ireland, 2026" → tournament from remainder
+    const tournament = m.name.split(",").slice(1).join(",").trim() || m.matchType?.toUpperCase() || "Cricket";
+    const start = m.dateTimeGMT ? new Date(m.dateTimeGMT + (m.dateTimeGMT.endsWith("Z") ? "" : "Z")) : new Date();
+    setFormData({
+      team1: team1?.trim() ?? "",
+      team2: team2?.trim() ?? "",
+      tournament,
+      date: format(start, "yyyy-MM-dd"),
+      time: format(start, "HH:mm"),
+      cricApiMatchId: m.id,
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,10 +223,55 @@ function CreateMatchDialog({ open, onOpenChange, onSuccess }: { open: boolean; o
       <DialogTrigger asChild>
         <Button><Plus className="w-4 h-4 mr-2" /> Create Match</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader><DialogTitle>Create New Match</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* Real match picker from cricket data provider */}
+            <div className="space-y-2">
+              <label className="text-xs uppercase tracking-wider text-muted-foreground">Pick a Real Match (Live & Upcoming)</label>
+              <Input
+                placeholder="Search real matches..."
+                value={pickerSearch}
+                onChange={(e) => setPickerSearch(e.target.value)}
+              />
+              <div className="border border-border rounded-md max-h-48 overflow-y-auto divide-y divide-border">
+                {cricLoading ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin mx-auto mb-1" /> Loading real matches...
+                  </div>
+                ) : cricError ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    Live cricket data is temporarily unavailable. You can still enter the match manually below.
+                  </div>
+                ) : cricMatches.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">No matches found.</div>
+                ) : (
+                  cricMatches.map((m) => {
+                    const isLive = m.matchStarted === true && m.matchEnded !== true;
+                    return (
+                      <button
+                        type="button"
+                        key={m.id}
+                        onClick={() => handlePick(m)}
+                        className={`w-full text-left p-2.5 text-sm hover:bg-accent transition-colors ${selectedCricId === m.id ? "bg-accent" : ""}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium truncate">{m.name}</span>
+                          {isLive ? (
+                            <Badge variant="live" className="shrink-0">LIVE</Badge>
+                          ) : m.matchEnded !== true ? (
+                            <Badge variant="outline" className="shrink-0 text-primary border-primary">UPCOMING</Badge>
+                          ) : null}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate mt-0.5">{m.status}</div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">Selecting a match auto-fills the form and links live scores. Or fill in manually below.</p>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-xs uppercase tracking-wider text-muted-foreground">Team 1</label>
