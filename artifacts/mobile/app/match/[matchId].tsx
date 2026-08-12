@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Modal, TextInput, Alert, Platform,
@@ -15,9 +15,119 @@ import {
   useGetMatch, useGetMatchMarkets,
   getGetMatchQueryKey, getGetMatchMarketsQueryKey, usePlacePrediction,
   getGetMeQueryKey, getGetWalletQueryKey, getGetTransactionsQueryKey,
+  useGetCricketScore, getGetCricketScoreQueryKey,
 } from '@workspace/api-client-react';
 
 const HOUSE_EDGE = 0.075;
+const SCORE_POLL_MS = 30_000; // poll every 30 seconds
+
+// ─── Scorecard ────────────────────────────────────────────────────────────────
+
+function ScorecardCard({ cricMatchId, colors, t }: { cricMatchId: string; colors: any; t: any }) {
+  const { data, isLoading, isError, dataUpdatedAt } = useGetCricketScore(cricMatchId, {
+    query: {
+      queryKey: getGetCricketScoreQueryKey(cricMatchId),
+      refetchInterval: SCORE_POLL_MS,
+      staleTime: SCORE_POLL_MS,
+      retry: 2,
+    },
+  });
+
+  const s = scorecardStyles(colors);
+
+  if (isLoading) {
+    return (
+      <View style={s.card}>
+        <ActivityIndicator size="small" color={colors.primary} />
+        <Text style={s.loadingText}>{t('score_loading')}</Text>
+      </View>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <View style={s.card}>
+        <Ionicons name="cloud-offline-outline" size={18} color={colors.mutedForeground} />
+        <Text style={s.unavailText}>{t('score_unavailable')}</Text>
+      </View>
+    );
+  }
+
+  const lastUpdated = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null;
+
+  return (
+    <View style={s.card}>
+      {/* Status row */}
+      <View style={s.statusRow}>
+        <View style={s.livePill}>
+          <View style={s.liveDot} />
+          <Text style={s.liveText}>{t('match_live')}</Text>
+        </View>
+        <Text style={s.matchName} numberOfLines={1}>{data.name}</Text>
+      </View>
+
+      {/* Score rows */}
+      {(data.score ?? []).map((s2: any, i: number) => (
+        <View key={i} style={s.inningRow}>
+          <Text style={s.inningName} numberOfLines={1}>{s2.inning ?? `Innings ${i + 1}`}</Text>
+          <View style={s.scoreBlock}>
+            {s2.r !== undefined && (
+              <Text style={s.scoreText}>
+                {s2.r}{s2.w !== undefined ? `/${s2.w}` : ''}
+                {s2.o !== undefined ? ` (${s2.o})` : ''}
+              </Text>
+            )}
+          </View>
+        </View>
+      ))}
+
+      {/* Match status line */}
+      <Text style={s.statusText}>{data.status}</Text>
+
+      {/* Last updated */}
+      {lastUpdated && (
+        <Text style={s.updatedText}>{t('score_updated', lastUpdated)}</Text>
+      )}
+    </View>
+  );
+}
+
+const scorecardStyles = (colors: any) => StyleSheet.create({
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary + '40',
+    padding: 14,
+    marginBottom: 12,
+    flexDirection: 'column',
+    gap: 6,
+  },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  livePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#EF444420', borderRadius: 20,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
+  liveText: { fontSize: 10, fontWeight: '700' as const, color: '#EF4444', fontFamily: 'Inter_700Bold' },
+  matchName: { flex: 1, fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' },
+  inningRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 4, borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  inningName: { flex: 1, fontSize: 12, color: colors.foreground, fontFamily: 'Inter_500Medium' },
+  scoreBlock: { alignItems: 'flex-end' },
+  scoreText: { fontSize: 18, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold' },
+  statusText: { fontSize: 11, color: colors.primary, fontFamily: 'Inter_600SemiBold', marginTop: 2 },
+  loadingText: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 6, textAlign: 'center' as const },
+  unavailText: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', textAlign: 'center' as const },
+  updatedText: { fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', textAlign: 'right' as const },
+});
+
+// ─── MarketCard ───────────────────────────────────────────────────────────────
 
 function MarketCard({ market, onPredict }: { market: any; onPredict: (m: any) => void }) {
   const colors = useColors();
@@ -99,6 +209,8 @@ const marketStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create
   btnOdds: { fontSize: 12, color: '#ffffff99', fontFamily: 'Inter_400Regular' },
 });
 
+// ─── Main screen ──────────────────────────────────────────────────────────────
+
 export default function MatchDetailScreen() {
   const { matchId } = useLocalSearchParams<{ matchId: string }>();
   const colors = useColors();
@@ -111,7 +223,9 @@ export default function MatchDetailScreen() {
   const [amount, setAmount] = useState('');
   const [predicted, setPredicted] = useState(false);
 
-  const { data: match, isLoading: matchLoading } = useGetMatch(matchId!, { query: { enabled: !!matchId, queryKey: getGetMatchQueryKey(matchId!) } });
+  const { data: match, isLoading: matchLoading } = useGetMatch(matchId!, {
+    query: { enabled: !!matchId, queryKey: getGetMatchQueryKey(matchId!) },
+  });
   const { data: marketsData, isLoading: marketsLoading } = useGetMatchMarkets(
     matchId!, {}, { query: { enabled: !!matchId, queryKey: getGetMatchMarketsQueryKey(matchId!, {}) } }
   );
@@ -141,8 +255,6 @@ export default function MatchDetailScreen() {
     if (!amt || amt < 100) { Alert.alert(t('match_min_amount_title'), t('match_min_amount_msg')); return; }
     if ((user?.walletBalance ?? 0) < amt) { Alert.alert(t('match_insufficient_title'), t('match_insufficient_msg')); return; }
 
-    // Optimistic update: drop the balance everywhere BEFORE the request fires,
-    // capturing prior values so we can roll back if the server rejects the bet.
     const prevUser = user;
     const prevWallet = queryClient.getQueryData(getGetWalletQueryKey());
     if (user) updateUser({ ...user, walletBalance: user.walletBalance - amt });
@@ -155,7 +267,6 @@ export default function MatchDetailScreen() {
       {
         onSuccess: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          // Reconcile with the server as the source of truth
           queryClient.invalidateQueries({ queryKey: getGetMatchMarketsQueryKey(matchId!, {}) });
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetWalletQueryKey() });
@@ -166,7 +277,6 @@ export default function MatchDetailScreen() {
           setTimeout(() => setPredicted(false), 3000);
         },
         onError: (err: any) => {
-          // Roll back the optimistic deduction
           if (prevUser) updateUser(prevUser);
           queryClient.setQueryData(getGetWalletQueryKey(), prevWallet);
           queryClient.invalidateQueries({ queryKey: getGetWalletQueryKey() });
@@ -182,8 +292,12 @@ export default function MatchDetailScreen() {
   if (matchLoading) return <View style={s.root}><ActivityIndicator color={colors.primary} style={{ marginTop: 100 }} /></View>;
   if (!match) return <View style={s.root}><Text style={{ color: colors.foreground, margin: 24 }}>{t('match_not_found')}</Text></View>;
 
+  const isLive = match.status === 'live';
+  const cricMatchId = (match as any).cricApiMatchId as string | undefined;
+
   return (
     <View style={s.root}>
+      {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
           <Ionicons name="arrow-back" size={22} color={colors.foreground} />
@@ -194,14 +308,7 @@ export default function MatchDetailScreen() {
         </View>
       </View>
 
-      {match.status === 'live' && (
-        <View style={s.liveBanner}>
-          <View style={s.liveDot} />
-          <Text style={s.liveLabel}>{t('match_live')}</Text>
-          {match.liveScore && <Text style={s.liveScore}>{(match.liveScore as any).score}</Text>}
-        </View>
-      )}
-
+      {/* Success toast */}
       {predicted && (
         <View style={s.successToast}>
           <Ionicons name="checkmark-circle" size={20} color={colors.success} />
@@ -210,6 +317,23 @@ export default function MatchDetailScreen() {
       )}
 
       <ScrollView contentContainerStyle={s.list}>
+        {/* Live scorecard — only when match is live and has a provider match ID */}
+        {isLive && cricMatchId && (
+          <ScorecardCard cricMatchId={cricMatchId} colors={colors} t={t} />
+        )}
+
+        {/* Simple live banner if no provider match ID but match is live */}
+        {isLive && !cricMatchId && (
+          <View style={s.liveBanner}>
+            <View style={s.liveDot} />
+            <Text style={s.liveLabel}>{t('match_live')}</Text>
+            {(match as any).liveScore && (
+              <Text style={s.liveScore}>{((match as any).liveScore as any).score}</Text>
+            )}
+          </View>
+        )}
+
+        {/* Markets */}
         {marketsLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
         ) : markets.length === 0 ? (
@@ -313,19 +437,37 @@ export default function MatchDetailScreen() {
 
 const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 12), paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+  header: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 12),
+    paddingBottom: 16,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: colors.card },
   headerInfo: { flex: 1 },
   headerTitle: { fontSize: 16, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold' },
   headerSub: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-  liveBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.destructive + '15', paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.destructive + '30' },
+  liveBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.destructive + '15', paddingHorizontal: 20, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: colors.destructive + '30', marginBottom: 4,
+  },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.destructive },
   liveLabel: { fontSize: 12, fontWeight: '700' as const, color: colors.destructive, fontFamily: 'Inter_700Bold' },
   liveScore: { fontSize: 12, color: colors.foreground, fontFamily: 'Inter_500Medium', flex: 1 },
-  successToast: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.success + '20', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.success + '40' },
+  successToast: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.success + '20', paddingHorizontal: 20, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: colors.success + '40',
+  },
   successText: { color: colors.success, fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  list: { padding: 20, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 20) },
-  catLabel: { fontSize: 13, fontWeight: '700' as const, color: colors.mutedForeground, fontFamily: 'Inter_700Bold', marginBottom: 8, marginTop: 8, letterSpacing: 0.5, textTransform: 'uppercase' as const },
+  list: { padding: 16, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 20) },
+  catLabel: {
+    fontSize: 13, fontWeight: '700' as const, color: colors.mutedForeground,
+    fontFamily: 'Inter_700Bold', marginBottom: 8, marginTop: 8,
+    letterSpacing: 0.5, textTransform: 'uppercase' as const,
+  },
   empty: { alignItems: 'center', paddingTop: 60, gap: 12 },
   emptyText: { fontSize: 15, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
@@ -336,7 +478,11 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   choiceBadge: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8, alignSelf: 'flex-start', marginBottom: 20 },
   choiceText: { fontSize: 15, fontWeight: '700' as const, fontFamily: 'Inter_700Bold' },
   amountLabel: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 8 },
-  amountInput: { backgroundColor: colors.muted, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 14, fontSize: 18, color: colors.foreground, fontFamily: 'Inter_600SemiBold', borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
+  amountInput: {
+    backgroundColor: colors.muted, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 14,
+    fontSize: 18, color: colors.foreground, fontFamily: 'Inter_600SemiBold',
+    borderWidth: 1, borderColor: colors.border, marginBottom: 12,
+  },
   quickAmounts: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   quickBtn: { flex: 1, backgroundColor: colors.muted, borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   quickText: { fontSize: 13, fontWeight: '600' as const, color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
@@ -348,7 +494,10 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   breakLabelBold: { fontSize: 14, color: colors.foreground, fontFamily: 'Inter_700Bold', fontWeight: '700' as const },
   breakValBold: { fontSize: 16, fontFamily: 'Inter_700Bold', fontWeight: '700' as const },
   balanceText: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 16 },
-  confirmBtn: { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center', shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  confirmBtn: {
+    backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center',
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+  },
   btnDisabled: { opacity: 0.5 },
   confirmText: { fontSize: 16, fontWeight: '700' as const, color: colors.primaryForeground, fontFamily: 'Inter_700Bold' },
 });
