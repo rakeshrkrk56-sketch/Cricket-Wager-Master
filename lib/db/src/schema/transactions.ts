@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { usersTable } from "./users";
 
 export const transactionTypeEnum = pgEnum("transaction_type", [
-  "deposit", "withdraw", "win", "loss", "bonus", "refund"
+  "deposit", "withdraw", "win", "loss", "bonus", "refund", "bet_placed"
 ]);
 export const transactionStatusEnum = pgEnum("transaction_status", [
   "completed", "pending", "reversed"

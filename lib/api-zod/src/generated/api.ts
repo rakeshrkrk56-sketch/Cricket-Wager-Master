@@ -406,7 +406,7 @@ export const GetTransactionsResponse = zod.object({
   "transactions": zod.array(zod.object({
   "id": zod.string(),
   "userId": zod.string(),
-  "type": zod.enum(['deposit', 'withdraw', 'win', 'loss', 'bonus', 'refund']),
+  "type": zod.enum(['deposit', 'withdraw', 'win', 'loss', 'bonus', 'refund', 'bet_placed']),
   "amount": zod.number(),
   "balanceBefore": zod.number().optional(),
   "balanceAfter": zod.number(),

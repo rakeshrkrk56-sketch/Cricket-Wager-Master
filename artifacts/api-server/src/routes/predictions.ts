@@ -68,15 +68,15 @@ router.post("/markets/:marketId/predict", requireAuth, async (req, res): Promise
   const newBalance = userBalance - amount;
   await db.update(usersTable).set({ walletBalance: String(newBalance) }).where(eq(usersTable.id, user.id));
 
-  // Record transaction with balanceBefore
+  // Record stake as bet_placed — final loss/win is recorded only at settlement
   await db.insert(transactionsTable).values({
     userId: user.id,
-    type: "loss",
+    type: "bet_placed",
     amount: String(amount),
     balanceBefore: String(balanceBefore),
     balanceAfter: String(newBalance),
     referenceId: marketId,
-    note: `Prediction on: ${market.question}`,
+    note: `Prediction stake: ${market.question}`,
   });
 
   // Create prediction

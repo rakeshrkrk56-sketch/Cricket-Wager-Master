@@ -176,7 +176,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [active, suspended]
+            enum: [active, suspended, hold]
       responses:
         "200":
           description: List of users
@@ -1652,7 +1652,9 @@ components:
           enum: [pending, verified, rejected]
         status:
           type: string
-          enum: [active, suspended]
+          enum: [active, suspended, hold]
+        suspensionReason:
+          type: string
         role:
           type: string
           enum: [user, admin]
@@ -1708,7 +1710,9 @@ components:
       properties:
         status:
           type: string
-          enum: [active, suspended]
+          enum: [active, suspended, hold]
+        suspensionReason:
+          type: string
         kycStatus:
           type: string
           enum: [pending, verified, rejected]
@@ -1796,7 +1800,7 @@ components:
           type: string
         type:
           type: string
-          enum: [deposit, withdraw, win, loss, bonus, refund]
+          enum: [deposit, withdraw, win, loss, bonus, refund, bet_placed]
         amount:
           type: number
         balanceBefore:

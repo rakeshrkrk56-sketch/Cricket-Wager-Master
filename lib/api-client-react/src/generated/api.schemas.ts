@@ -157,6 +157,7 @@ export type UserStatus = typeof UserStatus[keyof typeof UserStatus];
 export const UserStatus = {
   active: 'active',
   suspended: 'suspended',
+  hold: 'hold',
 } as const;
 
 export type UserRole = typeof UserRole[keyof typeof UserRole];
@@ -174,6 +175,7 @@ export interface User {
   walletBalance: number;
   kycStatus: UserKycStatus;
   status: UserStatus;
+  suspensionReason?: string;
   role: UserRole;
   createdAt: string;
 }
@@ -204,6 +206,7 @@ export type UpdateUserRequestStatus = typeof UpdateUserRequestStatus[keyof typeo
 export const UpdateUserRequestStatus = {
   active: 'active',
   suspended: 'suspended',
+  hold: 'hold',
 } as const;
 
 export type UpdateUserRequestKycStatus = typeof UpdateUserRequestKycStatus[keyof typeof UpdateUserRequestKycStatus];
@@ -217,6 +220,7 @@ export const UpdateUserRequestKycStatus = {
 
 export interface UpdateUserRequest {
   status?: UpdateUserRequestStatus;
+  suspensionReason?: string;
   kycStatus?: UpdateUserRequestKycStatus;
   name?: string;
 }
@@ -277,6 +281,7 @@ export const TransactionType = {
   loss: 'loss',
   bonus: 'bonus',
   refund: 'refund',
+  bet_placed: 'bet_placed',
 } as const;
 
 export type TransactionStatus = typeof TransactionStatus[keyof typeof TransactionStatus];
@@ -816,6 +821,7 @@ export type ListUsersStatus = typeof ListUsersStatus[keyof typeof ListUsersStatu
 export const ListUsersStatus = {
   active: 'active',
   suspended: 'suspended',
+  hold: 'hold',
 } as const;
 
 export type AdminGetUserDepositsParams = {

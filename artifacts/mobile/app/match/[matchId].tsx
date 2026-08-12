@@ -14,7 +14,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import {
   useGetMatch, useGetMatchMarkets,
   getGetMatchQueryKey, getGetMatchMarketsQueryKey, usePlacePrediction,
-  getGetMeQueryKey,
+  getGetMeQueryKey, getGetWalletQueryKey, getGetTransactionsQueryKey,
 } from '@workspace/api-client-react';
 
 const HOUSE_EDGE = 0.075;
@@ -141,20 +141,35 @@ export default function MatchDetailScreen() {
     if (!amt || amt < 100) { Alert.alert(t('match_min_amount_title'), t('match_min_amount_msg')); return; }
     if ((user?.walletBalance ?? 0) < amt) { Alert.alert(t('match_insufficient_title'), t('match_insufficient_msg')); return; }
 
+    // Optimistic update: drop the balance everywhere BEFORE the request fires,
+    // capturing prior values so we can roll back if the server rejects the bet.
+    const prevUser = user;
+    const prevWallet = queryClient.getQueryData(getGetWalletQueryKey());
+    if (user) updateUser({ ...user, walletBalance: user.walletBalance - amt });
+    queryClient.setQueryData(getGetWalletQueryKey(), (prev: any) =>
+      prev ? { ...prev, balance: Number(prev.balance) - amt } : prev
+    );
+
     placePrediction.mutate(
       { marketId: selectedMarket.id, data: { choice: selectedMarket.preChoice, amount: amt } },
       {
         onSuccess: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          if (user) updateUser({ ...user, walletBalance: user.walletBalance - amt });
+          // Reconcile with the server as the source of truth
           queryClient.invalidateQueries({ queryKey: getGetMatchMarketsQueryKey(matchId!, {}) });
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetWalletQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetTransactionsQueryKey({}) });
           setSelectedMarket(null);
           setAmount('');
           setPredicted(true);
           setTimeout(() => setPredicted(false), 3000);
         },
         onError: (err: any) => {
+          // Roll back the optimistic deduction
+          if (prevUser) updateUser(prevUser);
+          queryClient.setQueryData(getGetWalletQueryKey(), prevWallet);
+          queryClient.invalidateQueries({ queryKey: getGetWalletQueryKey() });
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           Alert.alert(t('match_error_title'), err?.data?.error ?? t('match_error_msg'));
         },

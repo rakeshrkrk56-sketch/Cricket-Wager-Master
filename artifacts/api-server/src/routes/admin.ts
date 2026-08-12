@@ -524,9 +524,22 @@ router.post("/admin/markets/:marketId/settle", requireAdmin, async (req, res): P
     await db.update(predictionsTable).set({ status: "won" }).where(eq(predictionsTable.id, pred.id));
   }
 
-  // Mark losers and notify
+  // Mark losers, record final loss transaction (stake was already deducted at bet time), and notify
   for (const pred of losers) {
     await db.update(predictionsTable).set({ status: "lost" }).where(eq(predictionsTable.id, pred.id));
+    const [lostUser] = await db.select().from(usersTable).where(eq(usersTable.id, pred.userId));
+    if (lostUser) {
+      // Balance does not change here — the stake left the wallet when the bet was placed
+      await db.insert(transactionsTable).values({
+        userId: pred.userId,
+        type: "loss",
+        amount: String(pred.amount),
+        balanceBefore: String(lostUser.walletBalance),
+        balanceAfter: String(lostUser.walletBalance),
+        referenceId: marketId,
+        note: `Loss: ${market.question}`,
+      });
+    }
     await createNotification(pred.userId, "prediction_lost",
       "भविष्यवाणी हारी",
       `आपकी भविष्यवाणी "${market.question}" पर ₹${Number(pred.amount).toFixed(0)} हार गए।`

@@ -41,6 +41,7 @@ router.get("/wallet", requireAuth, async (req, res): Promise<void> => {
     else if (tx.type === "withdraw") withdrawTotal += amt;
     else if (tx.type === "win") winTotal += amt;
     else if (tx.type === "bonus") bonusTotal += amt;
+    // bet_placed and loss are prediction stakes/outcomes, not withdrawals — excluded from totals
   }
 
   res.json(

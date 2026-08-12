@@ -30,21 +30,25 @@ function TxItem({ item }: { item: any }) {
   const { t, lang } = useLanguage();
   const locale  = lang === 'hi' ? 'hi-IN' : 'en-IN';
 
-  const TX_CFG: Record<string, { labelKey: string; icon: string; positive: boolean }> = {
+  // `loss` is a balance-neutral settlement outcome: the stake was already
+  // debited by the `bet_placed` entry, so it must NOT display as a second debit.
+  const TX_CFG: Record<string, { labelKey: string; icon: string; positive: boolean; neutral?: boolean }> = {
     deposit:  { labelKey: 'wallet_tx_deposit',  icon: 'arrow-down-circle', positive: true  },
     withdraw: { labelKey: 'wallet_tx_withdraw', icon: 'arrow-up-circle',   positive: false },
     win:      { labelKey: 'wallet_tx_win',      icon: 'trophy',            positive: true  },
-    loss:     { labelKey: 'wallet_tx_loss',     icon: 'remove-circle',     positive: false },
+    loss:     { labelKey: 'wallet_tx_loss',     icon: 'remove-circle',     positive: false, neutral: true },
     bonus:    { labelKey: 'wallet_tx_bonus',    icon: 'gift',              positive: true  },
     refund:   { labelKey: 'wallet_tx_refund',   icon: 'refresh-circle',    positive: true  },
+    bet_placed: { labelKey: 'wallet_tx_bet_placed', icon: 'ticket',        positive: false },
   };
   const cfg = TX_CFG[item.type] ?? { labelKey: 'wallet_tx_deposit', icon: 'ellipse', positive: true };
   const amt = Number(item.amount);
+  const amtColor = cfg.neutral ? colors.mutedForeground : cfg.positive ? colors.success : colors.destructive;
 
   return (
     <View style={txS(colors).row}>
-      <View style={[txS(colors).icon, { backgroundColor: cfg.positive ? colors.success + '20' : colors.destructive + '20' }]}>
-        <Ionicons name={cfg.icon as any} size={20} color={cfg.positive ? colors.success : colors.destructive} />
+      <View style={[txS(colors).icon, { backgroundColor: amtColor + '20' }]}>
+        <Ionicons name={cfg.icon as any} size={20} color={amtColor} />
       </View>
       <View style={txS(colors).info}>
         <Text style={txS(colors).label}>{t(cfg.labelKey as any)}</Text>
@@ -52,8 +56,8 @@ function TxItem({ item }: { item: any }) {
         <Text style={txS(colors).time}>{new Date(item.createdAt).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })}</Text>
       </View>
       <View style={txS(colors).amtCol}>
-        <Text style={[txS(colors).amt, { color: cfg.positive ? colors.success : colors.destructive }]}>
-          {cfg.positive ? '+' : '-'}₹{amt.toFixed(0)}
+        <Text style={[txS(colors).amt, { color: amtColor }]}>
+          {cfg.neutral ? '' : cfg.positive ? '+' : '-'}₹{amt.toFixed(0)}
         </Text>
         {item.balanceBefore != null && <Text style={txS(colors).balBefore}>₹{Number(item.balanceBefore).toFixed(0)}</Text>}
         <Text style={txS(colors).balAfter}>→ ₹{Number(item.balanceAfter).toFixed(0)}</Text>
