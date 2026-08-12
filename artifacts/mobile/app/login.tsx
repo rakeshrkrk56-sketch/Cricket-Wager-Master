@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert, ScrollView,
@@ -14,8 +14,21 @@ import { useSendOtp, useVerifyOtp } from '@workspace/api-client-react';
 export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { login } = useAuth();
+  const { token, login, logout } = useAuth();
   const { t } = useLanguage();
+
+  // If already logged in, go to tabs. But stay if user was explicitly sent here to re-login.
+  const [forcedLogout, setForcedLogout] = useState(false);
+  useEffect(() => {
+    if (token && !forcedLogout) {
+      router.replace('/(tabs)');
+    }
+  }, [token, forcedLogout]);
+
+  const handleForceLogout = async () => {
+    await logout();
+    setForcedLogout(true);
+  };
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
@@ -140,6 +153,13 @@ export default function LoginScreen() {
           )}
         </View>
 
+        {/* Already logged in banner — tap to clear session and test OTP */}
+        {token && !forcedLogout && (
+          <TouchableOpacity style={s.alreadyLoggedIn} onPress={handleForceLogout} activeOpacity={0.8}>
+            <Text style={s.alreadyLoggedInText}>Already logged in — tap here to log out and test OTP</Text>
+          </TouchableOpacity>
+        )}
+
         <View style={s.bottomSpacer} />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -186,4 +206,12 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   backBtn: { marginTop: 16, alignItems: 'center' },
   backText: { color: colors.primary, fontSize: 14, fontFamily: 'Inter_500Medium' },
   bottomSpacer: { height: 16 },
+  alreadyLoggedIn: {
+    marginTop: 20, padding: 14, borderRadius: 12,
+    backgroundColor: colors.warning + '20', borderWidth: 1, borderColor: colors.warning + '60',
+    alignItems: 'center',
+  },
+  alreadyLoggedInText: {
+    color: colors.warning, fontSize: 13, fontFamily: 'Inter_500Medium', textAlign: 'center' as const,
+  },
 });
