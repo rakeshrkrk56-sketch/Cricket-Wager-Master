@@ -1,8 +1,9 @@
-import { Router, type IRouter } from "express";
-import { db, usersTable } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
-import { createHash, scryptSync, timingSafeEqual } from "node:crypto";
+import { Router, type IRouter, type Request, type Response } from "express";
+import { db, otpChallengesTable, usersTable } from "@workspace/db";
+import { and, count, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { createHash, randomInt, scryptSync, timingSafeEqual } from "node:crypto";
 import { createToken, requireAuth, recordLoginHistory } from "../middlewares/auth";
+import { sendWhatsAppOtp } from "../lib/whatsappClient";
 import {
   SendOtpBody,
   SendOtpResponse,
@@ -70,12 +71,10 @@ export function normalizePhone(raw: string): string {
   return `+${digits}`;
 }
 
-const FAST2SMS_OTP_URL = "https://www.fast2sms.com/dev/otp";
-const FAST2SMS_API_KEY = process.env.FAST2SMS_API_KEY;
-const FAST2SMS_OTP_ID = process.env.FAST2SMS_OTP_ID;
 const OTP_EXPIRY_MINUTES = 10;
-const otpSentAt = new Map<string, number>();
 const OTP_RESEND_COOLDOWN_MS = 60_000;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_DAILY_LIMIT = 10;
 
 // Fast2SMS expects a bare 10-digit Indian mobile number.
 function toFast2smsMobile(phone: string): string | null {
@@ -103,21 +102,10 @@ function secureCredentialMatch(input: string, configured: string): boolean {
   return timingSafeEqual(inputHash, configuredHash);
 }
 
-async function readProviderResponse(response: Response): Promise<Record<string, unknown>> {
-  try {
-    const body: unknown = await response.json();
-    return body && typeof body === "object" ? body as Record<string, unknown> : {};
-  } catch {
-    return {};
-  }
-}
-
-function providerSucceeded(response: Response, body: Record<string, unknown>): boolean {
-  return response.ok && body.return === true;
-}
-
-function otpProviderConfigured(): boolean {
-  return Boolean(FAST2SMS_API_KEY && FAST2SMS_OTP_ID);
+function hashOtp(phone: string, otp: string): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error("SESSION_SECRET is required");
+  return createHash("sha256").update(`${phone}:${otp}:${secret}`).digest("hex");
 }
 
 router.post("/auth/admin-login", async (req, res): Promise<void> => {
@@ -175,7 +163,7 @@ router.post("/auth/admin-login", async (req, res): Promise<void> => {
   });
 });
 
-router.post("/auth/send-otp", async (req, res): Promise<void> => {
+const sendOtpHandler = async (req: Request, res: Response): Promise<void> => {
   const parsed = SendOtpBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -186,61 +174,52 @@ router.post("/auth/send-otp", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Invalid phone number" });
     return;
   }
-  if (!otpProviderConfigured()) {
-    req.log.error(
-      { hasApiKey: Boolean(FAST2SMS_API_KEY), hasOtpId: Boolean(FAST2SMS_OTP_ID) },
-      "Fast2SMS OTP service is not configured",
-    );
-    res.status(503).json({ error: "OTP service is not configured" });
-    return;
-  }
   const mobile = toFast2smsMobile(phone);
   if (!mobile) {
     res.status(400).json({ error: "Only Indian mobile numbers are supported" });
     return;
   }
 
-  const lastSentAt = otpSentAt.get(phone);
-  if (lastSentAt && Date.now() - lastSentAt < OTP_RESEND_COOLDOWN_MS) {
+  const cooldownStartedAt = new Date(Date.now() - OTP_RESEND_COOLDOWN_MS);
+  const [recentChallenge] = await db
+    .select({ id: otpChallengesTable.id })
+    .from(otpChallengesTable)
+    .where(and(eq(otpChallengesTable.phone, phone), gte(otpChallengesTable.createdAt, cooldownStartedAt)))
+    .limit(1);
+  if (recentChallenge) {
     res.status(429).json({ error: "Please wait before requesting another OTP" });
     return;
   }
 
-  try {
-    const providerResponse = await fetch(`${FAST2SMS_OTP_URL}/send`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: FAST2SMS_API_KEY!,
-      },
-      body: JSON.stringify({
-        mobile,
-        otp_id: FAST2SMS_OTP_ID,
-        otp_length: 6,
-        otp_expiry: OTP_EXPIRY_MINUTES,
-      }),
-    });
-    const providerBody = await readProviderResponse(providerResponse);
-    if (!providerSucceeded(providerResponse, providerBody)) {
-      req.log.error(
-        { status: providerResponse.status, providerMessage: providerBody.message },
-        "Fast2SMS rejected OTP request",
-      );
-      res.status(502).json({ error: "Unable to send OTP right now" });
-      return;
-    }
-    req.log.info({ requestId: providerBody.request_id }, "Fast2SMS accepted OTP request");
+  const dayStartedAt = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [{ total: dailyTotal }] = await db
+    .select({ total: count() })
+    .from(otpChallengesTable)
+    .where(and(eq(otpChallengesTable.phone, phone), gte(otpChallengesTable.createdAt, dayStartedAt)));
+  if (Number(dailyTotal) >= OTP_DAILY_LIMIT) {
+    res.status(429).json({ error: "OTP request limit reached. Please try again later." });
+    return;
+  }
 
-    otpSentAt.set(phone, Date.now());
-    req.log.info({ phone: maskPhone(phone) }, "OTP sent");
+  const otp = randomInt(0, 10_000).toString().padStart(4, "0");
+  const [challenge] = await db.insert(otpChallengesTable).values({
+    phone,
+    codeHash: hashOtp(phone, otp),
+    expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60_000),
+  }).returning({ id: otpChallengesTable.id });
+
+  try {
+    await sendWhatsAppOtp(mobile, otp);
+    req.log.info({ phone: maskPhone(phone) }, "WhatsApp OTP sent");
     res.json(SendOtpResponse.parse({ success: true, message: "OTP sent successfully" }));
   } catch (error) {
-    req.log.error({ err: error instanceof Error ? error.message : "unknown error" }, "Fast2SMS OTP request failed");
+    await db.delete(otpChallengesTable).where(eq(otpChallengesTable.id, challenge.id)).catch(() => undefined);
+    req.log.error({ err: error instanceof Error ? error.message : "unknown error" }, "WhatsApp OTP request failed");
     res.status(502).json({ error: "Unable to send OTP right now" });
   }
-});
+};
 
-router.post("/auth/verify-otp", async (req, res): Promise<void> => {
+const verifyOtpHandler = async (req: Request, res: Response): Promise<void> => {
   const parsed = VerifyOtpBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -248,44 +227,43 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
   }
   const { otp } = parsed.data;
   const phone = normalizePhone(parsed.data.phone);
-  if (!otpProviderConfigured()) {
-    req.log.error(
-      { hasApiKey: Boolean(FAST2SMS_API_KEY), hasOtpId: Boolean(FAST2SMS_OTP_ID) },
-      "Fast2SMS OTP service is not configured",
-    );
-    res.status(503).json({ error: "OTP service is not configured" });
-    return;
-  }
   const mobile = toFast2smsMobile(phone);
   if (!mobile) {
     res.status(400).json({ error: "Only Indian mobile numbers are supported" });
     return;
   }
 
-  try {
-    const providerResponse = await fetch(`${FAST2SMS_OTP_URL}/verify`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: FAST2SMS_API_KEY!,
-      },
-      body: JSON.stringify({ mobile, otp }),
-    });
-    const providerBody = await readProviderResponse(providerResponse);
-    if (!providerSucceeded(providerResponse, providerBody)) {
-      if (providerResponse.status === 401) {
-        req.log.error("Fast2SMS rejected the configured API key");
-        res.status(502).json({ error: "OTP service configuration is invalid" });
-        return;
-      }
-      req.log.info({ status: providerResponse.status, providerMessage: providerBody.message }, "OTP verification rejected");
-      res.status(400).json({ error: "Invalid or expired OTP" });
-      return;
-    }
-    otpSentAt.delete(phone);
-  } catch (error) {
-    req.log.error({ err: error instanceof Error ? error.message : "unknown error" }, "Fast2SMS OTP verification failed");
-    res.status(502).json({ error: "Unable to verify OTP right now" });
+  const [challenge] = await db
+    .select()
+    .from(otpChallengesTable)
+    .where(and(eq(otpChallengesTable.phone, phone), isNull(otpChallengesTable.consumedAt)))
+    .orderBy(desc(otpChallengesTable.createdAt))
+    .limit(1);
+  if (!challenge || challenge.expiresAt.getTime() <= Date.now()) {
+    res.status(400).json({ error: "Invalid or expired OTP" });
+    return;
+  }
+  if (challenge.attempts >= OTP_MAX_ATTEMPTS) {
+    res.status(429).json({ error: "Too many verification attempts. Request a new OTP." });
+    return;
+  }
+
+  const submittedHash = Buffer.from(hashOtp(phone, otp), "hex");
+  const expectedHash = Buffer.from(challenge.codeHash, "hex");
+  if (submittedHash.length !== expectedHash.length || !timingSafeEqual(submittedHash, expectedHash)) {
+    await db.update(otpChallengesTable)
+      .set({ attempts: sql`${otpChallengesTable.attempts} + 1` })
+      .where(eq(otpChallengesTable.id, challenge.id));
+    res.status(400).json({ error: "Invalid or expired OTP" });
+    return;
+  }
+
+  const [consumed] = await db.update(otpChallengesTable)
+    .set({ consumedAt: new Date() })
+    .where(and(eq(otpChallengesTable.id, challenge.id), isNull(otpChallengesTable.consumedAt)))
+    .returning({ id: otpChallengesTable.id });
+  if (!consumed) {
+    res.status(400).json({ error: "Invalid or expired OTP" });
     return;
   }
 
@@ -331,7 +309,12 @@ router.post("/auth/verify-otp", async (req, res): Promise<void> => {
       },
     })
   );
-});
+};
+
+router.post("/auth/send-otp", sendOtpHandler);
+router.post("/send-otp", sendOtpHandler);
+router.post("/auth/verify-otp", verifyOtpHandler);
+router.post("/verify-otp", verifyOtpHandler);
 
 router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;

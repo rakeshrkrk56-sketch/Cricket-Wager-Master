@@ -6,6 +6,7 @@ export * from "./transactions";
 export * from "./deposits";
 export * from "./withdrawals";
 export * from "./notifications";
+export * from "./otp_challenges";
 export * from "./support";
 export * from "./settings";
 export * from "./audit_logs";

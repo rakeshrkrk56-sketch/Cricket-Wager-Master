@@ -97,7 +97,7 @@ export default function LoginScreen() {
           </Text>
           <Text style={s.cardSubtitle}>
             {step === 'phone'
-              ? t('login_otp_will_be_sent')
+              ? 'A 4-digit verification code will be sent to your WhatsApp.'
               : t('login_otp_sent_to', phone)}
           </Text>
 
@@ -122,7 +122,7 @@ export default function LoginScreen() {
               placeholder={t('login_enter_otp')}
               placeholderTextColor={colors.mutedForeground}
               keyboardType="number-pad"
-              maxLength={6}
+              maxLength={4}
               value={otp}
               onChangeText={setOtp}
               returnKeyType="done"

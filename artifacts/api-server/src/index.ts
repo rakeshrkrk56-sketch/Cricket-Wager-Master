@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { createServer } from "node:http";
 import { dragonTigerGame } from "./game/dragonTiger";
 import { pool } from "@workspace/db";
+import { startWhatsAppClient, stopWhatsAppClient } from "./lib/whatsappClient";
 
 const rawPort = process.env["PORT"];
 
@@ -26,6 +27,9 @@ server.on("error", (err) => {
 });
 server.listen(port, () => {
   logger.info({ port }, "Server listening");
+  void startWhatsAppClient().catch((err) => {
+    logger.error({ err }, "WhatsApp OTP client failed to initialize");
+  });
 });
 
 let shuttingDown = false;
@@ -46,7 +50,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
     const httpClosed = new Promise<void>((resolve, reject) => {
       server.close((err) => err ? reject(err) : resolve());
     });
-    await Promise.all([httpClosed, dragonTigerGame.stop()]);
+    await Promise.all([httpClosed, dragonTigerGame.stop(), stopWhatsAppClient()]);
     await pool.end();
     clearTimeout(deadline);
     logger.info("Graceful server shutdown complete");

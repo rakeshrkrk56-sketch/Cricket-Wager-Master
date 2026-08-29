@@ -28,6 +28,7 @@ import type {
   AdminListDepositsParams,
   AdminListSupportTicketsParams,
   AdminListWithdrawalsParams,
+  AdminLoginRequest,
   AdminStats,
   AdminTicketDetailResponse,
   AdminTicketListResponse,
@@ -623,6 +624,77 @@ export const useCreateGuestSession = <TError = ErrorType<unknown>,
       return useMutation(getCreateGuestSessionMutationOptions(options));
     }
 
+export const getAdminLoginUrl = () => {
+
+
+
+
+  return `/api/auth/admin-login`
+}
+
+/**
+ * @summary Sign in to the admin panel with username and password
+ */
+export const adminLogin = async (adminLoginRequest: AdminLoginRequest, options?: RequestInit): Promise<AuthResponse> => {
+
+  return customFetch<AuthResponse>(getAdminLoginUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminLoginRequest)
+  }
+);}
+
+
+
+
+
+export const getAdminLoginMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminLogin>>, TError,{data: BodyType<AdminLoginRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminLogin>>, TError,{data: BodyType<AdminLoginRequest>}, TContext> => {
+
+const mutationKey = ['adminLogin'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminLogin>>, {data: BodyType<AdminLoginRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminLogin(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminLoginMutationResult = NonNullable<Awaited<ReturnType<typeof adminLogin>>>
+    export type AdminLoginMutationBody = BodyType<AdminLoginRequest>
+    export type AdminLoginMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Sign in to the admin panel with username and password
+ */
+export const useAdminLogin = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminLogin>>, TError,{data: BodyType<AdminLoginRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminLogin>>,
+        TError,
+        {data: BodyType<AdminLoginRequest>},
+        TContext
+      > => {
+      return useMutation(getAdminLoginMutationOptions(options));
+    }
+
 export const getSendOtpUrl = () => {
 
 
@@ -763,6 +835,148 @@ export const useVerifyOtp = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getVerifyOtpMutationOptions(options));
+    }
+
+export const getSendOtpAliasUrl = () => {
+
+
+
+
+  return `/api/send-otp`
+}
+
+/**
+ * @summary Send a WhatsApp OTP
+ */
+export const sendOtpAlias = async (sendOtpRequest: SendOtpRequest, options?: RequestInit): Promise<SendOtpResponse> => {
+
+  return customFetch<SendOtpResponse>(getSendOtpAliasUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(sendOtpRequest)
+  }
+);}
+
+
+
+
+
+export const getSendOtpAliasMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendOtpAlias>>, TError,{data: BodyType<SendOtpRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendOtpAlias>>, TError,{data: BodyType<SendOtpRequest>}, TContext> => {
+
+const mutationKey = ['sendOtpAlias'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendOtpAlias>>, {data: BodyType<SendOtpRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendOtpAlias(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendOtpAliasMutationResult = NonNullable<Awaited<ReturnType<typeof sendOtpAlias>>>
+    export type SendOtpAliasMutationBody = BodyType<SendOtpRequest>
+    export type SendOtpAliasMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Send a WhatsApp OTP
+ */
+export const useSendOtpAlias = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendOtpAlias>>, TError,{data: BodyType<SendOtpRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendOtpAlias>>,
+        TError,
+        {data: BodyType<SendOtpRequest>},
+        TContext
+      > => {
+      return useMutation(getSendOtpAliasMutationOptions(options));
+    }
+
+export const getVerifyOtpAliasUrl = () => {
+
+
+
+
+  return `/api/verify-otp`
+}
+
+/**
+ * @summary Verify a WhatsApp OTP
+ */
+export const verifyOtpAlias = async (verifyOtpRequest: VerifyOtpRequest, options?: RequestInit): Promise<AuthResponse> => {
+
+  return customFetch<AuthResponse>(getVerifyOtpAliasUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(verifyOtpRequest)
+  }
+);}
+
+
+
+
+
+export const getVerifyOtpAliasMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyOtpAlias>>, TError,{data: BodyType<VerifyOtpRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyOtpAlias>>, TError,{data: BodyType<VerifyOtpRequest>}, TContext> => {
+
+const mutationKey = ['verifyOtpAlias'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyOtpAlias>>, {data: BodyType<VerifyOtpRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  verifyOtpAlias(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyOtpAliasMutationResult = NonNullable<Awaited<ReturnType<typeof verifyOtpAlias>>>
+    export type VerifyOtpAliasMutationBody = BodyType<VerifyOtpRequest>
+    export type VerifyOtpAliasMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Verify a WhatsApp OTP
+ */
+export const useVerifyOtpAlias = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyOtpAlias>>, TError,{data: BodyType<VerifyOtpRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyOtpAlias>>,
+        TError,
+        {data: BodyType<VerifyOtpRequest>},
+        TContext
+      > => {
+      return useMutation(getVerifyOtpAliasMutationOptions(options));
     }
 
 export const getGetMeUrl = () => {

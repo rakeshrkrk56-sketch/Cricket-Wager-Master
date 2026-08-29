@@ -47,3 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# WhatsApp Web authenticated browser session
+.wwebjs_auth/
+.wwebjs_cache/

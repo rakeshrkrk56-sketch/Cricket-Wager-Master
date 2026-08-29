@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createGuestSession, setAuthTokenGetter } from '@workspace/api-client-react';
+import { setAuthTokenGetter } from '@workspace/api-client-react';
 
 interface AuthUser {
   id: string;
@@ -14,15 +14,6 @@ interface AuthUser {
 
 const TOKEN_KEY = 'jazment_token';
 const USER_KEY = 'jazment_user';
-const INSTALLATION_ID_KEY = 'jazment_installation_id';
-const INSTALLATION_SECRET_KEY = 'jazment_installation_secret';
-
-function randomCredential(length: number) {
-  let value = `${Date.now().toString(36)}-`;
-  while (value.length < length) value += Math.random().toString(36).slice(2);
-  return value.slice(0, length);
-}
-
 interface AuthContextValue {
   token: string | null;
   user: AuthUser | null;
@@ -45,40 +36,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const storedToken = await AsyncStorage.getItem(TOKEN_KEY);
         const storedUser = await AsyncStorage.getItem(USER_KEY);
         if (storedToken && storedUser) {
+          const parsedUser = JSON.parse(storedUser) as AuthUser;
+          if (parsedUser.phone.startsWith('guest:')) {
+            await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+            setAuthTokenGetter(() => null);
+            return;
+          }
           setAuthTokenGetter(() => storedToken);
           setToken(storedToken);
-          setUser(JSON.parse(storedUser));
+          setUser(parsedUser);
         } else {
-          let installationId = await AsyncStorage.getItem(INSTALLATION_ID_KEY);
-          let installationSecret = await AsyncStorage.getItem(INSTALLATION_SECRET_KEY);
-          if (!installationId) {
-            installationId = randomCredential(36);
-            await AsyncStorage.setItem(INSTALLATION_ID_KEY, installationId);
-          }
-          if (!installationSecret) {
-            installationSecret = randomCredential(72);
-            await AsyncStorage.setItem(INSTALLATION_SECRET_KEY, installationSecret);
-          }
-          const session = await createGuestSession({ installationId, installationSecret });
-          const guestUser: AuthUser = {
-            id: session.user.id,
-            phone: session.user.phone,
-            name: session.user.name,
-            walletBalance: session.user.walletBalance,
-            kycStatus: session.user.kycStatus,
-            status: session.user.status,
-            role: session.user.role,
-          };
-          setAuthTokenGetter(() => session.token);
-          setToken(session.token);
-          setUser(guestUser);
-          await AsyncStorage.multiSet([
-            [TOKEN_KEY, session.token],
-            [USER_KEY, JSON.stringify(guestUser)],
-          ]);
+          await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+          setAuthTokenGetter(() => null);
         }
       } catch (error) {
-        console.error('Unable to start guest session', error);
+        console.error('Unable to restore auth session', error);
       } finally {
         setIsLoading(false);
       }

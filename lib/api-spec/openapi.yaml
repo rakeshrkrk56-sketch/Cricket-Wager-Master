@@ -198,6 +198,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuthResponse"
 
+  /send-otp:
+    post:
+      operationId: sendOtpAlias
+      tags: [auth]
+      summary: Send a WhatsApp OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendOtpRequest"
+      responses:
+        "200":
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendOtpResponse"
+
+  /verify-otp:
+    post:
+      operationId: verifyOtpAlias
+      tags: [auth]
+      summary: Verify a WhatsApp OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyOtpRequest"
+      responses:
+        "200":
+          description: Authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
   /auth/me:
     get:
       operationId: getMe
@@ -1336,6 +1374,8 @@ components:
           type: string
         otp:
           type: string
+          minLength: 4
+          maxLength: 4
       required:
         - phone
         - otp

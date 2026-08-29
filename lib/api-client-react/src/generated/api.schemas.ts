@@ -139,6 +139,13 @@ export interface GuestSessionRequest {
   installationSecret: string;
 }
 
+export interface AdminLoginRequest {
+  /** @minLength 1 */
+  username: string;
+  /** @minLength 1 */
+  password: string;
+}
+
 export interface SendOtpRequest {
   /** Mobile number with country code (e.g. +919876543210) */
   phone: string;
@@ -152,6 +159,10 @@ export interface SendOtpResponse {
 
 export interface VerifyOtpRequest {
   phone: string;
+  /**
+     * @minLength 4
+     * @maxLength 4
+     */
   otp: string;
 }
 

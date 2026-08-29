@@ -193,6 +193,34 @@ export const CreateGuestSessionResponse = zod.object({
 
 
 /**
+ * @summary Sign in to the admin panel with username and password
+ */
+
+
+
+
+export const AdminLoginBody = zod.object({
+  "username": zod.string().min(1),
+  "password": zod.string().min(1)
+})
+
+export const AdminLoginResponse = zod.object({
+  "token": zod.string(),
+  "user": zod.object({
+  "id": zod.string(),
+  "phone": zod.string(),
+  "name": zod.string().optional(),
+  "walletBalance": zod.number(),
+  "kycStatus": zod.enum(['pending', 'verified', 'rejected']),
+  "status": zod.enum(['active', 'suspended', 'hold']),
+  "suspensionReason": zod.string().optional(),
+  "role": zod.enum(['user', 'admin']),
+  "createdAt": zod.coerce.date()
+})
+})
+
+
+/**
  * @summary Send OTP to mobile number
  */
 export const SendOtpBody = zod.object({
@@ -209,12 +237,60 @@ export const SendOtpResponse = zod.object({
 /**
  * @summary Verify OTP and get auth token
  */
+export const verifyOtpBodyOtpMin = 4;
+export const verifyOtpBodyOtpMax = 4;
+
+
+
 export const VerifyOtpBody = zod.object({
   "phone": zod.string(),
-  "otp": zod.string()
+  "otp": zod.string().min(verifyOtpBodyOtpMin).max(verifyOtpBodyOtpMax)
 })
 
 export const VerifyOtpResponse = zod.object({
+  "token": zod.string(),
+  "user": zod.object({
+  "id": zod.string(),
+  "phone": zod.string(),
+  "name": zod.string().optional(),
+  "walletBalance": zod.number(),
+  "kycStatus": zod.enum(['pending', 'verified', 'rejected']),
+  "status": zod.enum(['active', 'suspended', 'hold']),
+  "suspensionReason": zod.string().optional(),
+  "role": zod.enum(['user', 'admin']),
+  "createdAt": zod.coerce.date()
+})
+})
+
+
+/**
+ * @summary Send a WhatsApp OTP
+ */
+export const SendOtpAliasBody = zod.object({
+  "phone": zod.string().describe('Mobile number with country code (e.g. +919876543210)')
+})
+
+export const SendOtpAliasResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string(),
+  "otpId": zod.string().optional()
+})
+
+
+/**
+ * @summary Verify a WhatsApp OTP
+ */
+export const verifyOtpAliasBodyOtpMin = 4;
+export const verifyOtpAliasBodyOtpMax = 4;
+
+
+
+export const VerifyOtpAliasBody = zod.object({
+  "phone": zod.string(),
+  "otp": zod.string().min(verifyOtpAliasBodyOtpMin).max(verifyOtpAliasBodyOtpMax)
+})
+
+export const VerifyOtpAliasResponse = zod.object({
   "token": zod.string(),
   "user": zod.object({
   "id": zod.string(),

@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
-import { Tabs, useGlobalSearchParams } from 'expo-router';
+import { Tabs, useGlobalSearchParams, useRouter } from 'expo-router';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
 import { useAuth } from '@/contexts/AuthContext';
@@ -142,7 +142,11 @@ function ClassicTabLayout() {
   );
 }
 export default function TabLayout() {
-  const { isLoading } = useAuth();
-  if (isLoading) return null;
+  const { isLoading, token } = useAuth();
+  const router = useRouter();
+  useEffect(() => {
+    if (!isLoading && !token) router.replace('/login');
+  }, [isLoading, router, token]);
+  if (isLoading || !token) return null;
   return <ClassicTabLayout />;
 }
