@@ -51,18 +51,19 @@ function createClient(): Client {
 }
 
 export function startWhatsAppClient(): Promise<Client> {
-  if (client) return Promise.resolve(client);
   if (initialization) return initialization;
+  if (client && status === "ready") return Promise.resolve(client);
 
   const nextClient = createClient();
+  client = nextClient;
   status = "starting";
   initialization = nextClient.initialize()
     .then(() => {
-      client = nextClient;
       return nextClient;
     })
     .catch((error) => {
       status = "error";
+      if (client === nextClient) client = null;
       initialization = null;
       throw error;
     });
@@ -80,8 +81,15 @@ export async function sendWhatsAppOtp(phone: string, otp: string): Promise<void>
       setTimeout(() => reject(new Error("WhatsApp client is waiting for QR authentication")), 15_000).unref();
     }),
   ]);
-  const chatId = `${phone.replace(/\D/g, "")}@c.us`;
-  await whatsapp.sendMessage(chatId, `Your Jazment verification code is ${otp}. It expires in 10 minutes. Do not share this code.`);
+  const mobile = phone.replace(/\D/g, "");
+  const numberId = await whatsapp.getNumberId(mobile);
+  if (!numberId) {
+    throw new Error("This mobile number is not registered on WhatsApp");
+  }
+  await whatsapp.sendMessage(
+    numberId._serialized,
+    `Your Jazment verification code is ${otp}. It expires in 10 minutes. Do not share this code.`,
+  );
 }
 
 export async function stopWhatsAppClient(): Promise<void> {
@@ -89,5 +97,7 @@ export async function stopWhatsAppClient(): Promise<void> {
   const current = client;
   client = null;
   initialization = null;
-  await current.destroy();
+  await current.destroy().catch((error) => {
+    logger.warn({ err: error }, "Unable to cleanly close WhatsApp browser");
+  });
 }
