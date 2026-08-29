@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   useAdminListDeposits,
   getAdminListDepositsQueryKey,
@@ -16,6 +16,7 @@ import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { exportToCsv } from '@/lib/export';
 import { useDebounce } from '@/hooks/use-debounce';
+import { useAuth } from '@/contexts/AuthContext';
 
 type StatusFilter = 'pending' | 'approved' | 'rejected' | 'all';
 
@@ -33,6 +34,7 @@ const PAGE_SIZE = 20;
 export function Deposits() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { token, logout } = useAuth();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending');
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 400);
@@ -45,9 +47,16 @@ export function Deposits() {
   const apiStatus = statusFilter === 'all' ? undefined : statusFilter;
   const qKey = getAdminListDepositsQueryKey({ status: apiStatus, limit: PAGE_SIZE, page, search: debouncedSearch || undefined });
 
-  const { data, isLoading, refetch } = useAdminListDeposits(
+  const { data, isLoading, isError, error, refetch } = useAdminListDeposits(
     { status: apiStatus, limit: PAGE_SIZE, page, search: debouncedSearch || undefined } as any,
-    { query: { queryKey: qKey, refetchInterval: 30000 } }
+    {
+      query: {
+        queryKey: qKey,
+        enabled: !!token,
+        refetchInterval: statusFilter === 'pending' ? 5000 : 30000,
+        refetchOnWindowFocus: true,
+      },
+    }
   );
   const approve = useApproveDeposit();
   const reject = useRejectDeposit();
@@ -56,6 +65,11 @@ export function Deposits() {
   const total: number = (data as any)?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const pending = statusFilter === 'pending' ? deposits.length : 0;
+
+  useEffect(() => {
+    const status = (error as any)?.status;
+    if (status === 401 || status === 403) logout();
+  }, [error, logout]);
 
   const handleApprove = (id: string) => {
     approve.mutate(
@@ -169,6 +183,18 @@ export function Deposits() {
       {isLoading ? (
         <div className="flex items-center justify-center h-48">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      ) : isError ? (
+        <div className="border border-destructive/50 bg-destructive/10 rounded-xl flex flex-col gap-3 items-center justify-center h-40 text-center px-6">
+          <p className="font-semibold text-destructive">Could not load deposit requests</p>
+          <p className="text-sm text-muted-foreground">
+            {(error as any)?.status === 401 || (error as any)?.status === 403
+              ? 'Your admin session has expired. Please sign in again.'
+              : 'The server could not be reached. Retry to load pending deposits.'}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="w-4 h-4 mr-2" /> Retry
+          </Button>
         </div>
       ) : deposits.length === 0 ? (
         <div className="border border-dashed rounded-xl flex items-center justify-center h-32 text-muted-foreground">

@@ -37,6 +37,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLocation("/login");
   };
 
+  useEffect(() => {
+    if (!token) return;
+
+    let cancelled = false;
+    const validateSession = async () => {
+      try {
+        const response = await fetch("/api/admin/stats", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!cancelled && (response.status === 401 || response.status === 403)) {
+          localStorage.removeItem("jazment_admin_token");
+          setToken(null);
+          setLocation("/login");
+        }
+      } catch {
+        // Keep the session during temporary network failures. Individual pages
+        // show their request error instead of pretending their lists are empty.
+      }
+    };
+
+    void validateSession();
+    const handleFocus = () => void validateSession();
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [setLocation, token]);
+
   return (
     <AuthContext.Provider value={{ token, isAuthenticated: !!token, login, logout }}>
       {children}
