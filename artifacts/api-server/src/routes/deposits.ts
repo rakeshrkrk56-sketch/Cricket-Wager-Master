@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, depositsTable, usersTable, transactionsTable, notificationsTable } from "@workspace/db";
-import { eq, and, desc, count, like } from "drizzle-orm";
+import { eq, and, desc, count, like, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { createNotification } from "../lib/createNotification";
 import crypto from "crypto";
@@ -171,9 +171,6 @@ router.post("/admin/deposits/:depositId/approve", requireAdmin, async (req, res)
     .from(depositsTable).where(eq(depositsTable.id, depositId));
   if (!depositCheck) { res.status(404).json({ error: "Deposit not found" }); return; }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, depositCheck.userId));
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
-
   let balanceAfter: number | null = null;
 
   try {
@@ -192,15 +189,22 @@ router.post("/admin/deposits/:depositId/approve", requireAdmin, async (req, res)
       }
 
       const amount = Number(approved.amount);
-      const balanceBefore = Number(user.walletBalance);
-      balanceAfter = balanceBefore + amount;
+      const [creditedUser] = await tx.update(usersTable)
+        .set({
+          walletBalance: sql`${usersTable.walletBalance} + ${String(amount)}::numeric`,
+          updatedAt: new Date(),
+        })
+        .where(eq(usersTable.id, approved.userId))
+        .returning({ walletBalance: usersTable.walletBalance });
+      if (!creditedUser) {
+        throw Object.assign(new Error("User not found"), { userMissing: true });
+      }
 
-      await tx.update(usersTable)
-        .set({ walletBalance: String(balanceAfter), updatedAt: new Date() })
-        .where(eq(usersTable.id, user.id));
+      balanceAfter = Number(creditedUser.walletBalance);
+      const balanceBefore = balanceAfter - amount;
 
       await tx.insert(transactionsTable).values({
-        userId: user.id,
+        userId: approved.userId,
         type: "deposit",
         amount: String(amount),
         balanceBefore: String(balanceBefore),
@@ -214,15 +218,18 @@ router.post("/admin/deposits/:depositId/approve", requireAdmin, async (req, res)
       res.status(400).json({ error: "Deposit already processed" });
       return;
     }
+    if (err.userMissing) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
     throw err;
   }
 
-  const amount = Number(user.walletBalance) + (balanceAfter! - Number(user.walletBalance)); // resolved above
-  await createNotification(user.id, "deposit_approved",
+  await createNotification(depositCheck.userId, "deposit_approved",
     "Deposit Approved ✓",
     `Your deposit has been approved. Wallet credited.`
   );
-  await createNotification(user.id, "wallet_credited",
+  await createNotification(depositCheck.userId, "wallet_credited",
     "Wallet Credited",
     `Wallet updated. New balance: ₹${Number(balanceAfter).toFixed(0)}.`
   );

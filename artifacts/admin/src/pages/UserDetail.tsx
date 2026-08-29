@@ -323,10 +323,13 @@ export function UserDetail() {
       {activeTab === "overview" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Wallet Adjustment */}
+            {/* Exceptional Wallet Adjustment */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><IndianRupee className="w-5 h-5 text-primary" /> Manual Wallet Adjustment</CardTitle>
+                <CardTitle className="flex items-center gap-2"><IndianRupee className="w-5 h-5 text-primary" /> Exceptional Wallet Adjustment</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Use only for bonuses, refunds, or corrections. Approve normal user payments from the Deposits page.
+                </p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex gap-2">

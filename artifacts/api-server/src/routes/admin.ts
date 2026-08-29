@@ -163,30 +163,51 @@ router.post("/admin/users/:userId/wallet/adjust", requireAdmin, async (req, res)
     return;
   }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  if (!user) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-
-  const balanceBefore = Number(user.walletBalance);
   const amt = Number(amount);
-  const balanceAfter = type === "credit" ? balanceBefore + amt : balanceBefore - amt;
-  if (balanceAfter < 0) {
-    res.status(400).json({ error: `Insufficient balance. Current: ₹${balanceBefore.toFixed(0)}, debit: ₹${amt.toFixed(0)}` });
+  let balanceBefore = 0;
+  let balanceAfter = 0;
+
+  const adjusted = await db.transaction(async (tx) => {
+    const conditions = type === "debit"
+      ? and(eq(usersTable.id, userId), gte(usersTable.walletBalance, String(amt)))
+      : eq(usersTable.id, userId);
+    const operation = type === "credit"
+      ? sql`${usersTable.walletBalance} + ${String(amt)}::numeric`
+      : sql`${usersTable.walletBalance} - ${String(amt)}::numeric`;
+
+    const [updatedUser] = await tx.update(usersTable)
+      .set({ walletBalance: operation, updatedAt: new Date() })
+      .where(conditions)
+      .returning({ walletBalance: usersTable.walletBalance });
+    if (!updatedUser) return null;
+
+    balanceAfter = Number(updatedUser.walletBalance);
+    balanceBefore = type === "credit" ? balanceAfter - amt : balanceAfter + amt;
+    await tx.insert(transactionsTable).values({
+      userId,
+      type: type === "credit" ? "bonus" : "withdraw",
+      amount: String(amt),
+      balanceBefore: String(balanceBefore),
+      balanceAfter: String(balanceAfter),
+      status: "completed",
+      note: `Admin ${type}: ${String(reason).trim()}`,
+    });
+    return updatedUser;
+  });
+
+  if (!adjusted) {
+    const [existingUser] = await db.select({ walletBalance: usersTable.walletBalance })
+      .from(usersTable).where(eq(usersTable.id, userId));
+    if (!existingUser) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    res.status(400).json({
+      error: `Insufficient balance. Current: ₹${Number(existingUser.walletBalance).toFixed(0)}, debit: ₹${amt.toFixed(0)}`,
+    });
     return;
   }
 
-  await db.update(usersTable).set({ walletBalance: String(balanceAfter), updatedAt: new Date() }).where(eq(usersTable.id, userId));
-  await db.insert(transactionsTable).values({
-    userId,
-    type: type === "credit" ? "bonus" : "withdraw",
-    amount: String(amt),
-    balanceBefore: String(balanceBefore),
-    balanceAfter: String(balanceAfter),
-    status: "completed",
-    note: `Admin ${type}: ${String(reason).trim()}`,
-  });
   await createNotification(
     userId,
     "wallet_credited",
