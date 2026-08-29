@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { ReactNode, useState, useEffect } from "react";
-import { LayoutDashboard, Users, LogOut, Activity, ArrowDownCircle, ArrowUpCircle, MessageSquare, Building2, Menu, X, Shield } from "lucide-react";
+import { LayoutDashboard, Users, LogOut, Activity, ArrowDownCircle, ArrowUpCircle, MessageSquare, Building2, Menu, X, Shield, Gamepad2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useAdminListDeposits, useAdminListWithdrawals, useAdminListSupportTickets } from "@workspace/api-client-react";
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/support", label: "Support (सहायता)", icon: MessageSquare },
   { href: "/bank-account", label: "Bank Management", icon: Building2 },
   { href: "/audit-logs", label: "Audit Logs", icon: Shield },
+  { href: "/game-control", label: "Game Control", icon: Gamepad2 },
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {

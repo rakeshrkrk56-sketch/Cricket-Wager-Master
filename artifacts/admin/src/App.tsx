@@ -13,6 +13,7 @@ import { Support } from '@/pages/Support';
 import { SupportDetail } from '@/pages/SupportDetail';
 import { BankAccount } from '@/pages/BankAccount';
 import { AuditLogs } from '@/pages/AuditLogs';
+import { GameControl } from '@/pages/GameControl';
 import { Login } from '@/pages/Login';
 
 const queryClient = new QueryClient({
@@ -70,6 +71,9 @@ function Router() {
       </Route>
       <Route path="/audit-logs">
         <ProtectedRoute component={AuditLogs} />
+      </Route>
+      <Route path="/game-control">
+        <ProtectedRoute component={GameControl} />
       </Route>
       
       <Route>

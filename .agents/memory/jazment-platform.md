@@ -1,32 +1,18 @@
 ---
 name: Jazment platform overview
-description: Architecture and key decisions for the Jazment cricket prediction platform
+description: Durable product boundaries and fairness rules for the Jazment Dragon Tiger platform
 ---
 
-## Artifacts
-- `artifacts/admin` — React/Vite admin panel at `/` (dark "Command Center" aesthetic)
-- `artifacts/mobile` — Expo mobile app at `/mobile/` (user-facing cricket prediction app)
-- `artifacts/api-server` — Express + TypeScript API at `/api-server/`
+Jazment is a real-time Dragon Tiger gaming platform with a mobile player app, admin operations panel, API server, and shared PostgreSQL database.
 
-## DB (lib/db)
-Tables: `users`, `matches`, `markets`, `predictions`, `transactions`
-Schema push: `pnpm --filter @workspace/db run push`
+**Rule:** Preserve users, authentication, wallets, payment flows, KYC, support, notifications, audit history, and historical cricket records. Cricket is no longer an active runtime feature.
 
-## Design tokens (both artifacts share the same palette)
-- Background: `#0F1729` (hsl 222 47% 11%)
-- Primary: `#F47D1C` (hsl 28 90% 55%) — saffron orange
-- Card: `#131E2F`, Border: `#1D2A3B`, Muted fg: `#8EA3BC`
+**Why:** The product changed games without becoming a new account or payments system; users must keep their money and history.
 
-## API client codegen
-Spec: `lib/api-spec/openapi.yaml`
-Run: `pnpm --filter @workspace/api-spec run codegen`
-Generated hooks in: `lib/api-client-react/src/generated/api.ts`
+**How to apply:** New user-facing game work should target Dragon Tiger. Do not revive cricket endpoints or delete old data unless the user explicitly requests a separate migration.
 
-## Cricket data
-`/api/cricket/live` and `/api/cricket/score/:id` — uses `CRICAPI_KEY` env var, falls back to mock if not set
+**Rule:** Results must remain fair and server-controlled. AUTOMATIC and MANAGED modes may change operational behavior, but neither may select outcomes or optimize platform profit.
 
-## Seeded test data
-- Admin: +910000000000 (OTP: 1234)
-- Users: +91987654321[0-4] (OTP: 1234)
-- Matches: match-001 (India vs Australia, live), match-003 (CSK vs MI, live), etc.
-- Markets: mkt-001 to mkt-011
+**Why:** Hidden outcome manipulation would violate player trust and create serious legal and ethical risk.
+
+**How to apply:** Generate cards with cryptographically secure randomness. Admin controls may pause, close betting, and monitor exposure only.

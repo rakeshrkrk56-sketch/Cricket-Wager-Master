@@ -12,3 +12,4 @@ export * from "./audit_logs";
 export * from "./admin_notes";
 export * from "./kyc_documents";
 export * from "./login_history";
+export * from "./dragon_tiger";

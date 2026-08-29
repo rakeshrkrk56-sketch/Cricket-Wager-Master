@@ -1,3 +1,2 @@
-- [Jazment platform overview](jazment-platform.md) — full-stack cricket prediction app; admin web + user mobile + API server + shared DB
-- [Mock OTP auth pattern](jazment-mock-otp.md) — OTP always accepts 1234; token is base64 userId:role:timestamp; no real SMS
-- [CricAPI provider quirks](cricapi-provider.md) — use match_info (match_score not on free tier); ~100 hits/day; scores are display-only, admins settle bets manually
+- [Jazment platform direction](jazment-platform.md) — Dragon Tiger runtime with preserved accounts, wallets, payments, support, and historical records
+- [Jazment authentication](jazment-auth.md) — normalized Indian phone identity, real OTP only, and signed expiring sessions

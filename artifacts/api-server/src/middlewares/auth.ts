@@ -1,19 +1,62 @@
 import { Request, Response, NextFunction } from "express";
 import { db, usersTable, loginHistoryTable } from "@workspace/db";
 import { eq, and, gte } from "drizzle-orm";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
-// Simple JWT-like token: base64(userId:role:timestamp)
+const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function sessionSecret(): string {
+  const secret = process.env["SESSION_SECRET"];
+  if (!secret) throw new Error("SESSION_SECRET is required");
+  return secret;
+}
+
+function sign(payload: string): string {
+  return createHmac("sha256", sessionSecret()).update(payload).digest("base64url");
+}
+
 export function createToken(userId: string, role: string): string {
-  const payload = `${userId}:${role}:${Date.now()}`;
-  return Buffer.from(payload).toString("base64url");
+  const issuedAt = Date.now();
+  const payload = Buffer.from(JSON.stringify({
+    version: 1,
+    userId,
+    role,
+    issuedAt,
+    expiresAt: issuedAt + TOKEN_TTL_MS,
+  })).toString("base64url");
+  return `${payload}.${sign(payload)}`;
 }
 
 export function parseToken(token: string): { userId: string; role: string } | null {
   try {
-    const decoded = Buffer.from(token, "base64url").toString("utf-8");
-    const parts = decoded.split(":");
-    if (parts.length < 2) return null;
-    return { userId: parts[0], role: parts[1] };
+    const [payload, signature, extra] = token.split(".");
+    if (!payload || !signature || extra !== undefined) return null;
+    const expected = sign(payload);
+    const actualBytes = Buffer.from(signature, "base64url");
+    const expectedBytes = Buffer.from(expected, "base64url");
+    if (
+      actualBytes.length !== expectedBytes.length
+      || !timingSafeEqual(actualBytes, expectedBytes)
+    ) return null;
+
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf-8")) as {
+      version?: number;
+      userId?: string;
+      role?: string;
+      issuedAt?: number;
+      expiresAt?: number;
+    };
+    const now = Date.now();
+    if (
+      decoded.version !== 1
+      || typeof decoded.userId !== "string"
+      || typeof decoded.role !== "string"
+      || typeof decoded.issuedAt !== "number"
+      || typeof decoded.expiresAt !== "number"
+      || decoded.issuedAt > now + 60_000
+      || decoded.expiresAt <= now
+    ) return null;
+    return { userId: decoded.userId, role: decoded.role };
   } catch {
     return null;
   }
