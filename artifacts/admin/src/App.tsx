@@ -14,6 +14,7 @@ import { SupportDetail } from '@/pages/SupportDetail';
 import { BankAccount } from '@/pages/BankAccount';
 import { AuditLogs } from '@/pages/AuditLogs';
 import { GameControl } from '@/pages/GameControl';
+import { Settings } from '@/pages/Settings';
 import { Login } from '@/pages/Login';
 import { PendingRequestAlertsProvider } from '@/components/PendingRequestAlerts';
 
@@ -75,6 +76,9 @@ function Router() {
       </Route>
       <Route path="/game-control">
         <ProtectedRoute component={GameControl} />
+      </Route>
+      <Route path="/settings">
+        <ProtectedRoute component={Settings} />
       </Route>
       
       <Route>
