@@ -2,3 +2,4 @@
 - [Jazment authentication](jazment-auth.md) — normalized Indian phone identity, real OTP only, and signed expiring sessions
 - [Dragon Tiger rapid taps](dragon-tiger-rapid-taps.md) — round betting selections must lock synchronously so same-frame taps cannot change sides
 - [Admin session failures](admin-session-failures.md) — unauthorized list requests must trigger login, never appear as valid empty admin data
+- [WhatsApp Web Chromium](whatsapp-web-chromium.md) — Replit WhatsApp Web sessions require a direct Puppeteer dependency and an absolute system Chromium path

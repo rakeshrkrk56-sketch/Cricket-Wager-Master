@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { db, platformSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/auth";
+import QRCode from "qrcode";
+import { getWhatsAppClientStatus } from "../lib/whatsappClient";
 
 const router: IRouter = Router();
 
@@ -66,6 +68,14 @@ router.get("/settings", async (_req, res): Promise<void> => {
 
 router.get("/admin/settings", requireAdmin, async (_req, res): Promise<void> => {
   res.json(await getAllSettings());
+});
+
+router.get("/admin/whatsapp-otp/status", requireAdmin, async (_req, res): Promise<void> => {
+  const state = getWhatsAppClientStatus();
+  const qrDataUrl = state.qr
+    ? await QRCode.toDataURL(state.qr, { width: 360, margin: 2, errorCorrectionLevel: "M" })
+    : null;
+  res.json({ status: state.status, qrDataUrl });
 });
 
 router.put("/admin/settings", requireAdmin, async (req, res): Promise<void> => {

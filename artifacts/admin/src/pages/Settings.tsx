@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, Settings2, Copy, CheckCheck, QrCode, AlertCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 
 // ── Helper: one UPI slot editor ──────────────────────────────────────────────
 function UpiSlot({
@@ -71,8 +73,14 @@ function UpiSlot({
 
 export function Settings() {
   const { toast } = useToast();
+  const adminFetch = useAdminFetch();
   const { data, isLoading } = useAdminGetSettings();
   const update = useAdminUpdateSettings();
+  const whatsappStatus = useQuery({
+    queryKey: ["whatsapp-otp-status"],
+    queryFn: () => adminFetch<{ status: string; qrDataUrl: string | null }>("/api/admin/whatsapp-otp/status"),
+    refetchInterval: 3000,
+  });
 
   // UPI slot 1
   const [upiId1, setUpiId1] = useState("");
@@ -142,6 +150,49 @@ export function Settings() {
         </h1>
         <p className="text-muted-foreground mt-1">Configure payment details shown to users when they deposit.</p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <QrCode className="w-5 h-5 text-primary" />
+            WhatsApp OTP Setup
+            {whatsappStatus.data?.status === "ready" && (
+              <span className="ml-auto text-xs font-normal text-green-500 bg-green-500/10 px-2 py-0.5 rounded-full">Connected</span>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Link the WhatsApp account that will send four-digit login codes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {whatsappStatus.isLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading WhatsApp status…
+            </div>
+          ) : whatsappStatus.data?.status === "ready" ? (
+            <p className="text-sm text-green-500">WhatsApp is linked and ready to send OTP messages.</p>
+          ) : whatsappStatus.data?.qrDataUrl ? (
+            <div className="space-y-3">
+              <div className="rounded-lg bg-white p-3 w-fit">
+                <img src={whatsappStatus.data.qrDataUrl} alt="WhatsApp linked-device QR code" className="w-72 h-72" />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                On the sender phone, open WhatsApp → Linked devices → Link a device, then scan this code.
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-start gap-3 p-3 rounded-lg border border-warning/40 bg-warning/10">
+              <AlertCircle className="w-5 h-5 text-warning mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-warning">WhatsApp is not connected</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Wait a few seconds for a new QR code. If none appears, restart the API Server workflow.
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Warning if nothing configured */}
       {!anyUpiConfigured && (
