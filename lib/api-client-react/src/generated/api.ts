@@ -48,6 +48,7 @@ import type {
   GetMyWithdrawalsParams,
   GetNotificationsParams,
   GetTransactionsParams,
+  GuestSessionRequest,
   HealthStatus,
   ListUsersParams,
   NotificationListResponse,
@@ -549,6 +550,77 @@ export const useAdminUpdateGameControl = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAdminUpdateGameControlMutationOptions(options));
+    }
+
+export const getCreateGuestSessionUrl = () => {
+
+
+
+
+  return `/api/auth/guest`
+}
+
+/**
+ * @summary Create or resume a private guest account for this installation
+ */
+export const createGuestSession = async (guestSessionRequest: GuestSessionRequest, options?: RequestInit): Promise<AuthResponse> => {
+
+  return customFetch<AuthResponse>(getCreateGuestSessionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(guestSessionRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateGuestSessionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGuestSession>>, TError,{data: BodyType<GuestSessionRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createGuestSession>>, TError,{data: BodyType<GuestSessionRequest>}, TContext> => {
+
+const mutationKey = ['createGuestSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createGuestSession>>, {data: BodyType<GuestSessionRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createGuestSession(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateGuestSessionMutationResult = NonNullable<Awaited<ReturnType<typeof createGuestSession>>>
+    export type CreateGuestSessionMutationBody = BodyType<GuestSessionRequest>
+    export type CreateGuestSessionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create or resume a private guest account for this installation
+ */
+export const useCreateGuestSession = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createGuestSession>>, TError,{data: BodyType<GuestSessionRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createGuestSession>>,
+        TError,
+        {data: BodyType<GuestSessionRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateGuestSessionMutationOptions(options));
     }
 
 export const getSendOtpUrl = () => {

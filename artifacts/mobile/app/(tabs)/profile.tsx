@@ -38,6 +38,7 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const { t, lang, setLang } = useLanguage();
   const s = styles(colors, insets);
+  const isGuest = user?.phone?.startsWith('guest:') ?? true;
 
   const handleLogout = () => {
     Alert.alert(t('profile_logout_title'), t('profile_logout_msg'), [
@@ -88,10 +89,10 @@ export default function ProfileScreen() {
       {/* Avatar section */}
       <View style={s.avatarSection}>
         <View style={s.avatar}>
-          <Text style={s.avatarText}>{user?.name?.[0]?.toUpperCase() ?? user?.phone?.slice(-2) ?? 'J'}</Text>
+          <Text style={s.avatarText}>{isGuest ? 'G' : user?.name?.[0]?.toUpperCase() ?? user?.phone?.slice(-2) ?? 'J'}</Text>
         </View>
         <Text style={s.name}>{user?.name ?? 'Jazment User'}</Text>
-        <Text style={s.phone}>{user?.phone}</Text>
+        <Text style={s.phone}>{isGuest ? 'Guest account • Play instantly' : user?.phone}</Text>
         <View style={[s.kycBadge, { backgroundColor: kycColor[user?.kycStatus ?? 'pending'] + '20' }]}>
           <Ionicons name={user?.kycStatus === 'verified' ? 'checkmark-circle' : 'time-outline'} size={13} color={kycColor[user?.kycStatus ?? 'pending']} />
           <Text style={[s.kycText, { color: kycColor[user?.kycStatus ?? 'pending'] }]}>KYC: {kycLabel[user?.kycStatus ?? 'pending']}</Text>

@@ -122,6 +122,25 @@ paths:
                 $ref: "#/components/schemas/GameControl"
 
   # ─── Auth ────────────────────────────────────────────────────────────────────
+  /auth/guest:
+    post:
+      operationId: createGuestSession
+      tags: [auth]
+      summary: Create or resume a private guest account for this installation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuestSessionRequest"
+      responses:
+        "200":
+          description: Guest session ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
   /auth/send-otp:
     post:
       operationId: sendOtp
@@ -1241,6 +1260,21 @@ components:
         - status
 
     # ─── Auth ──────────────────────────────────────────────────────────────────
+    GuestSessionRequest:
+      type: object
+      properties:
+        installationId:
+          type: string
+          minLength: 16
+          maxLength: 160
+        installationSecret:
+          type: string
+          minLength: 32
+          maxLength: 256
+      required:
+        - installationId
+        - installationSecret
+
     SendOtpRequest:
       type: object
       properties:

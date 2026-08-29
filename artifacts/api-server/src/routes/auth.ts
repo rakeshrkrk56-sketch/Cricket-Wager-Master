@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { createToken, requireAuth, recordLoginHistory } from "../middlewares/auth";
 import {
   SendOtpBody,
@@ -8,9 +9,54 @@ import {
   VerifyOtpBody,
   VerifyOtpResponse,
   GetMeResponse,
+  CreateGuestSessionBody,
+  CreateGuestSessionResponse,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+router.post("/auth/guest", async (req, res): Promise<void> => {
+  const parsed = CreateGuestSessionBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const fingerprint = createHash("sha256")
+    .update(`${parsed.data.installationId}:${parsed.data.installationSecret}`)
+    .digest("hex");
+  const guestIdentity = `guest:${fingerprint}`;
+
+  let [user] = await db.select().from(usersTable).where(eq(usersTable.phone, guestIdentity));
+  if (!user) {
+    const inserted = await db
+      .insert(usersTable)
+      .values({ phone: guestIdentity, name: "Guest Player" })
+      .onConflictDoNothing({ target: usersTable.phone })
+      .returning();
+    user = inserted[0] ?? (await db.select().from(usersTable).where(eq(usersTable.phone, guestIdentity)))[0];
+  }
+
+  if (!user || user.status === "suspended") {
+    res.status(403).json({ error: "Guest account unavailable", code: "ACCOUNT_SUSPENDED" });
+    return;
+  }
+
+  const token = createToken(user.id, user.role);
+  res.json(CreateGuestSessionResponse.parse({
+    token,
+    user: {
+      id: user.id,
+      phone: user.phone,
+      name: user.name ?? "Guest Player",
+      walletBalance: Number(user.walletBalance),
+      kycStatus: user.kycStatus,
+      status: user.status,
+      role: user.role,
+      createdAt: user.createdAt.toISOString(),
+    },
+  }));
+});
 
 // Normalize any phone input to canonical E.164-style form (+91XXXXXXXXXX for Indian numbers).
 // This guarantees "9876543210", "+919876543210", "91 98765 43210", "098765 43210"

@@ -11,7 +11,7 @@ import {
   Inter_700Bold,
   useFonts,
 } from '@expo-google-fonts/inter';
-import { Redirect, Stack, usePathname } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { setBaseUrl } from '@workspace/api-client-react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -31,7 +31,8 @@ const WHATSAPP_NUMBER = '919955286970';
 
 function FloatingWhatsAppButton() {
   const { token } = useAuth();
-  if (!token) return null;
+  const pathname = usePathname();
+  if (!token || pathname === '/') return null;
   const openWhatsApp = () => {
     const msg = encodeURIComponent('Hello, I need help regarding my account.');
     Linking.openURL(`https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`);
@@ -55,19 +56,10 @@ const fabStyles = StyleSheet.create({
 });
 
 function RootLayoutNav() {
-  const { token, isLoading: authLoading } = useAuth();
-  const { isFirstLaunch, isReady: langReady } = useLanguage();
+  const { isLoading: authLoading } = useAuth();
+  const { isReady: langReady } = useLanguage();
 
   if (authLoading || !langReady) return null;
-
-  // First-time launch → language selection before anything else
-  if (isFirstLaunch) {
-    return (
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="select-language" />
-      </Stack>
-    );
-  }
 
   return (
     <View style={{ flex: 1 }}>

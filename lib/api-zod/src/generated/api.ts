@@ -161,6 +161,38 @@ export const AdminUpdateGameControlResponse = zod.object({
 
 
 /**
+ * @summary Create or resume a private guest account for this installation
+ */
+export const createGuestSessionBodyInstallationIdMin = 16;
+export const createGuestSessionBodyInstallationIdMax = 160;
+
+export const createGuestSessionBodyInstallationSecretMin = 32;
+export const createGuestSessionBodyInstallationSecretMax = 256;
+
+
+
+export const CreateGuestSessionBody = zod.object({
+  "installationId": zod.string().min(createGuestSessionBodyInstallationIdMin).max(createGuestSessionBodyInstallationIdMax),
+  "installationSecret": zod.string().min(createGuestSessionBodyInstallationSecretMin).max(createGuestSessionBodyInstallationSecretMax)
+})
+
+export const CreateGuestSessionResponse = zod.object({
+  "token": zod.string(),
+  "user": zod.object({
+  "id": zod.string(),
+  "phone": zod.string(),
+  "name": zod.string().optional(),
+  "walletBalance": zod.number(),
+  "kycStatus": zod.enum(['pending', 'verified', 'rejected']),
+  "status": zod.enum(['active', 'suspended', 'hold']),
+  "suspensionReason": zod.string().optional(),
+  "role": zod.enum(['user', 'admin']),
+  "createdAt": zod.coerce.date()
+})
+})
+
+
+/**
  * @summary Send OTP to mobile number
  */
 export const SendOtpBody = zod.object({

@@ -126,6 +126,19 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface GuestSessionRequest {
+  /**
+     * @minLength 16
+     * @maxLength 160
+     */
+  installationId: string;
+  /**
+     * @minLength 32
+     * @maxLength 256
+     */
+  installationSecret: string;
+}
+
 export interface SendOtpRequest {
   /** Mobile number with country code (e.g. +919876543210) */
   phone: string;

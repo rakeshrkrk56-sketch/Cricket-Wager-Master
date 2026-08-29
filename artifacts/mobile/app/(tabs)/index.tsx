@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  ImageBackground,
   Platform,
   StyleSheet,
   Text,
@@ -282,7 +283,13 @@ export default function HomeScreen() {
             </Animated.View>
           </View>
 
-          <View style={s.tableFelt}>
+          <ImageBackground
+            source={require('../../assets/images/dragon-tiger-casino-wide.png')}
+            style={s.tableFelt}
+            imageStyle={s.tableArtwork}
+            resizeMode="cover"
+          >
+            <View style={s.artworkVeil} />
             <PlayerSide
               label="DRAGON"
               card={game.dragonCard}
@@ -306,7 +313,7 @@ export default function HomeScreen() {
               compact={compact}
               animation={revealAnim}
             />
-          </View>
+          </ImageBackground>
         </View>
 
         <View style={s.betPanel}>
@@ -562,6 +569,11 @@ const styles = (
     justifyContent: 'center',
     backgroundColor: colors.accent,
     paddingHorizontal: compact ? 10 : 18,
+  },
+  tableArtwork: { opacity: 0.72 },
+  artworkVeil: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.background + '28',
   },
   playerSide: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: compact ? 4 : 7 },
   playerLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },

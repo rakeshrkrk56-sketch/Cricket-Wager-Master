@@ -4,7 +4,7 @@ import { useColors } from '@/hooks/useColors';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
-import { Redirect, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
 import { useAuth } from '@/contexts/AuthContext';
@@ -144,9 +144,8 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  const { token, isLoading } = useAuth();
+  const { isLoading } = useAuth();
   if (isLoading) return null;
-  if (!token) return <Redirect href="/login" />;
   if (isLiquidGlassAvailable()) return <NativeTabLayout />;
   return <ClassicTabLayout />;
 }
