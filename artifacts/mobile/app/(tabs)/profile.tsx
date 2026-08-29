@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { getGetWalletQueryKey, useGetWallet } from '@workspace/api-client-react';
 
 function MenuItem({ icon, label, onPress, destructive = false, sublabel }: {
   icon: string; label: string; sublabel?: string; onPress: () => void; destructive?: boolean;
@@ -35,7 +36,11 @@ const menuStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, logout } = useAuth();
+  const { user, logout, token } = useAuth();
+  const { data: walletData } = useGetWallet({
+    query: { enabled: !!token, queryKey: getGetWalletQueryKey() },
+  });
+  const liveBalance = Number(walletData?.balance ?? user?.walletBalance ?? 0);
   const { t, lang, setLang } = useLanguage();
   const s = styles(colors, insets);
   const isGuest = user?.phone?.startsWith('guest:') ?? true;
@@ -102,7 +107,7 @@ export default function ProfileScreen() {
       {/* Stats */}
       <View style={s.statsCard}>
         <View style={s.stat}>
-          <Text style={s.statVal}>₹{user?.walletBalance?.toFixed(0) ?? '0'}</Text>
+          <Text style={s.statVal}>₹{liveBalance.toFixed(2)}</Text>
           <Text style={s.statLabel}>{t('profile_balance')}</Text>
         </View>
         <View style={s.statDivider} />

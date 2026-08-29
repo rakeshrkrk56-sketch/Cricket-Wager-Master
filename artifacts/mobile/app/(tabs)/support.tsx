@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  TextInput, Linking, Alert, ActivityIndicator, Platform,
+  TextInput, Alert, ActivityIndicator, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,9 +10,6 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useGetMyTickets, getGetMyTicketsQueryKey, useCreateSupportTicket } from '@workspace/api-client-react';
-
-const WHATSAPP_NUMBER = '919955286970';
-const SUPPORT_EMAIL   = 'support@jazment.com';
 
 const STATUS_COLOR: Record<string, string> = {
   open: '#F59E0B', in_progress: '#3B82F6', resolved: '#10B981', closed: '#6B7280',
@@ -87,12 +84,6 @@ export default function SupportScreen() {
 
   const s = styles(colors, insets);
 
-  const openWhatsApp = () => {
-    const msg = encodeURIComponent('Hello, I need help regarding my account.');
-    Linking.openURL(`https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`)
-      .catch(() => Alert.alert(t('support_wa_error'), t('support_wa_error_msg')));
-  };
-
   const handleSubmitTicket = async () => {
     if (!subject.trim())     { Alert.alert(t('support_required'), t('support_enter_subject')); return; }
     if (!description.trim()) { Alert.alert(t('support_required'), t('support_enter_desc')); return; }
@@ -121,7 +112,7 @@ export default function SupportScreen() {
         {(['home', 'tickets', 'new'] as Tab[]).map((tb) => (
           <TouchableOpacity key={tb} style={[s.tab, tab === tb && s.tabActive]} onPress={() => setTab(tb)} activeOpacity={0.7}>
             <Text style={[s.tabLabel, tab === tb && s.tabLabelActive]}>
-              {tb === 'home' ? t('support_help_center') : tb === 'tickets' ? t('support_my_tickets') : t('support_new_ticket')}
+              {tb === 'home' ? 'FAQ' : tb === 'tickets' ? 'Messages' : 'Live Chat'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -130,31 +121,8 @@ export default function SupportScreen() {
       {/* ── HOME TAB ── */}
       {tab === 'home' && (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }} showsVerticalScrollIndicator={false}>
-          <View style={s.whatsappCard}>
-            <View style={s.whatsappIconWrap}>
-              <Ionicons name="logo-whatsapp" size={28} color="#25D366" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.whatsappTitle}>WhatsApp Support</Text>
-              <Text style={s.whatsappNum}>+91 99552 86970</Text>
-              <Text style={s.whatsappHours}>{t('support_hours')}</Text>
-            </View>
-            <TouchableOpacity style={s.whatsappBtn} onPress={openWhatsApp} activeOpacity={0.8}>
-              <Text style={s.whatsappBtnLabel}>{t('support_chat_now')}</Text>
-            </TouchableOpacity>
-          </View>
-
           <View style={s.section}>
-            <Text style={s.sectionTitle}>{t('support_contact_info')}</Text>
-            <View style={s.infoCard}>
-              <View style={s.infoRow}><Ionicons name="logo-whatsapp" size={18} color="#25D366" /><Text style={s.infoText}>+91 99552 86970</Text></View>
-              <View style={s.infoRow}><Ionicons name="mail-outline" size={18} color={colors.primary} /><Text style={s.infoText}>{SUPPORT_EMAIL}</Text></View>
-              <View style={s.infoRow}><Ionicons name="time-outline" size={18} color={colors.primary} /><Text style={s.infoText}>{t('support_hours')}</Text></View>
-            </View>
-          </View>
-
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>{t('support_categories')}</Text>
+            <Text style={s.sectionTitle}>Frequently asked questions</Text>
             <View style={s.categoryGrid}>
               {CATEGORIES.map((c) => (
                 <TouchableOpacity
@@ -171,10 +139,22 @@ export default function SupportScreen() {
           </View>
 
           <View style={s.section}>
-            <Text style={s.sectionTitle}>{t('support_faq')}</Text>
             <View style={s.faqCard}>
               {FAQS.map((f, i) => <FAQItem key={i} q={f.q} a={f.a} />)}
             </View>
+          </View>
+
+          <View style={s.liveChatCard}>
+            <View style={s.liveChatIcon}>
+              <Ionicons name="chatbubbles" size={25} color={colors.primaryForeground} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.liveChatTitle}>Didn&apos;t find what you need?</Text>
+              <Text style={s.liveChatText}>Write to Jazment Support. Your message goes directly to the admin team.</Text>
+            </View>
+            <TouchableOpacity style={s.liveChatBtn} onPress={() => setTab('new')} testID="support-start-chat">
+              <Text style={s.liveChatBtnText}>LIVE CHAT</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       )}
@@ -262,11 +242,7 @@ export default function SupportScreen() {
             }
           </TouchableOpacity>
 
-          <Text style={s.submitHint}>{t('support_urgent')}</Text>
-          <TouchableOpacity style={s.whatsappSmall} onPress={openWhatsApp} activeOpacity={0.7}>
-            <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
-            <Text style={s.whatsappSmallLabel}>{t('support_chat_wa')}</Text>
-          </TouchableOpacity>
+          <Text style={s.submitHint}>Your message will appear in the Jazment admin Support panel. You can read and reply to the admin response under Messages.</Text>
         </ScrollView>
       )}
     </View>
@@ -283,13 +259,6 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   tabActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
   tabLabel: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' },
   tabLabelActive: { color: colors.primary, fontFamily: 'Inter_600SemiBold' },
-  whatsappCard: { margin: 16, padding: 16, borderRadius: 14, backgroundColor: '#25D36618', borderWidth: 1, borderColor: '#25D36640', flexDirection: 'row', alignItems: 'center', gap: 12 },
-  whatsappIconWrap: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#25D36620', alignItems: 'center', justifyContent: 'center' },
-  whatsappTitle: { fontSize: 15, fontWeight: '700', color: colors.foreground, fontFamily: 'Inter_700Bold' },
-  whatsappNum: { fontSize: 13, color: colors.foreground, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  whatsappHours: { fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 1 },
-  whatsappBtn: { backgroundColor: '#25D366', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
-  whatsappBtnLabel: { color: '#fff', fontSize: 13, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
   section: { paddingHorizontal: 16, marginBottom: 20 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 10 },
   infoCard: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, gap: 10 },
@@ -299,6 +268,16 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   categoryCard: { width: '30%', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, alignItems: 'center', gap: 6, minWidth: 90 },
   categoryLabel: { fontSize: 11, color: colors.foreground, fontFamily: 'Inter_500Medium', textAlign: 'center' },
   faqCard: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14 },
+  liveChatCard: {
+    marginHorizontal: 16, marginBottom: 28, padding: 16, borderRadius: 14,
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.primary,
+    flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+  },
+  liveChatIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  liveChatTitle: { fontSize: 15, color: colors.foreground, fontFamily: 'Inter_700Bold' },
+  liveChatText: { fontSize: 11, lineHeight: 16, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  liveChatBtn: { width: '100%', borderRadius: 10, backgroundColor: colors.primary, paddingVertical: 12, alignItems: 'center' },
+  liveChatBtnText: { color: colors.primaryForeground, fontSize: 14, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
   ticketCard: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusLabel: { fontSize: 12, fontWeight: '600', fontFamily: 'Inter_600SemiBold' },
@@ -320,6 +299,4 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   submitBtn: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 24 },
   submitBtnLabel: { color: colors.primaryForeground, fontSize: 16, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   submitHint: { fontSize: 12, color: colors.mutedForeground, textAlign: 'center', marginTop: 12, fontFamily: 'Inter_400Regular' },
-  whatsappSmall: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8 },
-  whatsappSmallLabel: { fontSize: 13, color: '#25D366', fontFamily: 'Inter_600SemiBold' },
 });

@@ -4,7 +4,7 @@ import { useColors } from '@/hooks/useColors';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
-import { Tabs } from 'expo-router';
+import { Tabs, useGlobalSearchParams } from 'expo-router';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
 import { useAuth } from '@/contexts/AuthContext';
@@ -76,6 +76,8 @@ function ClassicTabLayout() {
   const isIOS = Platform.OS === 'ios';
   const isWeb = Platform.OS === 'web';
   const { t } = useLanguage();
+  const { game } = useGlobalSearchParams<{ game?: string }>();
+  const isGameOpen = game === 'dragon-tiger';
 
   return (
     <Tabs
@@ -84,6 +86,7 @@ function ClassicTabLayout() {
         tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
         tabBarStyle: {
+          display: isGameOpen ? 'none' : 'flex',
           position: 'absolute',
           backgroundColor: isIOS ? 'transparent' : colors.background,
           borderTopWidth: 1,
@@ -126,17 +129,13 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="support"
         options={{
-          title: t('tab_support'),
-          tabBarIcon: ({ color, size }) =>
-            isIOS ? <SymbolView name="questionmark.circle" tintColor={color} size={size} /> : <Ionicons name="help-circle-outline" size={22} color={color} />,
+          href: null,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: t('tab_profile'),
-          tabBarIcon: ({ color, size }) =>
-            isIOS ? <SymbolView name="person" tintColor={color} size={size} /> : <Ionicons name="person-outline" size={22} color={color} />,
+          href: null,
         }}
       />
     </Tabs>
@@ -146,6 +145,5 @@ function ClassicTabLayout() {
 export default function TabLayout() {
   const { isLoading } = useAuth();
   if (isLoading) return null;
-  if (isLiquidGlassAvailable()) return <NativeTabLayout />;
   return <ClassicTabLayout />;
 }

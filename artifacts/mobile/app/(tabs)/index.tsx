@@ -143,6 +143,9 @@ function GameLobby() {
             <TouchableOpacity style={lobbyStyles.toolButton} onPress={() => router.push('/(tabs)/notifications')}>
               <Ionicons name="notifications" size={18} color="#FFF2C7" />
             </TouchableOpacity>
+            <TouchableOpacity style={lobbyStyles.toolButton} onPress={() => router.push('/(tabs)/support')} testID="lobby-support">
+              <Ionicons name="headset" size={19} color="#FFF2C7" />
+            </TouchableOpacity>
             <TouchableOpacity style={lobbyStyles.toolButton} onPress={() => router.push('/(tabs)/profile')}>
               <Ionicons name="person-circle" size={20} color="#FFF2C7" />
             </TouchableOpacity>
@@ -451,7 +454,7 @@ function DragonTigerGame() {
       <View style={[styles.safeContent, { 
         paddingLeft: Math.max(insets.left, 12), 
         paddingRight: Math.max(insets.right, 12), 
-        paddingBottom: Math.max(insets.bottom, 8) + (Platform.OS === 'web' ? 84 : 56), 
+          paddingBottom: Math.max(insets.bottom, 8), 
         paddingTop: Math.max(insets.top, 8) 
       }]}>
         
