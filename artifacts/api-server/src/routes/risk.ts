@@ -84,11 +84,10 @@ router.delete("/admin/users/:userId/notes/:noteId", requireAdmin, async (req, re
 router.get("/admin/users/:userId/timeline", requireAdmin, async (req, res): Promise<void> => {
   const userId = String(req.params["userId"]);
 
-  const [logins, deposits, withdrawals, predictions, kyc, support, auditLogs] = await Promise.all([
+  const [logins, deposits, withdrawals, kyc, support, auditLogs] = await Promise.all([
     db.select().from(loginHistoryTable).where(eq(loginHistoryTable.userId, userId)).orderBy(desc(loginHistoryTable.createdAt)).limit(50),
     db.select().from(depositsTable).where(eq(depositsTable.userId, userId)).orderBy(desc(depositsTable.createdAt)).limit(50),
     db.select().from(withdrawalsTable).where(eq(withdrawalsTable.userId, userId)).orderBy(desc(withdrawalsTable.createdAt)).limit(50),
-    db.select().from(predictionsTable).where(eq(predictionsTable.userId, userId)).orderBy(desc(predictionsTable.createdAt)).limit(50),
     db.select().from(kycDocumentsTable).where(eq(kycDocumentsTable.userId, userId)).orderBy(desc(kycDocumentsTable.createdAt)).limit(20),
     db.select().from(supportTicketsTable).where(eq(supportTicketsTable.userId, userId)).orderBy(desc(supportTicketsTable.createdAt)).limit(20),
     db.select({
@@ -121,11 +120,6 @@ router.get("/admin/users/:userId/timeline", requireAdmin, async (req, res): Prom
       id: w.id, type: "withdrawal", label: `Withdrawal ₹${Number(w.amount).toFixed(0)}`, detail: w.status,
       extra: { upiId: w.upiId, status: w.status },
       createdAt: w.createdAt instanceof Date ? w.createdAt.toISOString() : w.createdAt,
-    })),
-    ...predictions.map((p) => ({
-      id: p.id, type: "prediction", label: `Predicted ${p.choice} — ₹${Number(p.amount).toFixed(0)}`, detail: p.status,
-      extra: { question: p.question, choice: p.choice, status: p.status, potentialWin: Number(p.potentialWin) },
-      createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
     })),
     ...kyc.map((k) => ({
       id: k.id, type: "kyc", label: `KYC Document: ${k.docType}`, detail: k.status,

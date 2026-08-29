@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, matchesTable, marketsTable, predictionsTable, transactionsTable, depositsTable, withdrawalsTable } from "@workspace/db";
-import { eq, and, desc, count, sum, sql, like, gte, lte, between } from "drizzle-orm";
+import { db, usersTable, transactionsTable, depositsTable, withdrawalsTable } from "@workspace/db";
+import { eq, and, desc, count, sum, sql, like, gte } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/auth";
 import { createNotification } from "../lib/createNotification";
 import { createAuditLog } from "../lib/createAuditLog";
@@ -12,29 +12,8 @@ import {
   UpdateUserParams,
   UpdateUserBody,
   UpdateUserResponse,
-  AdminListMatchesQueryParams,
-  AdminListMatchesResponse,
-  CreateMatchBody,
-  CreateMatchResponse,
-  UpdateMatchParams,
-  UpdateMatchBody,
-  UpdateMatchResponse,
-  CreateMarketParams,
-  CreateMarketBody,
-  CreateMarketResponse,
-  UpdateMarketParams,
-  UpdateMarketBody,
-  UpdateMarketResponse,
-  SettleMarketParams,
-  SettleMarketBody,
-  SettleMarketResponse,
-  RefundMarketParams,
-  RefundMarketResponse,
-  GetMarketPredictionsParams,
-  GetMarketPredictionsResponse,
   GetAdminStatsResponse,
 } from "@workspace/api-zod";
-import { serializeMatch, serializeMarket } from "./matches";
 
 const router: IRouter = Router();
 
@@ -48,32 +27,20 @@ router.get("/admin/users", requireAdmin, async (req, res): Promise<void> => {
   }
   const { page = 1, limit = 20, search, status } = params.data;
   const offset = (page - 1) * limit;
-
   const conditions: any[] = [];
   if (status) conditions.push(eq(usersTable.status, status as any));
   if (search) conditions.push(like(usersTable.phone, `%${search}%`));
 
-  const users = await db
-    .select()
-    .from(usersTable)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(usersTable.createdAt))
-    .limit(limit)
-    .offset(offset);
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const users = await db.select().from(usersTable).where(where).orderBy(desc(usersTable.createdAt)).limit(limit).offset(offset);
+  const [{ total }] = await db.select({ total: count() }).from(usersTable).where(where);
 
-  const [{ total }] = await db
-    .select({ total: count() })
-    .from(usersTable)
-    .where(conditions.length > 0 ? and(...conditions) : undefined);
-
-  res.json(
-    ListUsersResponse.parse({
-      users: users.map(serializeUser),
-      total: Number(total),
-      page,
-      limit,
-    })
-  );
+  res.json(ListUsersResponse.parse({
+    users: users.map(serializeUser),
+    total: Number(total),
+    page,
+    limit,
+  }));
 });
 
 router.get("/admin/users/:userId", requireAdmin, async (req, res): Promise<void> => {
@@ -88,22 +55,16 @@ router.get("/admin/users/:userId", requireAdmin, async (req, res): Promise<void>
     return;
   }
 
-  const preds = await db.select().from(predictionsTable).where(eq(predictionsTable.userId, user.id));
-  const won = preds.filter((p) => p.status === "won").length;
-  const lost = preds.filter((p) => p.status === "lost").length;
-  const totalAmountBet = preds.reduce((s, p) => s + Number(p.amount), 0);
-  const totalAmountWon = preds.filter((p) => p.status === "won").reduce((s, p) => s + Number(p.potentialWin), 0);
-
-  res.json(
-    GetUserResponse.parse({
-      ...serializeUser(user),
-      totalPredictions: preds.length,
-      totalWon: won,
-      totalLost: lost,
-      totalAmountBet,
-      totalAmountWon,
-    })
-  );
+  // Prediction history is retained in the database for data safety, but is no
+  // longer read or calculated by the active account-management API.
+  res.json(GetUserResponse.parse({
+    ...serializeUser(user),
+    totalPredictions: 0,
+    totalWon: 0,
+    totalLost: 0,
+    totalAmountBet: 0,
+    totalAmountWon: 0,
+  }));
 });
 
 router.patch("/admin/users/:userId", requireAdmin, async (req, res): Promise<void> => {
@@ -114,7 +75,6 @@ router.patch("/admin/users/:userId", requireAdmin, async (req, res): Promise<voi
     return;
   }
 
-  // Read current user for audit log
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, params.data.userId));
   if (!existing) {
     res.status(404).json({ error: "User not found" });
@@ -127,12 +87,7 @@ router.patch("/admin/users/:userId", requireAdmin, async (req, res): Promise<voi
     return;
   }
 
-  const newStatus = bodyParsed.data.status;
-  const suspensionReason = bodyParsed.data.suspensionReason;
-  const kycStatus = bodyParsed.data.kycStatus;
-  const name = bodyParsed.data.name;
-
-  // Validate suspension requires a reason
+  const { status: newStatus, suspensionReason, kycStatus, name } = bodyParsed.data;
   if (newStatus === "suspended" && !suspensionReason?.trim()) {
     res.status(400).json({ error: "suspensionReason is required when suspending an account" });
     return;
@@ -142,23 +97,15 @@ router.patch("/admin/users/:userId", requireAdmin, async (req, res): Promise<voi
   if (newStatus) updates.status = newStatus;
   if (kycStatus) updates.kycStatus = kycStatus;
   if (name !== undefined) updates.name = name;
-  // Set suspension reason, clear it when restoring
   if (newStatus === "suspended") updates.suspensionReason = suspensionReason?.trim();
-  if (newStatus === "active") updates.suspensionReason = null;
-  if (newStatus === "hold") updates.suspensionReason = null;
+  if (newStatus === "active" || newStatus === "hold") updates.suspensionReason = null;
 
-  const [user] = await db
-    .update(usersTable)
-    .set(updates)
-    .where(eq(usersTable.id, params.data.userId))
-    .returning();
-
+  const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, params.data.userId)).returning();
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
   }
 
-  // Audit log for status changes
   if (newStatus && newStatus !== existing.status) {
     await createAuditLog({
       adminId: admin.id,
@@ -169,26 +116,21 @@ router.patch("/admin/users/:userId", requireAdmin, async (req, res): Promise<voi
       newStatus,
     }).catch(() => {});
 
-    // Send user notification
     if (newStatus === "hold") {
-      await createNotification(user.id, "account_held",
-        "Account Under Review",
-        "Your account has been placed on hold. You can still log in, deposit, and participate in predictions, but withdrawals are temporarily disabled. Please contact support."
+      await createNotification(user.id, "account_held", "Account Under Review",
+        "Your account has been placed on hold. Deposits remain available, while withdrawals are temporarily disabled. Please contact support."
       ).catch(() => {});
     } else if (newStatus === "suspended") {
-      await createNotification(user.id, "account_suspended",
-        "Account Suspended",
+      await createNotification(user.id, "account_suspended", "Account Suspended",
         `Your account has been suspended. Reason: ${suspensionReason?.trim() ?? "Violation of terms"}. Please contact support.`
       ).catch(() => {});
     } else if (newStatus === "active" && existing.status !== "active") {
-      await createNotification(user.id, "account_restored",
-        "Account Restored ✓",
+      await createNotification(user.id, "account_restored", "Account Restored ✓",
         "Your account has been restored. All permissions are now active."
       ).catch(() => {});
     }
   }
 
-  // Audit log for KYC changes
   if (kycStatus && kycStatus !== existing.kycStatus) {
     await createAuditLog({
       adminId: admin.id,
@@ -222,19 +164,20 @@ router.post("/admin/users/:userId/wallet/adjust", requireAdmin, async (req, res)
   }
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
 
   const balanceBefore = Number(user.walletBalance);
   const amt = Number(amount);
   const balanceAfter = type === "credit" ? balanceBefore + amt : balanceBefore - amt;
-
   if (balanceAfter < 0) {
     res.status(400).json({ error: `Insufficient balance. Current: ₹${balanceBefore.toFixed(0)}, debit: ₹${amt.toFixed(0)}` });
     return;
   }
 
   await db.update(usersTable).set({ walletBalance: String(balanceAfter), updatedAt: new Date() }).where(eq(usersTable.id, userId));
-
   await db.insert(transactionsTable).values({
     userId,
     type: type === "credit" ? "bonus" : "withdraw",
@@ -244,7 +187,6 @@ router.post("/admin/users/:userId/wallet/adjust", requireAdmin, async (req, res)
     status: "completed",
     note: `Admin ${type}: ${String(reason).trim()}`,
   });
-
   await createNotification(
     userId,
     "wallet_credited",
@@ -262,33 +204,29 @@ router.get("/admin/users/:userId/deposits", requireAdmin, async (req, res): Prom
   const page = Number(req.query["page"] ?? 1);
   const limit = Number(req.query["limit"] ?? 20);
   const offset = (page - 1) * limit;
-
   const [user] = await db.select({ id: usersTable.id, phone: usersTable.phone, name: usersTable.name })
     .from(usersTable).where(eq(usersTable.id, userId));
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
 
-  const deposits = await db.select().from(depositsTable)
-    .where(eq(depositsTable.userId, userId))
-    .orderBy(desc(depositsTable.createdAt))
-    .limit(limit).offset(offset);
-
+  const deposits = await db.select().from(depositsTable).where(eq(depositsTable.userId, userId))
+    .orderBy(desc(depositsTable.createdAt)).limit(limit).offset(offset);
   const [{ total }] = await db.select({ total: count() }).from(depositsTable).where(eq(depositsTable.userId, userId));
 
-  const serialize = (d: any) => ({
-    id: d.id, userId: d.userId,
-    amount: Number(d.amount),
-    method: d.method,
-    utrNumber: d.utrNumber ?? undefined,
-    hasScreenshot: !!d.screenshotBase64 || !!d.screenshotHash,
-    status: d.status,
-    remarks: d.remarks ?? undefined,
-    createdAt: d.createdAt instanceof Date ? d.createdAt.toISOString() : d.createdAt,
-    updatedAt: d.updatedAt instanceof Date ? d.updatedAt.toISOString() : d.updatedAt,
-    approvedAt: d.approvedAt instanceof Date ? d.approvedAt.toISOString() : (d.approvedAt ?? undefined),
-    user,
+  res.json({
+    deposits: deposits.map((d: any) => ({
+      id: d.id, userId: d.userId, amount: Number(d.amount), method: d.method,
+      utrNumber: d.utrNumber ?? undefined, hasScreenshot: !!d.screenshotBase64 || !!d.screenshotHash,
+      status: d.status, remarks: d.remarks ?? undefined,
+      createdAt: d.createdAt instanceof Date ? d.createdAt.toISOString() : d.createdAt,
+      updatedAt: d.updatedAt instanceof Date ? d.updatedAt.toISOString() : d.updatedAt,
+      approvedAt: d.approvedAt instanceof Date ? d.approvedAt.toISOString() : (d.approvedAt ?? undefined),
+      user,
+    })),
+    total: Number(total), page, limit,
   });
-
-  res.json({ deposits: deposits.map(serialize), total: Number(total), page, limit });
 });
 
 router.get("/admin/users/:userId/withdrawals", requireAdmin, async (req, res): Promise<void> => {
@@ -296,460 +234,95 @@ router.get("/admin/users/:userId/withdrawals", requireAdmin, async (req, res): P
   const page = Number(req.query["page"] ?? 1);
   const limit = Number(req.query["limit"] ?? 20);
   const offset = (page - 1) * limit;
+  const [user] = await db.select({
+    id: usersTable.id, phone: usersTable.phone, name: usersTable.name, walletBalance: usersTable.walletBalance,
+  }).from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
 
-  const [user] = await db.select({ id: usersTable.id, phone: usersTable.phone, name: usersTable.name, walletBalance: usersTable.walletBalance })
-    .from(usersTable).where(eq(usersTable.id, userId));
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
-
-  const withdrawals = await db.select().from(withdrawalsTable)
-    .where(eq(withdrawalsTable.userId, userId))
-    .orderBy(desc(withdrawalsTable.createdAt))
-    .limit(limit).offset(offset);
-
+  const withdrawals = await db.select().from(withdrawalsTable).where(eq(withdrawalsTable.userId, userId))
+    .orderBy(desc(withdrawalsTable.createdAt)).limit(limit).offset(offset);
   const [{ total }] = await db.select({ total: count() }).from(withdrawalsTable).where(eq(withdrawalsTable.userId, userId));
 
-  const serializeW = (w: any) => ({
-    id: w.id, userId: w.userId,
-    amount: Number(w.amount),
-    upiId: w.upiId ?? undefined,
-    bankAccount: w.bankAccount ?? undefined,
-    status: w.status,
-    remarks: w.remarks ?? undefined,
-    createdAt: w.createdAt instanceof Date ? w.createdAt.toISOString() : w.createdAt,
-    updatedAt: w.updatedAt instanceof Date ? w.updatedAt.toISOString() : w.updatedAt,
-    approvedAt: w.approvedAt instanceof Date ? w.approvedAt.toISOString() : (w.approvedAt ?? undefined),
-    user: { ...user, walletBalance: Number(user.walletBalance) },
+  res.json({
+    withdrawals: withdrawals.map((w: any) => ({
+      id: w.id, userId: w.userId, amount: Number(w.amount), upiId: w.upiId ?? undefined,
+      bankAccount: w.bankAccount ?? undefined, status: w.status, remarks: w.remarks ?? undefined,
+      createdAt: w.createdAt instanceof Date ? w.createdAt.toISOString() : w.createdAt,
+      updatedAt: w.updatedAt instanceof Date ? w.updatedAt.toISOString() : w.updatedAt,
+      approvedAt: w.approvedAt instanceof Date ? w.approvedAt.toISOString() : (w.approvedAt ?? undefined),
+      user: { ...user, walletBalance: Number(user.walletBalance) },
+    })),
+    total: Number(total), page, limit,
   });
-
-  res.json({ withdrawals: withdrawals.map(serializeW), total: Number(total), page, limit });
 });
 
-// ─── Matches ──────────────────────────────────────────────────────────────────
+// Match, market, score and prediction endpoints are intentionally not mounted.
+// Their historical tables remain untouched so existing account data is safe.
 
-router.get("/admin/matches", requireAdmin, async (req, res): Promise<void> => {
-  const params = AdminListMatchesQueryParams.safeParse(req.query);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const conditions: any[] = [];
-  if (params.data.status) conditions.push(eq(matchesTable.status, params.data.status as any));
+// ─── Account and payment stats ────────────────────────────────────────────────
 
-  const matches = await db
-    .select()
-    .from(matchesTable)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(matchesTable.startTime));
-
-  res.json(
-    AdminListMatchesResponse.parse({
-      matches: matches.map(serializeMatch),
-      total: matches.length,
-    })
-  );
-});
-
-router.post("/admin/matches", requireAdmin, async (req, res): Promise<void> => {
-  const parsed = CreateMatchBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const { team1, team2, tournament, startTime, cricApiMatchId } = parsed.data;
-  const [match] = await db
-    .insert(matchesTable)
-    .values({
-      team1,
-      team2,
-      tournament,
-      startTime: startTime instanceof Date ? startTime : new Date(startTime as any),
-      cricApiMatchId: cricApiMatchId ?? null,
-      title: `${team1} vs ${team2}`,
-    })
-    .returning();
-
-  res.status(201).json(CreateMatchResponse.parse(serializeMatch(match)));
-});
-
-router.patch("/admin/matches/:matchId", requireAdmin, async (req, res): Promise<void> => {
-  const params = UpdateMatchParams.safeParse(req.params);
-  const body = UpdateMatchBody.safeParse(req.body);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  if (!body.success) {
-    res.status(400).json({ error: body.error.message });
-    return;
-  }
-  const updates: any = { updatedAt: new Date() };
-  if (body.data.status) updates.status = body.data.status;
-  if (body.data.title) updates.title = body.data.title;
-
-  const [match] = await db
-    .update(matchesTable)
-    .set(updates)
-    .where(eq(matchesTable.id, params.data.matchId))
-    .returning();
-
-  if (!match) {
-    res.status(404).json({ error: "Match not found" });
-    return;
-  }
-  res.json(UpdateMatchResponse.parse(serializeMatch(match)));
-});
-
-// ─── Markets ──────────────────────────────────────────────────────────────────
-
-router.post("/admin/matches/:matchId/markets", requireAdmin, async (req, res): Promise<void> => {
-  const pathParams = CreateMarketParams.safeParse(req.params);
-  const body = CreateMarketBody.safeParse(req.body);
-  if (!pathParams.success) {
-    res.status(400).json({ error: pathParams.error.message });
-    return;
-  }
-  if (!body.success) {
-    res.status(400).json({ error: body.error.message });
-    return;
-  }
-
-  const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, pathParams.data.matchId));
-  if (!match) {
-    res.status(404).json({ error: "Match not found" });
-    return;
-  }
-
-  const [market] = await db
-    .insert(marketsTable)
-    .values({
-      matchId: pathParams.data.matchId,
-      question: body.data.question,
-      questionHindi: body.data.questionHindi ?? null,
-      category: body.data.category as any,
-      yesPrice: String(body.data.yesPrice ?? 2.0),
-      noPrice: String(body.data.noPrice ?? 2.0),
-    })
-    .returning();
-
-  res.status(201).json(CreateMarketResponse.parse(serializeMarket(market)));
-});
-
-router.patch("/admin/markets/:marketId", requireAdmin, async (req, res): Promise<void> => {
-  const params = UpdateMarketParams.safeParse(req.params);
-  const body = UpdateMarketBody.safeParse(req.body);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  if (!body.success) {
-    res.status(400).json({ error: body.error.message });
-    return;
-  }
-  const updates: any = { updatedAt: new Date() };
-  if (body.data.status) updates.status = body.data.status;
-  if (body.data.yesPrice !== undefined) updates.yesPrice = String(body.data.yesPrice);
-  if (body.data.noPrice !== undefined) updates.noPrice = String(body.data.noPrice);
-
-  const [market] = await db
-    .update(marketsTable)
-    .set(updates)
-    .where(eq(marketsTable.id, params.data.marketId))
-    .returning();
-
-  if (!market) {
-    res.status(404).json({ error: "Market not found" });
-    return;
-  }
-  res.json(UpdateMarketResponse.parse(serializeMarket(market)));
-});
-
-router.post("/admin/markets/:marketId/settle", requireAdmin, async (req, res): Promise<void> => {
-  const params = SettleMarketParams.safeParse(req.params);
-  const body = SettleMarketBody.safeParse(req.body);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  if (!body.success) {
-    res.status(400).json({ error: body.error.message });
-    return;
-  }
-
-  const { marketId } = params.data;
-  const { correctAnswer } = body.data;
-
-  const [market] = await db.select().from(marketsTable).where(eq(marketsTable.id, marketId));
-  if (!market) {
-    res.status(404).json({ error: "Market not found" });
-    return;
-  }
-  if (market.status === "settled") {
-    res.status(400).json({ error: "Market already settled" });
-    return;
-  }
-
-  // Get all pending predictions
-  const preds = await db
-    .select()
-    .from(predictionsTable)
-    .where(and(eq(predictionsTable.marketId, marketId), eq(predictionsTable.status, "pending")));
-
-  const winners = preds.filter((p) => p.choice === correctAnswer);
-  const losers = preds.filter((p) => p.choice !== correctAnswer);
-  let totalPayout = 0;
-
-  // Credit winners
-  for (const pred of winners) {
-    const win = Number(pred.potentialWin);
-    totalPayout += win;
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, pred.userId));
-    if (user) {
-      const balanceBefore = Number(user.walletBalance);
-      const newBalance = balanceBefore + win;
-      await db.update(usersTable).set({ walletBalance: String(newBalance) }).where(eq(usersTable.id, user.id));
-      await db.insert(transactionsTable).values({
-        userId: user.id,
-        type: "win",
-        amount: String(win),
-        balanceBefore: String(balanceBefore),
-        balanceAfter: String(newBalance),
-        referenceId: marketId,
-        note: `Win: ${market.question}`,
-      });
-      await createNotification(user.id, "prediction_won",
-        "आप जीत गए! 🏆",
-        `आपकी भविष्यवाणी "${market.question}" सही निकली। ₹${win.toFixed(0)} आपके वॉलेट में जमा हो गए।`
-      );
-    }
-    await db.update(predictionsTable).set({ status: "won" }).where(eq(predictionsTable.id, pred.id));
-  }
-
-  // Mark losers, record final loss transaction (stake was already deducted at bet time), and notify
-  for (const pred of losers) {
-    await db.update(predictionsTable).set({ status: "lost" }).where(eq(predictionsTable.id, pred.id));
-    const [lostUser] = await db.select().from(usersTable).where(eq(usersTable.id, pred.userId));
-    if (lostUser) {
-      // Balance does not change here — the stake left the wallet when the bet was placed
-      await db.insert(transactionsTable).values({
-        userId: pred.userId,
-        type: "loss",
-        amount: String(pred.amount),
-        balanceBefore: String(lostUser.walletBalance),
-        balanceAfter: String(lostUser.walletBalance),
-        referenceId: marketId,
-        note: `Loss: ${market.question}`,
-      });
-    }
-    await createNotification(pred.userId, "prediction_lost",
-      "भविष्यवाणी हारी",
-      `आपकी भविष्यवाणी "${market.question}" पर ₹${Number(pred.amount).toFixed(0)} हार गए।`
-    ).catch(() => {}); // non-critical
-  }
-
-  // Settle market
-  await db.update(marketsTable).set({
-    status: "settled",
-    correctAnswer: correctAnswer as any,
-    settledAt: new Date(),
-  }).where(eq(marketsTable.id, marketId));
-
-  res.json(
-    SettleMarketResponse.parse({
-      marketId,
-      totalPredictions: preds.length,
-      winnersCount: winners.length,
-      totalPayout,
-      status: "settled",
-    })
-  );
-});
-
-router.post("/admin/markets/:marketId/refund", requireAdmin, async (req, res): Promise<void> => {
-  const params = RefundMarketParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const { marketId } = params.data;
-  const [market] = await db.select().from(marketsTable).where(eq(marketsTable.id, marketId));
-  if (!market) {
-    res.status(404).json({ error: "Market not found" });
-    return;
-  }
-
-  const preds = await db
-    .select()
-    .from(predictionsTable)
-    .where(and(eq(predictionsTable.marketId, marketId), eq(predictionsTable.status, "pending")));
-
-  let totalPayout = 0;
-  for (const pred of preds) {
-    const refundAmt = Number(pred.amount);
-    totalPayout += refundAmt;
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, pred.userId));
-    if (user) {
-      const balanceBefore = Number(user.walletBalance);
-      const newBalance = balanceBefore + refundAmt;
-      await db.update(usersTable).set({ walletBalance: String(newBalance) }).where(eq(usersTable.id, user.id));
-      await db.insert(transactionsTable).values({
-        userId: user.id,
-        type: "refund",
-        amount: String(refundAmt),
-        balanceBefore: String(balanceBefore),
-        balanceAfter: String(newBalance),
-        referenceId: marketId,
-        note: `Refund: ${market.question}`,
-      });
-      await createNotification(user.id, "wallet_credited",
-        "Refund Credited",
-        `₹${refundAmt.toFixed(0)} refunded for cancelled market: "${market.question}".`
-      ).catch(() => {});
-    }
-    await db.update(predictionsTable).set({ status: "refunded" }).where(eq(predictionsTable.id, pred.id));
-  }
-
-  await db.update(marketsTable).set({ status: "refunded" }).where(eq(marketsTable.id, marketId));
-
-  res.json(
-    RefundMarketResponse.parse({
-      marketId,
-      totalPredictions: preds.length,
-      winnersCount: 0,
-      totalPayout,
-      status: "refunded",
-    })
-  );
-});
-
-router.get("/admin/markets/:marketId/predictions", requireAdmin, async (req, res): Promise<void> => {
-  const params = GetMarketPredictionsParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  const preds = await db
-    .select()
-    .from(predictionsTable)
-    .where(eq(predictionsTable.marketId, params.data.marketId))
-    .orderBy(desc(predictionsTable.createdAt));
-
-  res.json(
-    GetMarketPredictionsResponse.parse({
-      predictions: preds.map((p) => ({
-        id: p.id,
-        userId: p.userId,
-        marketId: p.marketId,
-        matchId: p.matchId,
-        question: p.question,
-        choice: p.choice,
-        amount: Number(p.amount),
-        potentialWin: Number(p.potentialWin),
-        status: p.status,
-        createdAt: p.createdAt.toISOString(),
-      })),
-      total: preds.length,
-      page: 1,
-      limit: 1000,
-    })
-  );
-});
-
-// ─── Stats ────────────────────────────────────────────────────────────────────
-
-router.get("/admin/stats", requireAdmin, async (req, res): Promise<void> => {
+router.get("/admin/stats", requireAdmin, async (_req, res): Promise<void> => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const [
     [{ totalUsers }],
     [{ activeUsers }],
-    [{ totalMatches }],
-    [{ liveMatches }],
-    [{ totalPredictions }],
-    [{ pendingPredictions }],
-    [{ wonPredictions }],
-    [{ settledPredictions }],
-  ]  = await Promise.all([
-    db.select({ totalUsers: count() }).from(usersTable),
-    db.select({ activeUsers: count() }).from(usersTable).where(eq(usersTable.status, "active")),
-    db.select({ totalMatches: count() }).from(matchesTable),
-    db.select({ liveMatches: count() }).from(matchesTable).where(eq(matchesTable.status, "live")),
-    db.select({ totalPredictions: count() }).from(predictionsTable),
-    db.select({ pendingPredictions: count() }).from(predictionsTable).where(eq(predictionsTable.status, "pending")),
-    db.select({ wonPredictions: count() }).from(predictionsTable).where(eq(predictionsTable.status, "won")),
-    db.select({ settledPredictions: count() }).from(predictionsTable).where(sql`status IN ('won','lost')`),
-  ]);
-
-  const [
     [{ totalDepositsSum }],
     [{ totalWithdrawalsSum }],
-    [{ totalVolumeSum }],
-    [{ totalPayoutSum }],
+    todayTxs,
+    [{ pendingDepositsCount, pendingDepositsAmount }],
+    [{ pendingWithdrawalsCount, pendingWithdrawalsAmount }],
   ] = await Promise.all([
+    db.select({ totalUsers: count() }).from(usersTable),
+    db.select({ activeUsers: count() }).from(usersTable).where(eq(usersTable.status, "active")),
     db.select({ totalDepositsSum: sql<string>`coalesce(sum(amount::numeric),0)` }).from(depositsTable).where(eq(depositsTable.status, "approved")),
     db.select({ totalWithdrawalsSum: sql<string>`coalesce(sum(amount::numeric),0)` }).from(withdrawalsTable).where(eq(withdrawalsTable.status, "approved")),
-    db.select({ totalVolumeSum: sql<string>`coalesce(sum(amount::numeric),0)` }).from(predictionsTable),
-    db.select({ totalPayoutSum: sql<string>`coalesce(sum(potential_win::numeric),0)` }).from(predictionsTable).where(eq(predictionsTable.status, "won")),
+    db.select().from(transactionsTable).where(gte(transactionsTable.createdAt, today)),
+    db.select({ pendingDepositsCount: count(), pendingDepositsAmount: sum(depositsTable.amount) }).from(depositsTable).where(eq(depositsTable.status, "pending")),
+    db.select({ pendingWithdrawalsCount: count(), pendingWithdrawalsAmount: sum(withdrawalsTable.amount) }).from(withdrawalsTable).where(eq(withdrawalsTable.status, "pending")),
   ]);
-
-  const todayTxs = await db
-    .select()
-    .from(transactionsTable)
-    .where(gte(transactionsTable.createdAt, today));
 
   const todayDeposits = todayTxs.filter((t) => t.type === "deposit").reduce((s, t) => s + Number(t.amount), 0);
   const todayWithdrawals = todayTxs.filter((t) => t.type === "withdraw").reduce((s, t) => s + Number(t.amount), 0);
-  const todayBets = todayTxs.filter((t) => t.type === "loss" || t.type === "win").reduce((s, t) => s + Number(t.amount), 0);
+  const totalDeposits = Number(totalDepositsSum);
+  const totalWithdrawals = Number(totalWithdrawalsSum);
+  const pendingDeposits = Number(pendingDepositsCount);
+  const pendingWithdrawals = Number(pendingWithdrawalsCount);
 
-  const totalVolume = Number(totalVolumeSum);
-  const totalPayout = Number(totalPayoutSum);
-  const platformRevenue = totalVolume - totalPayout;
-  const todayProfit = todayDeposits - todayWithdrawals;
-  const predictionSuccessRate = Number(settledPredictions) > 0
-    ? Math.round((Number(wonPredictions) / Number(settledPredictions)) * 100)
-    : 0;
-
-  const [[{ pendingDepositsCount, pendingDepositsAmount }], [{ pendingWithdrawalsCount, pendingWithdrawalsAmount }]] = await Promise.all([
-    db
-      .select({ pendingDepositsCount: count(), pendingDepositsAmount: sum(depositsTable.amount) })
-      .from(depositsTable)
-      .where(eq(depositsTable.status, "pending")),
-    db
-      .select({ pendingWithdrawalsCount: count(), pendingWithdrawalsAmount: sum(withdrawalsTable.amount) })
-      .from(withdrawalsTable)
-      .where(eq(withdrawalsTable.status, "pending")),
-  ]);
-
-  res.json(
-    GetAdminStatsResponse.parse({
-      totalUsers: Number(totalUsers),
-      activeUsers: Number(activeUsers),
-      totalMatches: Number(totalMatches),
-      liveMatches: Number(liveMatches),
-      totalPredictions: Number(totalPredictions),
-      pendingPredictions: Number(pendingPredictions),
-      totalVolume,
-      totalPayout,
-      platformRevenue,
-      todayDeposits,
-      todayWithdrawals,
-      todayBets,
-      todayProfit,
-      totalDeposits: Number(totalDepositsSum),
-      totalWithdrawals: Number(totalWithdrawalsSum),
-      pendingDeposits: Number(pendingDepositsCount),
-      pendingWithdrawals: Number(pendingWithdrawalsCount),
-      predictionSuccessRate,
-      pendingDepositsCount: Number(pendingDepositsCount),
-      pendingDepositsAmount: Number(pendingDepositsAmount ?? 0),
-      pendingWithdrawalsCount: Number(pendingWithdrawalsCount),
-      pendingWithdrawalsAmount: Number(pendingWithdrawalsAmount ?? 0),
-    })
-  );
+  res.json(GetAdminStatsResponse.parse({
+    totalUsers: Number(totalUsers),
+    activeUsers: Number(activeUsers),
+    // Retained response fields are zero for clients that have not regenerated
+    // yet. No match or prediction tables are queried.
+    totalMatches: 0,
+    liveMatches: 0,
+    totalPredictions: 0,
+    pendingPredictions: 0,
+    totalVolume: 0,
+    totalPayout: 0,
+    platformRevenue: 0,
+    todayDeposits,
+    todayWithdrawals,
+    todayBets: 0,
+    todayProfit: todayDeposits - todayWithdrawals,
+    totalDeposits,
+    totalWithdrawals,
+    pendingDeposits,
+    pendingWithdrawals,
+    predictionSuccessRate: 0,
+    pendingDepositsCount: pendingDeposits,
+    pendingDepositsAmount: Number(pendingDepositsAmount ?? 0),
+    pendingWithdrawalsCount: pendingWithdrawals,
+    pendingWithdrawalsAmount: Number(pendingWithdrawalsAmount ?? 0),
+  }));
 });
 
 router.get("/admin/stats/chart", requireAdmin, async (req, res): Promise<void> => {
-  const days = Math.min(Number(req.query["days"] ?? 30), 90);
+  const days = Math.min(Math.max(Number(req.query["days"] ?? 30), 1), 90);
   const rows = await db.execute(sql`
     WITH date_series AS (
       SELECT generate_series(
@@ -760,35 +333,21 @@ router.get("/admin/stats/chart", requireAdmin, async (req, res): Promise<void> =
     ),
     daily_deposits AS (
       SELECT date_trunc('day', created_at)::date AS day, coalesce(sum(amount::numeric),0) AS amt
-      FROM deposits WHERE status='approved'
-      GROUP BY 1
+      FROM deposits WHERE status='approved' GROUP BY 1
     ),
     daily_withdrawals AS (
       SELECT date_trunc('day', created_at)::date AS day, coalesce(sum(amount::numeric),0) AS amt
-      FROM withdrawals WHERE status='approved'
-      GROUP BY 1
-    ),
-    daily_bets AS (
-      SELECT date_trunc('day', created_at)::date AS day, coalesce(sum(amount::numeric),0) AS amt
-      FROM predictions
-      GROUP BY 1
-    ),
-    daily_payout AS (
-      SELECT date_trunc('day', created_at)::date AS day, coalesce(sum(potential_win::numeric),0) AS amt
-      FROM predictions WHERE status='won'
-      GROUP BY 1
+      FROM withdrawals WHERE status='approved' GROUP BY 1
     )
     SELECT
       ds.day::text AS date,
       coalesce(dd.amt,0)::float AS deposits,
       coalesce(dw.amt,0)::float AS withdrawals,
-      coalesce(db2.amt,0)::float AS bets,
-      (coalesce(db2.amt,0) - coalesce(dp.amt,0))::float AS revenue
+      0::float AS bets,
+      0::float AS revenue
     FROM date_series ds
     LEFT JOIN daily_deposits dd ON dd.day = ds.day
     LEFT JOIN daily_withdrawals dw ON dw.day = ds.day
-    LEFT JOIN daily_bets db2 ON db2.day = ds.day
-    LEFT JOIN daily_payout dp ON dp.day = ds.day
     ORDER BY ds.day
   `);
   res.json({ data: rows.rows });

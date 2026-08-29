@@ -120,7 +120,6 @@ export default function ProfileScreen() {
 
       {/* Menu */}
       <View style={s.menuSection}>
-        <MenuItem icon="trophy-outline"            label={t('profile_my_predictions')} onPress={() => router.push('/(tabs)/predictions')} />
         <MenuItem icon="wallet-outline"            label={t('profile_wallet')}          onPress={() => router.push('/(tabs)/wallet')} />
         <MenuItem icon="headset-outline"           label={t('profile_support')}         onPress={() => router.push('/(tabs)/support')} />
 

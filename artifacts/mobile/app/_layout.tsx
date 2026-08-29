@@ -76,7 +76,6 @@ function RootLayoutNav() {
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="admin" options={{ headerShown: false, presentation: 'card' }} />
-        <Stack.Screen name="match/[matchId]" options={{ headerShown: false, presentation: 'card' }} />
         <Stack.Screen name="support/ticket/[ticketId]" options={{ headerShown: false, presentation: 'card' }} />
       </Stack>
       <FloatingWhatsAppButton />

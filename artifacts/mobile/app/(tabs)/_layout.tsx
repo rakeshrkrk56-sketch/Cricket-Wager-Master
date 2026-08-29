@@ -46,12 +46,8 @@ function NativeTabLayout() {
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: 'cricket.ball', selected: 'cricket.ball.fill' }} />
-        <Label>{t('tab_matches')}</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="predictions">
-        <Icon sf={{ default: 'chart.bar', selected: 'chart.bar.fill' }} />
-        <Label>{t('tab_predictions')}</Label>
+        <Icon sf={{ default: 'house', selected: 'house.fill' }} />
+        <Label>{t('tab_home')}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="wallet">
         <Icon sf={{ default: 'wallet.pass', selected: 'wallet.pass.fill' }} />
@@ -107,17 +103,9 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: t('tab_matches'),
+          title: t('tab_home'),
           tabBarIcon: ({ color, size }) =>
-            isIOS ? <SymbolView name="sportscourt" tintColor={color} size={size} /> : <Ionicons name="trophy-outline" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="predictions"
-        options={{
-          title: t('tab_predictions'),
-          tabBarIcon: ({ color, size }) =>
-            isIOS ? <SymbolView name="chart.bar.fill" tintColor={color} size={size} /> : <Ionicons name="analytics-outline" size={22} color={color} />,
+            isIOS ? <SymbolView name="house" tintColor={color} size={size} /> : <Ionicons name="home-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen

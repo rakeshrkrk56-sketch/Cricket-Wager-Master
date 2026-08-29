@@ -659,7 +659,6 @@ export function UserDetail() {
                         event.type === "login" ? "bg-green-400" :
                         event.type === "deposit" ? "bg-blue-400" :
                         event.type === "withdrawal" ? "bg-yellow-400" :
-                        event.type === "prediction" ? "bg-purple-400" :
                         event.type === "kyc" ? "bg-cyan-400" :
                         event.type === "admin_action" ? "bg-red-400" :
                         "bg-muted-foreground"
@@ -673,7 +672,6 @@ export function UserDetail() {
                             <p className="text-xs text-muted-foreground capitalize">{event.detail}</p>
                           )}
                           {event.extra?.ip && <p className="text-xs text-muted-foreground font-mono">IP: {event.extra.ip}</p>}
-                          {event.extra?.question && <p className="text-xs text-muted-foreground">{event.extra.question}</p>}
                           {event.extra?.admin && <p className="text-xs text-muted-foreground">By: {event.extra.admin?.phone}</p>}
                         </div>
                         <p className="text-xs text-muted-foreground whitespace-nowrap shrink-0">

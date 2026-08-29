@@ -266,7 +266,7 @@ export default function WalletScreen() {
           if (code === 'ACCOUNT_HOLD') {
             Alert.alert(
               'Withdrawal Unavailable',
-              'Your account is currently under review. You can still deposit and participate in predictions, but withdrawals are temporarily disabled. Please contact support for assistance.',
+              'Your account is currently under review. You can still deposit, but withdrawals are temporarily disabled. Please contact support for assistance.',
               [{ text: 'OK' }],
             );
           } else if (code === 'ACCOUNT_SUSPENDED') {

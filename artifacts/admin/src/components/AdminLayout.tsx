@@ -1,13 +1,12 @@
 import { Link, useLocation } from "wouter";
 import { ReactNode, useState, useEffect } from "react";
-import { LayoutDashboard, Swords, Users, LogOut, Activity, ArrowDownCircle, ArrowUpCircle, MessageSquare, Building2, Menu, X, Shield } from "lucide-react";
+import { LayoutDashboard, Users, LogOut, Activity, ArrowDownCircle, ArrowUpCircle, MessageSquare, Building2, Menu, X, Shield } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useAdminListDeposits, useAdminListWithdrawals, useAdminListSupportTickets } from "@workspace/api-client-react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/matches", label: "Matches (मैच)", icon: Swords },
   { href: "/users", label: "Users (उपयोगकर्ता)", icon: Users },
   { href: "/deposits", label: "Deposits (जमा)", icon: ArrowDownCircle },
   { href: "/withdrawals", label: "Withdrawals (निकासी)", icon: ArrowUpCircle },

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Platform, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
@@ -10,16 +10,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  getAdminListDepositsQueryKey, getAdminListMatchesQueryKey, getAdminListSupportTicketsQueryKey,
-  getAdminListWithdrawalsQueryKey, getGetAdminStatsQueryKey, getGetMatchMarketsQueryKey,
-  getAdminGetSupportTicketQueryKey, getGetUserQueryKey, getListUsersQueryKey, useAdminAdjustWallet, useAdminGetSupportTicket,
-  useAdminListDeposits, useAdminListMatches, useAdminListSupportTickets, useAdminListWithdrawals,
-  useAdminReplyToTicket, useAdminUpdateTicketStatus, useApproveDeposit, useApproveWithdrawal,
-  useGetAdminStats, useGetMatchMarkets, useGetUser, useListUsers, useRefundMarket, useRejectDeposit,
-  useRejectWithdrawal, useSettleMarket, useUpdateMarket,
+  getAdminListDepositsQueryKey, getAdminListSupportTicketsQueryKey,
+  getAdminListWithdrawalsQueryKey, getGetAdminStatsQueryKey,
+  getAdminGetSupportTicketQueryKey, getGetUserQueryKey, getListUsersQueryKey,
+  useAdminAdjustWallet, useAdminGetSupportTicket, useAdminListDeposits,
+  useAdminListSupportTickets, useAdminListWithdrawals, useAdminReplyToTicket,
+  useAdminUpdateTicketStatus, useApproveDeposit, useApproveWithdrawal,
+  useGetAdminStats, useGetUser, useListUsers, useRejectDeposit, useRejectWithdrawal,
 } from '@workspace/api-client-react';
 
-type Section = 'home' | 'deposits' | 'withdrawals' | 'users' | 'support' | 'matches';
+type Section = 'home' | 'deposits' | 'withdrawals' | 'users' | 'support';
 const money = (value?: number) => `₹${Number(value ?? 0).toLocaleString('en-IN')}`;
 const shortDate = (value?: string) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 const errorText = (error: any) => error?.data?.error ?? error?.message ?? 'Please try again.';
@@ -31,30 +31,41 @@ function Gate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isLoading && !token) router.replace('/login');
   }, [isLoading, token]);
-  if (isLoading) return null;
-  if (!token) return null;
-  if (user?.role !== 'admin') return (
-    <View style={[s.gate, { backgroundColor: colors.background, paddingTop: insets.top + 50 }]}>
-      <Ionicons name="lock-closed-outline" color={colors.destructive} size={44} />
-      <Text style={[s.gateTitle, { color: colors.foreground }]}>Admin access only</Text>
-      <Text style={[s.gateText, { color: colors.mutedForeground }]}>Your account is not authorized to access operations.</Text>
-      <TouchableOpacity testID="admin-access-back" style={[s.primaryButton, { backgroundColor: colors.primary }]} onPress={() => router.back()}>
-        <Text style={[s.primaryText, { color: colors.primaryForeground }]}>Go back</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  if (isLoading || !token) return null;
+  if (user?.role !== 'admin') {
+    return (
+      <View style={[s.gate, { backgroundColor: colors.background, paddingTop: insets.top + 50 }]}>
+        <Ionicons name="lock-closed-outline" color={colors.destructive} size={44} />
+        <Text style={[s.gateTitle, { color: colors.foreground }]}>Admin access only</Text>
+        <Text style={[s.gateText, { color: colors.mutedForeground }]}>Your account is not authorized to access operations.</Text>
+        <TouchableOpacity style={[s.primaryButton, { backgroundColor: colors.primary }]} onPress={() => router.back()}>
+          <Text style={[s.primaryText, { color: colors.primaryForeground }]}>Go back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
   return <>{children}</>;
 }
 
 function Status({ value }: { value: string }) {
   const colors = useColors();
-  const color = value === 'approved' || value === 'active' || value === 'open' ? colors.success : value === 'rejected' || value === 'cancelled' || value === 'closed' ? colors.destructive : colors.warning;
+  const color = value === 'approved' || value === 'active' || value === 'open'
+    ? colors.success
+    : value === 'rejected' || value === 'cancelled' || value === 'closed'
+      ? colors.destructive
+      : colors.warning;
   return <View style={[s.pill, { backgroundColor: `${color}22` }]}><Text style={[s.pillText, { color }]}>{value.replace('_', ' ').toUpperCase()}</Text></View>;
 }
 
 function Empty({ icon, title, body }: { icon: any; title: string; body: string }) {
   const colors = useColors();
-  return <View style={s.empty}><Ionicons name={icon} size={45} color={colors.success} /><Text style={[s.emptyTitle, { color: colors.foreground }]}>{title}</Text><Text style={[s.emptyText, { color: colors.mutedForeground }]}>{body}</Text></View>;
+  return (
+    <View style={s.empty}>
+      <Ionicons name={icon} size={45} color={colors.success} />
+      <Text style={[s.emptyTitle, { color: colors.foreground }]}>{title}</Text>
+      <Text style={[s.emptyText, { color: colors.mutedForeground }]}>{body}</Text>
+    </View>
+  );
 }
 
 export default function AdminWorkspace() {
@@ -68,7 +79,6 @@ function AdminWorkspaceContent() {
   const [section, setSection] = useState<Section>('home');
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
-  const [selectedMatch, setSelectedMatch] = useState<any>(null);
   const [userSearch, setUserSearch] = useState('');
   const [remark, setRemark] = useState('');
   const [reply, setReply] = useState('');
@@ -77,14 +87,21 @@ function AdminWorkspaceContent() {
   const [walletType, setWalletType] = useState<'credit' | 'debit'>('credit');
 
   const stats = useGetAdminStats({ query: { queryKey: getGetAdminStatsQueryKey(), refetchInterval: 30000 } });
-  const deposits = useAdminListDeposits({ status: 'pending', page: 1, limit: 30 } as any, { query: { enabled: section === 'deposits', queryKey: getAdminListDepositsQueryKey({ status: 'pending', page: 1, limit: 30 } as any), refetchInterval: 30000 } });
-  const withdrawals = useAdminListWithdrawals({ status: 'pending', page: 1, limit: 30 } as any, { query: { enabled: section === 'withdrawals', queryKey: getAdminListWithdrawalsQueryKey({ status: 'pending', page: 1, limit: 30 } as any), refetchInterval: 30000 } });
+  const deposits = useAdminListDeposits(
+    { status: 'pending', page: 1, limit: 30 } as any,
+    { query: { enabled: section === 'deposits', queryKey: getAdminListDepositsQueryKey({ status: 'pending', page: 1, limit: 30 } as any), refetchInterval: 30000 } },
+  );
+  const withdrawals = useAdminListWithdrawals(
+    { status: 'pending', page: 1, limit: 30 } as any,
+    { query: { enabled: section === 'withdrawals', queryKey: getAdminListWithdrawalsQueryKey({ status: 'pending', page: 1, limit: 30 } as any), refetchInterval: 30000 } },
+  );
   const users = useListUsers({ page: 1, limit: 30, search: userSearch || undefined });
   const userDetail = useGetUser(selectedUser?.id ?? '', { query: { enabled: !!selectedUser?.id, queryKey: getGetUserQueryKey(selectedUser?.id ?? '') } });
-  const tickets = useAdminListSupportTickets({ page: 1, limit: 30 } as any, { query: { enabled: section === 'support', queryKey: getAdminListSupportTicketsQueryKey({ page: 1, limit: 30 } as any), refetchInterval: 30000 } });
+  const tickets = useAdminListSupportTickets(
+    { page: 1, limit: 30 } as any,
+    { query: { enabled: section === 'support', queryKey: getAdminListSupportTicketsQueryKey({ page: 1, limit: 30 } as any), refetchInterval: 30000 } },
+  );
   const ticketDetail = useAdminGetSupportTicket(selectedTicket?.id ?? '', { query: { enabled: !!selectedTicket?.id, queryKey: getAdminGetSupportTicketQueryKey(selectedTicket?.id ?? '') } });
-  const matches = useAdminListMatches(undefined, { query: { enabled: section === 'matches', queryKey: getAdminListMatchesQueryKey(), refetchInterval: 30000 } });
-  const markets = useGetMatchMarkets(selectedMatch?.id ?? '', undefined, { query: { enabled: !!selectedMatch?.id, queryKey: getGetMatchMarketsQueryKey(selectedMatch?.id ?? '') } });
 
   const approveDeposit = useApproveDeposit();
   const rejectDeposit = useRejectDeposit();
@@ -93,9 +110,6 @@ function AdminWorkspaceContent() {
   const adjustWallet = useAdminAdjustWallet();
   const replyTicket = useAdminReplyToTicket();
   const updateTicket = useAdminUpdateTicketStatus();
-  const settleMarket = useSettleMarket();
-  const refundMarket = useRefundMarket();
-  const updateMarket = useUpdateMarket();
 
   const refresh = useCallback(async () => {
     await Promise.all([
@@ -104,65 +118,176 @@ function AdminWorkspaceContent() {
       client.invalidateQueries({ queryKey: getAdminListWithdrawalsQueryKey() }),
       client.invalidateQueries({ queryKey: getListUsersQueryKey() }),
       client.invalidateQueries({ queryKey: getAdminListSupportTicketsQueryKey() }),
-      client.invalidateQueries({ queryKey: getAdminListMatchesQueryKey() }),
     ]);
   }, [client]);
   const successRefresh = useCallback((message: string) => { refresh(); Alert.alert('Updated', message); }, [refresh]);
-  const confirm = (title: string, body: string, action: () => void, destructive = false) => Alert.alert(title, body, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', style: destructive ? 'destructive' : 'default', onPress: action }]);
+  const confirm = (title: string, body: string, action: () => void, destructive = false) => Alert.alert(
+    title, body, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', style: destructive ? 'destructive' : 'default', onPress: action }],
+  );
 
-  const header = useMemo(() => ({
-    home: ['Admin workspace', 'Live operations overview'],
+  const titles: Record<Section, [string, string]> = {
+    home: ['Admin workspace', 'Account and payment operations'],
     deposits: ['Deposits', 'Pending requests'],
     withdrawals: ['Withdrawals', 'Pending requests'],
     users: ['Users', 'Search accounts and wallets'],
     support: ['Support', 'Open customer tickets'],
-    matches: ['Matches', 'Live markets and settlement'],
-  }[section]), [section]);
-  const nav: [Section, string, any][] = [['home', 'Home', 'grid-outline'], ['deposits', 'Deposits', 'arrow-down-circle-outline'], ['withdrawals', 'Withdrawals', 'arrow-up-circle-outline'], ['users', 'Users', 'people-outline'], ['support', 'Support', 'chatbubbles-outline'], ['matches', 'Matches', 'trophy-outline']];
+  };
+  const nav: [Section, string, any][] = [
+    ['home', 'Home', 'grid-outline'],
+    ['deposits', 'Deposits', 'arrow-down-circle-outline'],
+    ['withdrawals', 'Withdrawals', 'arrow-up-circle-outline'],
+    ['users', 'Users', 'people-outline'],
+    ['support', 'Support', 'chatbubbles-outline'],
+  ];
 
   const queueAction = (kind: 'deposit' | 'withdrawal', item: any, outcome: 'approve' | 'reject') => {
-    const mutation = kind === 'deposit' ? (outcome === 'approve' ? approveDeposit : rejectDeposit) : (outcome === 'approve' ? approveWithdrawal : rejectWithdrawal);
+    const mutation = kind === 'deposit'
+      ? (outcome === 'approve' ? approveDeposit : rejectDeposit)
+      : (outcome === 'approve' ? approveWithdrawal : rejectWithdrawal);
     const remarks = remark.trim();
-    if (outcome === 'reject' && !remarks) { Alert.alert('Remark required', 'Add a reason before rejecting this request.'); return; }
-    confirm(`${outcome === 'approve' ? 'Approve' : 'Reject'} ${kind}?`, `${money(item.amount)} for ${item.user?.phone ?? item.userId}. This changes the request status${outcome === 'approve' && kind === 'deposit' ? ' and credits the wallet' : ''}.`, () => {
-      mutation.mutate({ [`${kind}Id`]: item.id, data: { remarks: remarks || undefined } } as any, {
-        onSuccess: () => { setRemark(''); successRefresh(`${kind[0].toUpperCase() + kind.slice(1)} ${outcome}d.`); },
-        onError: (e: any) => Alert.alert('Action failed', errorText(e)),
-      });
-    }, outcome === 'reject');
+    if (outcome === 'reject' && !remarks) {
+      Alert.alert('Remark required', 'Add a reason before rejecting this request.');
+      return;
+    }
+    confirm(
+      `${outcome === 'approve' ? 'Approve' : 'Reject'} ${kind}?`,
+      `${money(item.amount)} for ${item.user?.phone ?? item.userId}. This changes the request status${outcome === 'approve' && kind === 'deposit' ? ' and credits the wallet' : ''}.`,
+      () => mutation.mutate(
+        { [`${kind}Id`]: item.id, data: { remarks: remarks || undefined } } as any,
+        {
+          onSuccess: () => { setRemark(''); successRefresh(`${kind[0].toUpperCase() + kind.slice(1)} ${outcome}d.`); },
+          onError: (e: any) => Alert.alert('Action failed', errorText(e)),
+        },
+      ),
+      outcome === 'reject',
+    );
   };
 
   const renderQueue = (kind: 'deposit' | 'withdrawal', data: any[], loading: boolean) => (
-    <FlatList data={data} keyExtractor={(i) => i.id} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.primary} />} contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]}
-      ListHeaderComponent={<TextInput testID={`admin-${kind}-remark`} value={remark} onChangeText={setRemark} placeholder="Optional approval note · required to reject" placeholderTextColor={colors.mutedForeground} style={[s.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]} />}
+    <FlatList
+      data={data}
+      keyExtractor={(i) => i.id}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor={colors.primary} />}
+      contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]}
+      ListHeaderComponent={<TextInput value={remark} onChangeText={setRemark} placeholder="Optional approval note · required to reject" placeholderTextColor={colors.mutedForeground} style={[s.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]} />}
       ListEmptyComponent={!loading ? <Empty icon="checkmark-done-circle-outline" title="Nothing pending" body={`There are no pending ${kind}s right now.`} /> : <ActivityIndicator color={colors.primary} />}
-      renderItem={({ item }) => <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={s.row}><View style={{ flex: 1 }}><Text style={[s.amount, { color: colors.foreground }]}>{money(item.amount)}</Text><Text style={[s.cardTitle, { color: colors.foreground }]}>{item.user?.name ?? item.user?.phone ?? item.userId}</Text></View><Status value={item.status} /></View>
-        <Text style={[s.detail, { color: colors.mutedForeground }]}>{kind === 'deposit' ? item.utrNumber ? `UTR: ${item.utrNumber}` : item.method ?? 'Payment method not supplied' : item.upiId ? `UPI: ${item.upiId}` : item.bankAccount ? `Bank: ${item.bankAccount.accountNumber} · ${item.bankAccount.ifsc}` : 'Destination not supplied'}</Text>
-        <Text style={[s.detail, { color: colors.mutedForeground }]}>{shortDate(item.createdAt)}</Text>
-        <View style={s.actions}><TouchableOpacity testID={`admin-${kind}-approve-${item.id}`} style={[s.action, { backgroundColor: `${colors.success}22` }]} onPress={() => queueAction(kind, item, 'approve')}><Text style={{ color: colors.success }}>Approve</Text></TouchableOpacity><TouchableOpacity testID={`admin-${kind}-reject-${item.id}`} style={[s.action, { backgroundColor: `${colors.destructive}22` }]} onPress={() => queueAction(kind, item, 'reject')}><Text style={{ color: colors.destructive }}>Reject</Text></TouchableOpacity></View>
-      </View>} />
+      renderItem={({ item }) => (
+        <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={s.row}>
+            <View style={{ flex: 1 }}><Text style={[s.amount, { color: colors.foreground }]}>{money(item.amount)}</Text><Text style={[s.cardTitle, { color: colors.foreground }]}>{item.user?.name ?? item.user?.phone ?? item.userId}</Text></View>
+            <Status value={item.status} />
+          </View>
+          <Text style={[s.detail, { color: colors.mutedForeground }]}>{kind === 'deposit' ? item.utrNumber ? `UTR: ${item.utrNumber}` : item.method ?? 'Payment method not supplied' : item.upiId ? `UPI: ${item.upiId}` : item.bankAccount ? `Bank: ${item.bankAccount.accountNumber} · ${item.bankAccount.ifsc}` : 'Destination not supplied'}</Text>
+          <Text style={[s.detail, { color: colors.mutedForeground }]}>{shortDate(item.createdAt)}</Text>
+          <View style={s.actions}>
+            <TouchableOpacity style={[s.action, { backgroundColor: `${colors.success}22` }]} onPress={() => queueAction(kind, item, 'approve')}><Text style={{ color: colors.success }}>Approve</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.action, { backgroundColor: `${colors.destructive}22` }]} onPress={() => queueAction(kind, item, 'reject')}><Text style={{ color: colors.destructive }}>Reject</Text></TouchableOpacity>
+          </View>
+        </View>
+      )}
+    />
   );
 
-  const userView = selectedUser ? <ScrollView contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]}>
-    <TouchableOpacity onPress={() => setSelectedUser(null)}><Text style={[s.link, { color: colors.primary }]}>‹ All users</Text></TouchableOpacity>
-    {userDetail.isLoading ? <ActivityIndicator color={colors.primary} /> : <><View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}><Text style={[s.cardTitle, { color: colors.foreground }]}>{userDetail.data?.name || 'Unnamed user'}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>{userDetail.data?.phone}</Text><Text style={[s.amount, { color: colors.primary }]}>{money(userDetail.data?.walletBalance)}</Text><Status value={userDetail.data?.status ?? 'active'} /></View>
-      <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}><Text style={[s.cardTitle, { color: colors.foreground }]}>Wallet adjustment</Text><View style={s.actions}><TouchableOpacity style={[s.action, walletType === 'credit' && { backgroundColor: `${colors.success}22` }]} onPress={() => setWalletType('credit')}><Text style={{ color: colors.success }}>Credit</Text></TouchableOpacity><TouchableOpacity style={[s.action, walletType === 'debit' && { backgroundColor: `${colors.destructive}22` }]} onPress={() => setWalletType('debit')}><Text style={{ color: colors.destructive }}>Debit</Text></TouchableOpacity></View>
-        <TextInput testID="admin-wallet-amount" value={walletAmount} keyboardType="decimal-pad" onChangeText={setWalletAmount} placeholder="Amount" placeholderTextColor={colors.mutedForeground} style={[s.input, { color: colors.foreground, borderColor: colors.border }]} />
-        <TextInput testID="admin-wallet-reason" value={walletReason} onChangeText={setWalletReason} placeholder="Reason (required)" placeholderTextColor={colors.mutedForeground} style={[s.input, { color: colors.foreground, borderColor: colors.border }]} />
-        <TouchableOpacity testID="admin-wallet-submit" style={[s.primaryButton, { backgroundColor: walletType === 'credit' ? colors.success : colors.destructive }]} onPress={() => {
-          const amount = Number(walletAmount); if (!amount || amount < 1 || !walletReason.trim()) { Alert.alert('Enter amount and reason', 'A valid amount and a reason are required.'); return; }
-          confirm(`Confirm ${walletType}`, `${walletType === 'credit' ? 'Credit' : 'Debit'} ${money(amount)} ${walletType === 'credit' ? 'to' : 'from'} ${userDetail.data?.phone}. This is logged and cannot be undone.`, () => adjustWallet.mutate({ userId: selectedUser.id, data: { type: walletType, amount, reason: walletReason.trim() } }, { onSuccess: (result) => { setWalletAmount(''); setWalletReason(''); client.invalidateQueries({ queryKey: getGetUserQueryKey(selectedUser.id) }); Alert.alert('Wallet updated', `New balance: ${money(result.balanceAfter)}`); }, onError: (e: any) => Alert.alert('Adjustment failed', errorText(e)) }), walletType === 'debit');
-        }}><Text style={[s.primaryText, { color: colors.primaryForeground }]}>{walletType === 'credit' ? 'Credit wallet' : 'Debit wallet'}</Text></TouchableOpacity></View></>}
-  </ScrollView> : <FlatList data={users.data?.users ?? []} keyExtractor={(i) => i.id} contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]} refreshControl={<RefreshControl refreshing={users.isFetching} onRefresh={refresh} tintColor={colors.primary} />} ListHeaderComponent={<TextInput testID="admin-user-search" value={userSearch} onChangeText={setUserSearch} placeholder="Search phone number" placeholderTextColor={colors.mutedForeground} style={[s.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]} />} renderItem={({ item }) => <TouchableOpacity style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => setSelectedUser(item)}><View style={s.row}><View><Text style={[s.cardTitle, { color: colors.foreground }]}>{item.name || item.phone}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>{item.phone}</Text></View><Text style={[s.amountSmall, { color: colors.primary }]}>{money(item.walletBalance)}</Text></View><Status value={item.status} /></TouchableOpacity>} />;
+  const userView = selectedUser ? (
+    <ScrollView contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]}>
+      <TouchableOpacity onPress={() => setSelectedUser(null)}><Text style={[s.link, { color: colors.primary }]}>‹ All users</Text></TouchableOpacity>
+      {userDetail.isLoading ? <ActivityIndicator color={colors.primary} /> : (
+        <>
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.cardTitle, { color: colors.foreground }]}>{userDetail.data?.name || 'Unnamed user'}</Text>
+            <Text style={[s.detail, { color: colors.mutedForeground }]}>{userDetail.data?.phone}</Text>
+            <Text style={[s.amount, { color: colors.primary }]}>{money(userDetail.data?.walletBalance)}</Text>
+            <Status value={userDetail.data?.status ?? 'active'} />
+          </View>
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.cardTitle, { color: colors.foreground }]}>Wallet adjustment</Text>
+            <View style={s.actions}>
+              <TouchableOpacity style={[s.action, walletType === 'credit' && { backgroundColor: `${colors.success}22` }]} onPress={() => setWalletType('credit')}><Text style={{ color: colors.success }}>Credit</Text></TouchableOpacity>
+              <TouchableOpacity style={[s.action, walletType === 'debit' && { backgroundColor: `${colors.destructive}22` }]} onPress={() => setWalletType('debit')}><Text style={{ color: colors.destructive }}>Debit</Text></TouchableOpacity>
+            </View>
+            <TextInput value={walletAmount} keyboardType="decimal-pad" onChangeText={setWalletAmount} placeholder="Amount" placeholderTextColor={colors.mutedForeground} style={[s.input, { color: colors.foreground, borderColor: colors.border }]} />
+            <TextInput value={walletReason} onChangeText={setWalletReason} placeholder="Reason (required)" placeholderTextColor={colors.mutedForeground} style={[s.input, { color: colors.foreground, borderColor: colors.border }]} />
+            <TouchableOpacity style={[s.primaryButton, { backgroundColor: walletType === 'credit' ? colors.success : colors.destructive }]} onPress={() => {
+              const amount = Number(walletAmount);
+              if (!amount || amount < 1 || !walletReason.trim()) { Alert.alert('Enter amount and reason', 'A valid amount and a reason are required.'); return; }
+              confirm(`Confirm ${walletType}`, `${walletType === 'credit' ? 'Credit' : 'Debit'} ${money(amount)} ${walletType === 'credit' ? 'to' : 'from'} ${userDetail.data?.phone}. This is logged and cannot be undone.`, () => adjustWallet.mutate(
+                { userId: selectedUser.id, data: { type: walletType, amount, reason: walletReason.trim() } },
+                { onSuccess: (result) => { setWalletAmount(''); setWalletReason(''); client.invalidateQueries({ queryKey: getGetUserQueryKey(selectedUser.id) }); Alert.alert('Wallet updated', `New balance: ${money(result.balanceAfter)}`); }, onError: (e: any) => Alert.alert('Adjustment failed', errorText(e)) },
+              ), walletType === 'debit');
+            }}><Text style={[s.primaryText, { color: colors.primaryForeground }]}>{walletType === 'credit' ? 'Credit wallet' : 'Debit wallet'}</Text></TouchableOpacity>
+          </View>
+        </>
+      )}
+    </ScrollView>
+  ) : (
+    <FlatList
+      data={users.data?.users ?? []}
+      keyExtractor={(i) => i.id}
+      contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]}
+      refreshControl={<RefreshControl refreshing={users.isFetching} onRefresh={refresh} tintColor={colors.primary} />}
+      ListHeaderComponent={<TextInput value={userSearch} onChangeText={setUserSearch} placeholder="Search phone number" placeholderTextColor={colors.mutedForeground} style={[s.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]} />}
+      renderItem={({ item }) => (
+        <TouchableOpacity style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => setSelectedUser(item)}>
+          <View style={s.row}><View><Text style={[s.cardTitle, { color: colors.foreground }]}>{item.name || item.phone}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>{item.phone}</Text></View><Text style={[s.amountSmall, { color: colors.primary }]}>{money(item.walletBalance)}</Text></View>
+          <Status value={item.status} />
+        </TouchableOpacity>
+      )}
+    />
+  );
 
-  const supportView = selectedTicket ? <ScrollView contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]}><TouchableOpacity onPress={() => setSelectedTicket(null)}><Text style={[s.link, { color: colors.primary }]}>‹ All tickets</Text></TouchableOpacity>{ticketDetail.isLoading ? <ActivityIndicator color={colors.primary} /> : <><View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}><Text style={[s.cardTitle, { color: colors.foreground }]}>{ticketDetail.data?.ticket.subject}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>{ticketDetail.data?.ticket.description}</Text><Status value={ticketDetail.data?.ticket.status ?? 'open'} /></View>{ticketDetail.data?.messages.map((m: any) => <View key={m.id} style={[s.message, { backgroundColor: m.isAdmin ? `${colors.primary}24` : colors.card, borderColor: colors.border }]}><Text style={[s.detail, { color: colors.foreground }]}>{m.message}</Text><Text style={[s.tiny, { color: colors.mutedForeground }]}>{m.isAdmin ? 'Admin' : 'Customer'} · {shortDate(m.createdAt)}</Text></View>)}<TextInput testID="admin-ticket-reply" value={reply} onChangeText={setReply} multiline placeholder="Write a reply" placeholderTextColor={colors.mutedForeground} style={[s.input, s.multiline, { color: colors.foreground, borderColor: colors.border }]} /><TouchableOpacity testID="admin-ticket-reply-submit" style={[s.primaryButton, { backgroundColor: colors.primary }]} onPress={() => { if (!reply.trim()) return; replyTicket.mutate({ ticketId: selectedTicket.id, data: { message: reply.trim() } }, { onSuccess: () => { setReply(''); client.invalidateQueries({ queryKey: getAdminListSupportTicketsQueryKey() }); ticketDetail.refetch(); }, onError: (e: any) => Alert.alert('Reply failed', errorText(e)) }); }}><Text style={[s.primaryText, { color: colors.primaryForeground }]}>Send reply</Text></TouchableOpacity><View style={s.actions}>{(['in_progress', 'resolved', 'closed'] as const).map(status => <TouchableOpacity key={status} style={[s.action, { backgroundColor: `${colors.primary}20` }]} onPress={() => confirm('Update ticket', `Mark this ticket as ${status.replace('_', ' ')}?`, () => updateTicket.mutate({ ticketId: selectedTicket.id, data: { status } }, { onSuccess: () => { ticketDetail.refetch(); refresh(); }, onError: (e: any) => Alert.alert('Update failed', errorText(e)) }))}><Text style={{ color: colors.primary }}>{status.replace('_', ' ')}</Text></TouchableOpacity>)}</View></>}</ScrollView> : <FlatList data={tickets.data?.tickets ?? []} keyExtractor={(i) => i.id} contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]} refreshControl={<RefreshControl refreshing={tickets.isFetching} onRefresh={refresh} tintColor={colors.primary} />} renderItem={({ item }: any) => <TouchableOpacity style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => setSelectedTicket(item)}><View style={s.row}><View style={{ flex: 1 }}><Text style={[s.cardTitle, { color: colors.foreground }]}>{item.subject}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>{item.user?.phone ?? item.userId} · {item.category}</Text></View><Status value={item.status} /></View></TouchableOpacity>} />;
+  const supportView = selectedTicket ? (
+    <ScrollView contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]}>
+      <TouchableOpacity onPress={() => setSelectedTicket(null)}><Text style={[s.link, { color: colors.primary }]}>‹ All tickets</Text></TouchableOpacity>
+      {ticketDetail.isLoading ? <ActivityIndicator color={colors.primary} /> : (
+        <>
+          <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[s.cardTitle, { color: colors.foreground }]}>{ticketDetail.data?.ticket.subject}</Text>
+            <Text style={[s.detail, { color: colors.mutedForeground }]}>{ticketDetail.data?.ticket.description}</Text>
+            <Status value={ticketDetail.data?.ticket.status ?? 'open'} />
+          </View>
+          {ticketDetail.data?.messages.map((m: any) => <View key={m.id} style={[s.message, { backgroundColor: m.isAdmin ? `${colors.primary}24` : colors.card, borderColor: colors.border }]}><Text style={[s.detail, { color: colors.foreground }]}>{m.message}</Text><Text style={[s.tiny, { color: colors.mutedForeground }]}>{m.isAdmin ? 'Admin' : 'Customer'} · {shortDate(m.createdAt)}</Text></View>)}
+          <TextInput value={reply} onChangeText={setReply} multiline placeholder="Write a reply" placeholderTextColor={colors.mutedForeground} style={[s.input, s.multiline, { color: colors.foreground, borderColor: colors.border }]} />
+          <TouchableOpacity style={[s.primaryButton, { backgroundColor: colors.primary }]} onPress={() => { if (!reply.trim()) return; replyTicket.mutate({ ticketId: selectedTicket.id, data: { message: reply.trim() } }, { onSuccess: () => { setReply(''); client.invalidateQueries({ queryKey: getAdminListSupportTicketsQueryKey() }); ticketDetail.refetch(); }, onError: (e: any) => Alert.alert('Reply failed', errorText(e)) }); }}><Text style={[s.primaryText, { color: colors.primaryForeground }]}>Send reply</Text></TouchableOpacity>
+          <View style={s.actions}>{(['in_progress', 'resolved', 'closed'] as const).map(status => <TouchableOpacity key={status} style={[s.action, { backgroundColor: `${colors.primary}20` }]} onPress={() => confirm('Update ticket', `Mark this ticket as ${status.replace('_', ' ')}?`, () => updateTicket.mutate({ ticketId: selectedTicket.id, data: { status } }, { onSuccess: () => { ticketDetail.refetch(); refresh(); }, onError: (e: any) => Alert.alert('Update failed', errorText(e)) }))}><Text style={{ color: colors.primary }}>{status.replace('_', ' ')}</Text></TouchableOpacity>)}</View>
+        </>
+      )}
+    </ScrollView>
+  ) : (
+    <FlatList data={tickets.data?.tickets ?? []} keyExtractor={(i) => i.id} contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]} refreshControl={<RefreshControl refreshing={tickets.isFetching} onRefresh={refresh} tintColor={colors.primary} />} renderItem={({ item }: any) => <TouchableOpacity style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => setSelectedTicket(item)}><View style={s.row}><View style={{ flex: 1 }}><Text style={[s.cardTitle, { color: colors.foreground }]}>{item.subject}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>{item.user?.phone ?? item.userId} · {item.category}</Text></View><Status value={item.status} /></View></TouchableOpacity>} />
+  );
 
-  const matchesView = selectedMatch ? <ScrollView contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]}><TouchableOpacity onPress={() => setSelectedMatch(null)}><Text style={[s.link, { color: colors.primary }]}>‹ All matches</Text></TouchableOpacity><View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}><Text style={[s.cardTitle, { color: colors.foreground }]}>{selectedMatch.team1} vs {selectedMatch.team2}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>{selectedMatch.tournament} · {shortDate(selectedMatch.startTime)}</Text><Status value={selectedMatch.status} /></View>{markets.isLoading ? <ActivityIndicator color={colors.primary} /> : (markets.data?.markets ?? []).map((market: any) => <View key={market.id} style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}><Text style={[s.cardTitle, { color: colors.foreground }]}>{market.question}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>YES {market.yesPrice} · NO {market.noPrice} · Pool {money(market.totalAmount)}</Text><Status value={market.status} />{(market.status === 'open' || market.status === 'paused') && <View style={s.actions}><TouchableOpacity style={[s.action, { backgroundColor: `${colors.warning}22` }]} onPress={() => updateMarket.mutate({ marketId: market.id, data: { status: market.status === 'open' ? 'paused' : 'open' } }, { onSuccess: () => markets.refetch(), onError: (e: any) => Alert.alert('Update failed', errorText(e)) })}><Text style={{ color: colors.warning }}>{market.status === 'open' ? 'Pause' : 'Resume'}</Text></TouchableOpacity><TouchableOpacity testID={`admin-market-settle-${market.id}`} style={[s.action, { backgroundColor: `${colors.success}22` }]} onPress={() => Alert.alert('Settle market', 'Choose the correct outcome. This pays winners and cannot be reversed.', [{ text: 'Cancel', style: 'cancel' }, { text: 'YES wins', onPress: () => settleMarket.mutate({ marketId: market.id, data: { correctAnswer: 'YES' } }, { onSuccess: () => { markets.refetch(); Alert.alert('Market settled'); }, onError: (e: any) => Alert.alert('Settlement failed', errorText(e)) }) }, { text: 'NO wins', onPress: () => settleMarket.mutate({ marketId: market.id, data: { correctAnswer: 'NO' } }, { onSuccess: () => { markets.refetch(); Alert.alert('Market settled'); }, onError: (e: any) => Alert.alert('Settlement failed', errorText(e)) }) }])}><Text style={{ color: colors.success }}>Settle</Text></TouchableOpacity><TouchableOpacity testID={`admin-market-refund-${market.id}`} style={[s.action, { backgroundColor: `${colors.destructive}22` }]} onPress={() => confirm('Refund market', `Refund all pending predictions for "${market.question}"? This cannot be undone.`, () => refundMarket.mutate({ marketId: market.id }, { onSuccess: () => { markets.refetch(); Alert.alert('Market refunded'); }, onError: (e: any) => Alert.alert('Refund failed', errorText(e)) }), true)}><Text style={{ color: colors.destructive }}>Refund</Text></TouchableOpacity></View>}</View>)}</ScrollView> : <FlatList data={matches.data?.matches ?? []} keyExtractor={(i) => i.id} contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]} refreshControl={<RefreshControl refreshing={matches.isFetching} onRefresh={refresh} tintColor={colors.primary} />} renderItem={({ item }) => <TouchableOpacity style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => setSelectedMatch(item)}><View style={s.row}><View><Text style={[s.cardTitle, { color: colors.foreground }]}>{item.team1} vs {item.team2}</Text><Text style={[s.detail, { color: colors.mutedForeground }]}>{item.tournament} · {shortDate(item.startTime)}</Text></View><Status value={item.status} /></View></TouchableOpacity>} />;
+  const home = (
+    <ScrollView contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]} refreshControl={<RefreshControl refreshing={stats.isFetching} onRefresh={refresh} tintColor={colors.primary} />}>
+      <View style={[s.notice, { backgroundColor: `${colors.primary}16`, borderColor: `${colors.primary}44` }]}><Ionicons name="shield-checkmark-outline" color={colors.primary} size={23} /><Text style={[s.detail, { color: colors.foreground, flex: 1 }]}>Every sensitive request is authorized by the server and requires a confirmation here.</Text></View>
+      <Text style={[s.sectionTitle, { color: colors.mutedForeground }]}>PENDING QUEUES</Text>
+      <View style={s.metrics}><Metric colors={colors} label="Deposits" value={String(stats.data?.pendingDepositsCount ?? 0)} onPress={() => setSection('deposits')} /><Metric colors={colors} label="Withdrawals" value={String(stats.data?.pendingWithdrawalsCount ?? 0)} onPress={() => setSection('withdrawals')} /></View>
+      <View style={s.metrics}><Metric colors={colors} label="Deposit value" value={money(stats.data?.pendingDepositsAmount)} /><Metric colors={colors} label="Withdrawal value" value={money(stats.data?.pendingWithdrawalsAmount)} /></View>
+      <Text style={[s.sectionTitle, { color: colors.mutedForeground }]}>PLATFORM</Text>
+      <View style={s.metrics}><Metric colors={colors} label="Active users" value={String(stats.data?.activeUsers ?? 0)} onPress={() => setSection('users')} /><Metric colors={colors} label="Registered users" value={String(stats.data?.totalUsers ?? 0)} onPress={() => setSection('users')} /></View>
+    </ScrollView>
+  );
 
-  const home = <ScrollView contentContainerStyle={[s.list, { paddingBottom: insets.bottom + 84 }]} refreshControl={<RefreshControl refreshing={stats.isFetching} onRefresh={refresh} tintColor={colors.primary} />}><View style={[s.notice, { backgroundColor: `${colors.primary}16`, borderColor: `${colors.primary}44` }]}><Ionicons name="shield-checkmark-outline" color={colors.primary} size={23} /><Text style={[s.detail, { color: colors.foreground, flex: 1 }]}>Every sensitive request is authorized by the server and requires a confirmation here.</Text></View><Text style={[s.sectionTitle, { color: colors.mutedForeground }]}>PENDING QUEUES</Text><View style={s.metrics}><Metric colors={colors} label="Deposits" value={String(stats.data?.pendingDepositsCount ?? 0)} onPress={() => setSection('deposits')} /><Metric colors={colors} label="Withdrawals" value={String(stats.data?.pendingWithdrawalsCount ?? 0)} onPress={() => setSection('withdrawals')} /></View><View style={s.metrics}><Metric colors={colors} label="Deposit value" value={money(stats.data?.pendingDepositsAmount)} /><Metric colors={colors} label="Withdrawal value" value={money(stats.data?.pendingWithdrawalsAmount)} /></View><Text style={[s.sectionTitle, { color: colors.mutedForeground }]}>PLATFORM</Text><View style={s.metrics}><Metric colors={colors} label="Active users" value={String(stats.data?.activeUsers ?? 0)} onPress={() => setSection('users')} /><Metric colors={colors} label="Live matches" value={String(stats.data?.liveMatches ?? 0)} onPress={() => setSection('matches')} /></View></ScrollView>;
+  const content = section === 'home'
+    ? home
+    : section === 'deposits'
+      ? renderQueue('deposit', (deposits.data as any)?.deposits ?? [], deposits.isLoading)
+      : section === 'withdrawals'
+        ? renderQueue('withdrawal', (withdrawals.data as any)?.withdrawals ?? [], withdrawals.isLoading)
+        : section === 'users' ? userView : supportView;
 
-  return <View style={[s.root, { backgroundColor: colors.background }]}><View style={[s.header, { paddingTop: insets.top + (Platform.OS === 'web' ? 65 : 12), borderBottomColor: colors.border }]}><TouchableOpacity accessibilityLabel="Back to profile" style={[s.circle, { backgroundColor: colors.card }]} onPress={() => router.back()}><Ionicons name="arrow-back" size={20} color={colors.foreground} /></TouchableOpacity><View style={{ flex: 1 }}><Text style={[s.headerTitle, { color: colors.foreground }]}>{header[0]}</Text><Text style={[s.headerSub, { color: colors.mutedForeground }]}>{header[1]}</Text></View><TouchableOpacity testID="admin-refresh" style={[s.circle, { backgroundColor: colors.card }]} onPress={refresh}><Ionicons name="refresh-outline" size={20} color={colors.primary} /></TouchableOpacity></View><ScrollView horizontal showsHorizontalScrollIndicator={false} style={[s.nav, { borderBottomColor: colors.border }]} contentContainerStyle={s.navInner}>{nav.map(([key, label, icon]) => <TouchableOpacity key={key} testID={`admin-nav-${key}`} style={[s.navItem, section === key && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]} onPress={() => { setSection(key); setSelectedUser(null); setSelectedTicket(null); setSelectedMatch(null); }}><Ionicons name={icon} size={16} color={section === key ? colors.primary : colors.mutedForeground} /><Text style={[s.navLabel, { color: section === key ? colors.primary : colors.mutedForeground }]}>{label}</Text></TouchableOpacity>)}</ScrollView>{section === 'home' ? home : section === 'deposits' ? renderQueue('deposit', (deposits.data as any)?.deposits ?? [], deposits.isLoading) : section === 'withdrawals' ? renderQueue('withdrawal', (withdrawals.data as any)?.withdrawals ?? [], withdrawals.isLoading) : section === 'users' ? userView : section === 'support' ? supportView : matchesView}</View>;
+  return (
+    <View style={[s.root, { backgroundColor: colors.background }]}>
+      <View style={[s.header, { paddingTop: insets.top + (Platform.OS === 'web' ? 65 : 12), borderBottomColor: colors.border }]}>
+        <TouchableOpacity accessibilityLabel="Back to profile" style={[s.circle, { backgroundColor: colors.card }]} onPress={() => router.back()}><Ionicons name="arrow-back" size={20} color={colors.foreground} /></TouchableOpacity>
+        <View style={{ flex: 1 }}><Text style={[s.headerTitle, { color: colors.foreground }]}>{titles[section][0]}</Text><Text style={[s.headerSub, { color: colors.mutedForeground }]}>{titles[section][1]}</Text></View>
+        <TouchableOpacity accessibilityLabel="Refresh" style={[s.circle, { backgroundColor: colors.card }]} onPress={refresh}><Ionicons name="refresh-outline" size={20} color={colors.primary} /></TouchableOpacity>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[s.nav, { borderBottomColor: colors.border }]} contentContainerStyle={s.navInner}>
+        {nav.map(([key, label, icon]) => <TouchableOpacity key={key} style={[s.navItem, section === key && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]} onPress={() => { setSection(key); setSelectedUser(null); setSelectedTicket(null); }}><Ionicons name={icon} size={16} color={section === key ? colors.primary : colors.mutedForeground} /><Text style={[s.navLabel, { color: section === key ? colors.primary : colors.mutedForeground }]}>{label}</Text></TouchableOpacity>)}
+      </ScrollView>
+      {content}
+    </View>
+  );
 }
 
 function Metric({ colors, label, value, onPress }: { colors: any; label: string; value: string; onPress?: () => void }) {

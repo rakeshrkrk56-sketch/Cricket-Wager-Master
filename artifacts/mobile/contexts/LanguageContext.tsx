@@ -14,6 +14,7 @@ const translations = {
     lang_hi: 'हिंदी (Hindi)',
 
     // Tabs
+    tab_home: 'Home',
     tab_matches: 'Matches',
     tab_predictions: 'Predictions',
     tab_wallet: 'Wallet',
@@ -281,6 +282,7 @@ const translations = {
     lang_hi: 'हिंदी (Hindi)',
 
     // Tabs
+    tab_home: 'होम',
     tab_matches: 'मैच',
     tab_predictions: 'भविष्यवाणी',
     tab_wallet: 'वॉलेट',

@@ -21,7 +21,7 @@ const STATUS_COLOR: Record<string, string> = {
 type Tab = 'home' | 'tickets' | 'new';
 
 type Category =
-  | 'deposit_issue' | 'withdrawal_issue' | 'prediction_issue'
+  | 'deposit_issue' | 'withdrawal_issue'
   | 'kyc_issue' | 'account_issue' | 'technical_problem' | 'other';
 
 function FAQItem({ q, a }: { q: string; a: string }) {
@@ -57,7 +57,6 @@ export default function SupportScreen() {
   const CATEGORIES: { value: Category; labelKey: string; icon: string }[] = [
     { value: 'deposit_issue',    labelKey: 'support_cat_deposit',    icon: 'arrow-down-circle-outline' },
     { value: 'withdrawal_issue', labelKey: 'support_cat_withdraw',   icon: 'arrow-up-circle-outline' },
-    { value: 'prediction_issue', labelKey: 'support_cat_prediction', icon: 'trophy-outline' },
     { value: 'kyc_issue',        labelKey: 'support_cat_kyc',        icon: 'person-outline' },
     { value: 'account_issue',    labelKey: 'support_cat_account',    icon: 'settings-outline' },
     { value: 'technical_problem',labelKey: 'support_cat_technical',  icon: 'bug-outline' },

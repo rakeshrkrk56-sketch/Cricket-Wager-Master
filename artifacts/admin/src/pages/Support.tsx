@@ -23,7 +23,6 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
 const CATEGORY_LABELS: Record<string, string> = {
   deposit_issue: "Deposit Issue",
   withdrawal_issue: "Withdrawal Issue",
-  prediction_issue: "Prediction Issue",
   kyc_issue: "KYC Issue",
   account_issue: "Account Issue",
   technical_problem: "Technical Problem",

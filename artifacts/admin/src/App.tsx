@@ -5,8 +5,6 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AdminLayout } from '@/components/AdminLayout';
 
 import { Dashboard } from '@/pages/Dashboard';
-import { Matches } from '@/pages/Matches';
-import { MatchDetail } from '@/pages/MatchDetail';
 import { Users } from '@/pages/Users';
 import { UserDetail } from '@/pages/UserDetail';
 import { Deposits } from '@/pages/Deposits';
@@ -48,12 +46,6 @@ function Router() {
       
       <Route path="/">
         <ProtectedRoute component={Dashboard} />
-      </Route>
-      <Route path="/matches">
-        <ProtectedRoute component={Matches} />
-      </Route>
-      <Route path="/matches/:matchId">
-        <ProtectedRoute component={MatchDetail} />
       </Route>
       <Route path="/users">
         <ProtectedRoute component={Users} />
