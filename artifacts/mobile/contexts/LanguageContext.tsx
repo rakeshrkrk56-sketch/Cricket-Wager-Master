@@ -559,13 +559,18 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      const [stored, selected] = await Promise.all([
-        AsyncStorage.getItem(LANG_KEY),
-        AsyncStorage.getItem(LANG_SELECTED_KEY),
-      ]);
-      if (stored === 'en' || stored === 'hi') setLangState(stored);
-      if (!selected) setIsFirstLaunch(true);
-      setIsReady(true);
+      try {
+        const [stored, selected] = await Promise.all([
+          AsyncStorage.getItem(LANG_KEY),
+          AsyncStorage.getItem(LANG_SELECTED_KEY),
+        ]);
+        if (stored === 'en' || stored === 'hi') setLangState(stored);
+        if (!selected) setIsFirstLaunch(true);
+      } catch (error) {
+        console.error('Unable to restore language preference', error);
+      } finally {
+        setIsReady(true);
+      }
     })();
   }, []);
 

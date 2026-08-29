@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { AppState, Platform } from 'react-native';
+import { ActivityIndicator, AppState, Platform, View } from 'react-native';
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -37,7 +37,13 @@ function RootLayoutNav() {
   const { isLoading: authLoading } = useAuth();
   const { isReady: langReady } = useLanguage();
 
-  if (authLoading || !langReady) return null;
+  if (authLoading || !langReady) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8f9fb' }}>
+        <ActivityIndicator color="#ff7a00" size="large" />
+      </View>
+    );
+  }
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -57,10 +63,16 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+  const [startupTimedOut, setStartupTimedOut] = React.useState(false);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) SplashScreen.hideAsync();
-  }, [fontsLoaded, fontError]);
+    const timeout = setTimeout(() => setStartupTimedOut(true), 3_000);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  useEffect(() => {
+    if (fontsLoaded || fontError || startupTimedOut) SplashScreen.hideAsync();
+  }, [fontsLoaded, fontError, startupTimedOut]);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -70,7 +82,7 @@ export default function RootLayout() {
     return () => subscription.remove();
   }, []);
 
-  if (!fontsLoaded && !fontError) return null;
+  if (!fontsLoaded && !fontError && !startupTimedOut) return null;
 
   return (
     <SafeAreaProvider>
