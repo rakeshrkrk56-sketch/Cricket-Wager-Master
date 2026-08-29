@@ -15,10 +15,11 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGetWallet, getGetWalletQueryKey } from '@workspace/api-client-react';
 
@@ -74,11 +75,19 @@ export default function HomeScreen() {
 
 function GameLobby() {
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const { user, token } = useAuth();
+  const isPortrait = height > width;
   const { data: walletData } = useGetWallet({
     query: { enabled: !!token, queryKey: getGetWalletQueryKey() },
   });
   const balance = Number(walletData?.balance ?? user?.walletBalance ?? 0);
+
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS !== 'web') {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => undefined);
+    }
+  }, []));
 
   const openWallet = (action: 'deposit' | 'withdraw') => {
     router.push({ pathname: '/(tabs)/wallet', params: { open: action, request: Date.now().toString() } });
@@ -104,7 +113,7 @@ function GameLobby() {
           paddingBottom: Math.max(insets.bottom, 8) + (Platform.OS === 'web' ? 84 : 56),
         },
       ]}>
-        <View style={lobbyStyles.header}>
+        <View style={[lobbyStyles.header, isPortrait && lobbyStyles.headerPortrait]}>
           <View style={lobbyStyles.profileBlock}>
             <LinearGradient colors={['#FFE58A', '#F59E0B']} style={lobbyStyles.avatar}>
               <Ionicons name="person" size={24} color="#7C2D12" />
@@ -126,7 +135,7 @@ function GameLobby() {
             </TouchableOpacity>
           </View>
 
-          <View style={lobbyStyles.headerTools}>
+          <View style={[lobbyStyles.headerTools, isPortrait && lobbyStyles.headerToolsPortrait]}>
             <View style={lobbyStyles.livePill}>
               <View style={lobbyStyles.liveDot} />
               <Text style={lobbyStyles.liveText}>LIVE GAMES</Text>
@@ -140,8 +149,8 @@ function GameLobby() {
           </View>
         </View>
 
-        <View style={lobbyStyles.body}>
-          <TouchableOpacity style={lobbyStyles.hero} onPress={openDragonTiger} activeOpacity={0.9} testID="lobby-featured-dragon-tiger">
+        <View style={[lobbyStyles.body, isPortrait && lobbyStyles.bodyPortrait]}>
+          <TouchableOpacity style={[lobbyStyles.hero, isPortrait && lobbyStyles.heroPortrait]} onPress={openDragonTiger} activeOpacity={0.9} testID="lobby-featured-dragon-tiger">
             <Image source={require('../../assets/images/dragon-tiger-casino-wide.png')} style={lobbyStyles.heroImage} resizeMode="cover" />
             <LinearGradient colors={['transparent', 'rgba(45,6,12,0.92)']} style={StyleSheet.absoluteFill} />
             <View style={lobbyStyles.featuredBadge}>
@@ -230,6 +239,17 @@ function DragonTigerGame() {
     query: { enabled: !!token, queryKey: getGetWalletQueryKey() },
   });
   const liveBalance = privateBalance ?? Number(walletData?.balance ?? user?.walletBalance ?? 0);
+
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS !== 'web') {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => undefined);
+    }
+    return () => {
+      if (Platform.OS !== 'web') {
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => undefined);
+      }
+    };
+  }, []));
 
   useEffect(() => {
     if (!token) return;
@@ -779,6 +799,12 @@ const lobbyStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,215,106,0.65)',
   },
+  headerPortrait: {
+    height: 104,
+    flexWrap: 'wrap',
+    alignContent: 'space-between',
+    paddingVertical: 8,
+  },
   profileBlock: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 150 },
   avatar: {
     width: 36,
@@ -817,6 +843,7 @@ const lobbyStyles = StyleSheet.create({
   },
   withdrawText: { color: '#FFE8A3', fontSize: 11, fontFamily: 'Inter_700Bold' },
   headerTools: { minWidth: 150, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 7 },
+  headerToolsPortrait: { minWidth: 112 },
   livePill: {
     height: 25,
     paddingHorizontal: 9,
@@ -837,6 +864,7 @@ const lobbyStyles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
   },
   body: { flex: 1, flexDirection: 'row', gap: 10, paddingTop: 8 },
+  bodyPortrait: { flexDirection: 'column' },
   hero: {
     width: '35%',
     minWidth: 250,
@@ -846,6 +874,7 @@ const lobbyStyles = StyleSheet.create({
     borderColor: '#F7C951',
     backgroundColor: '#4A0915',
   },
+  heroPortrait: { width: '100%', minWidth: 0, height: 220, flexShrink: 0 },
   heroImage: { width: '100%', height: '100%' },
   featuredBadge: {
     position: 'absolute',

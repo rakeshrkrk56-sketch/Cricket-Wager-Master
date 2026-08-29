@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "Jazment Dragon Tiger",
+    "name": "Jazment",
     "slug": "mobile",
     "version": "1.0.0",
-    "orientation": "landscape",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
     "userInterfaceStyle": "light",
@@ -28,6 +28,12 @@
         }
       ],
       "expo-font",
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "PORTRAIT_UP"
+        }
+      ],
       "expo-web-browser"
     ],
     "experiments": {
