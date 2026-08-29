@@ -141,6 +141,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuthResponse"
 
+  /auth/admin-login:
+    post:
+      operationId: adminLogin
+      tags: [auth]
+      summary: Sign in to the admin panel with username and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginRequest"
+      responses:
+        "200":
+          description: Authenticated admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
   /auth/send-otp:
     post:
       operationId: sendOtp
@@ -1274,6 +1293,19 @@ components:
       required:
         - installationId
         - installationSecret
+
+    AdminLoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+      required:
+        - username
+        - password
 
     SendOtpRequest:
       type: object

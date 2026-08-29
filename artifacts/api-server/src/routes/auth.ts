@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { createHash } from "node:crypto";
+import { and, eq } from "drizzle-orm";
+import { createHash, scryptSync, timingSafeEqual } from "node:crypto";
 import { createToken, requireAuth, recordLoginHistory } from "../middlewares/auth";
 import {
   SendOtpBody,
@@ -89,6 +89,20 @@ function maskPhone(phone: string): string {
   return phone.length > 4 ? `${phone.slice(0, 3)}******${phone.slice(-2)}` : "***";
 }
 
+function configuredAdminCredentials(): { username: string; password: string } | null {
+  const username = process.env.ADMIN_USERNAME?.trim();
+  const password = process.env.ADMIN_PASSWORD;
+  return username && password ? { username, password } : null;
+}
+
+function secureCredentialMatch(input: string, configured: string): boolean {
+  const salt = process.env.SESSION_SECRET;
+  if (!salt) throw new Error("SESSION_SECRET is required");
+  const inputHash = scryptSync(input, salt, 32);
+  const configuredHash = scryptSync(configured, salt, 32);
+  return timingSafeEqual(inputHash, configuredHash);
+}
+
 async function readProviderResponse(response: Response): Promise<Record<string, unknown>> {
   try {
     const body: unknown = await response.json();
@@ -105,6 +119,61 @@ function providerSucceeded(response: Response, body: Record<string, unknown>): b
 function otpProviderConfigured(): boolean {
   return Boolean(FAST2SMS_API_KEY && FAST2SMS_OTP_ID);
 }
+
+router.post("/auth/admin-login", async (req, res): Promise<void> => {
+  const body = req.body as { username?: unknown; password?: unknown };
+  if (typeof body.username !== "string" || typeof body.password !== "string" || !body.username.trim() || !body.password) {
+    res.status(400).json({ error: "Username and password are required" });
+    return;
+  }
+
+  const credentials = configuredAdminCredentials();
+  if (!credentials) {
+    req.log.error("Admin username/password secrets are not configured");
+    res.status(503).json({ error: "Admin login is not configured" });
+    return;
+  }
+
+  let validCredentials = false;
+  try {
+    validCredentials =
+      secureCredentialMatch(body.username.trim(), credentials.username)
+      && secureCredentialMatch(body.password, credentials.password);
+  } catch (error) {
+    req.log.error({ err: error instanceof Error ? error.message : "unknown error" }, "Admin credential verification failed");
+    res.status(503).json({ error: "Admin login is not configured" });
+    return;
+  }
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(and(eq(usersTable.role, "admin"), eq(usersTable.status, "active")))
+    .limit(1);
+
+  if (!validCredentials || !user) {
+    res.status(401).json({ error: "Invalid username or password" });
+    return;
+  }
+
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket.remoteAddress ?? undefined;
+  const deviceInfo = req.headers["user-agent"] ?? undefined;
+  recordLoginHistory(user.id, ip, deviceInfo);
+
+  res.json({
+    token: createToken(user.id, user.role),
+    user: {
+      id: user.id,
+      phone: user.phone,
+      name: user.name ?? undefined,
+      walletBalance: Number(user.walletBalance),
+      kycStatus: user.kycStatus,
+      status: user.status,
+      role: user.role,
+      createdAt: user.createdAt.toISOString(),
+    },
+  });
+});
 
 router.post("/auth/send-otp", async (req, res): Promise<void> => {
   const parsed = SendOtpBody.safeParse(req.body);
