@@ -88,7 +88,7 @@ export default function LoginScreen() {
             <Text style={s.logoLetter}>J</Text>
           </View>
           <Text style={s.appName}>Jazment</Text>
-          <Text style={s.tagline}>Cricket Prediction Platform</Text>
+          <Text style={s.tagline}>Live Dragon Tiger</Text>
         </View>
 
         <View style={s.card}>

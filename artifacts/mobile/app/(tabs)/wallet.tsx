@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
@@ -109,11 +110,17 @@ export default function WalletScreen() {
   const { t, lang } = useLanguage();
   const locale  = lang === 'hi' ? 'hi-IN' : 'en-IN';
   const queryClient = useQueryClient();
+  const { open, request } = useLocalSearchParams<{ open?: string; request?: string }>();
 
   const [walletTab,     setWalletTab]     = useState<WalletTab>('transactions');
   const [showDeposit,   setShowDeposit]   = useState(false);
   const [showWithdraw,  setShowWithdraw]  = useState(false);
   const [depositTab,    setDepositTab]    = useState<DepositTab>('upi');
+
+  useEffect(() => {
+    if (open === 'deposit') setShowDeposit(true);
+    if (open === 'withdraw') setShowWithdraw(true);
+  }, [open, request]);
 
   // Deposit form
   const [depAmount,        setDepAmount]        = useState('');
