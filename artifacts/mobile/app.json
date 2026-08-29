@@ -6,12 +6,12 @@
     "orientation": "landscape",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0F1729"
+      "backgroundColor": "#F47D1C"
     },
     "ios": {
       "supportsTablet": false

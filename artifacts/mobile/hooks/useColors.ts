@@ -13,6 +13,6 @@ import colors from '@/constants/colors';
  * device's appearance setting.
  */
 export function useColors() {
-  const palette = colors.dark;
+  const palette = colors.light;
   return { ...palette, radius: colors.radius };
 }
