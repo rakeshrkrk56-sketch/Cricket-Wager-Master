@@ -1,8 +1,10 @@
 import { Link, useLocation } from "wouter";
 import { ReactNode, useState, useEffect } from "react";
-import { LayoutDashboard, Users, LogOut, Activity, ArrowDownCircle, ArrowUpCircle, MessageSquare, Building2, Menu, X, Shield, Gamepad2 } from "lucide-react";
+import { LayoutDashboard, Users, LogOut, Activity, ArrowDownCircle, ArrowUpCircle, MessageSquare, Building2, Menu, X, Shield, Gamepad2, Bell, BellOff } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { usePendingRequestAlerts } from "@/components/PendingRequestAlerts";
 import { useAdminListDeposits, useAdminListWithdrawals, useAdminListSupportTickets } from "@workspace/api-client-react";
 
 const NAV_ITEMS = [
@@ -19,6 +21,7 @@ const NAV_ITEMS = [
 export function AdminLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { logout } = useAuth();
+  const { alertsEnabled, setAlertsEnabled, notificationState } = usePendingRequestAlerts();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Close sidebar on route change
@@ -116,16 +119,29 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
       {/* ── Main content area ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile top bar with hamburger */}
-        <header className="md:hidden h-14 flex items-center px-4 border-b border-border bg-card flex-shrink-0 gap-3">
-          <button
-            className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-          <Activity className="w-5 h-5 text-primary" />
-          <span className="text-base font-bold font-mono tracking-tight text-white uppercase">Jazment Ops</span>
+        <header className="h-14 flex items-center justify-between px-4 md:px-6 border-b border-border bg-card flex-shrink-0 gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              className="md:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open navigation"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <Activity className="w-5 h-5 text-primary" />
+            <span className="text-base font-bold font-mono tracking-tight text-white uppercase">Jazment Ops</span>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground" title={notificationState === "unsupported" ? "Browser notifications are not supported" : notificationState === "denied" ? "Browser notifications are blocked in browser settings" : notificationState === "granted" ? "Browser notifications are enabled" : "Browser notifications are not enabled yet"}>
+              {alertsEnabled ? <Bell className="w-4 h-4 text-primary" /> : <BellOff className="w-4 h-4" />}
+              <span className="hidden sm:inline">Request alerts</span>
+              <Switch
+                checked={alertsEnabled}
+                onCheckedChange={setAlertsEnabled}
+                aria-label="Toggle new request alerts"
+              />
+            </div>
+          </div>
         </header>
 
         <main className="flex-1 overflow-auto bg-background/50">

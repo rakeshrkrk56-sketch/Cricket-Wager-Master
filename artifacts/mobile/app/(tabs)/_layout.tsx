@@ -141,7 +141,6 @@ function ClassicTabLayout() {
     </Tabs>
   );
 }
-
 export default function TabLayout() {
   const { isLoading } = useAuth();
   if (isLoading) return null;

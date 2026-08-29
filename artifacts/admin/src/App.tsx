@@ -15,6 +15,7 @@ import { BankAccount } from '@/pages/BankAccount';
 import { AuditLogs } from '@/pages/AuditLogs';
 import { GameControl } from '@/pages/GameControl';
 import { Login } from '@/pages/Login';
+import { PendingRequestAlertsProvider } from '@/components/PendingRequestAlerts';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -98,8 +99,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
         <AuthProvider>
-          <Router />
-          <Toaster />
+          <PendingRequestAlertsProvider>
+            <Router />
+            <Toaster />
+          </PendingRequestAlertsProvider>
         </AuthProvider>
       </WouterRouter>
     </QueryClientProvider>
