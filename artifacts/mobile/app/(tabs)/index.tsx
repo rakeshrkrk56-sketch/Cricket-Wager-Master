@@ -3,8 +3,10 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Image,
   ImageBackground,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -13,7 +15,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -66,6 +68,144 @@ const cardParts = (card: Card) => {
 };
 
 export default function HomeScreen() {
+  const { game } = useLocalSearchParams<{ game?: string }>();
+  return game === 'dragon-tiger' ? <DragonTigerGame /> : <GameLobby />;
+}
+
+function GameLobby() {
+  const insets = useSafeAreaInsets();
+  const { user, token } = useAuth();
+  const { data: walletData } = useGetWallet({
+    query: { enabled: !!token, queryKey: getGetWalletQueryKey() },
+  });
+  const balance = Number(walletData?.balance ?? user?.walletBalance ?? 0);
+
+  const openWallet = (action: 'deposit' | 'withdraw') => {
+    router.push({ pathname: '/(tabs)/wallet', params: { open: action, request: Date.now().toString() } });
+  };
+
+  const openDragonTiger = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push({ pathname: '/(tabs)', params: { game: 'dragon-tiger' } });
+  };
+
+  return (
+    <LinearGradient
+      colors={['#6B1020', '#A51D25', '#E24A19']}
+      locations={[0, 0.58, 1]}
+      style={lobbyStyles.root}
+    >
+      <View style={[
+        lobbyStyles.safeContent,
+        {
+          paddingTop: Math.max(insets.top, 8),
+          paddingLeft: Math.max(insets.left, 12),
+          paddingRight: Math.max(insets.right, 12),
+          paddingBottom: Math.max(insets.bottom, 8) + (Platform.OS === 'web' ? 84 : 56),
+        },
+      ]}>
+        <View style={lobbyStyles.header}>
+          <View style={lobbyStyles.profileBlock}>
+            <LinearGradient colors={['#FFE58A', '#F59E0B']} style={lobbyStyles.avatar}>
+              <Ionicons name="person" size={24} color="#7C2D12" />
+            </LinearGradient>
+            <View>
+              <Text style={lobbyStyles.eyebrow}>JAZMENT WALLET</Text>
+              <Text style={lobbyStyles.balance}>₹{balance.toFixed(2)}</Text>
+            </View>
+          </View>
+
+          <View style={lobbyStyles.cashActions}>
+            <TouchableOpacity style={lobbyStyles.cashButton} onPress={() => openWallet('deposit')} testID="lobby-deposit">
+              <Ionicons name="add-circle" size={17} color="#7C2D12" />
+              <Text style={lobbyStyles.cashButtonText}>ADD CASH</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={lobbyStyles.withdrawButton} onPress={() => openWallet('withdraw')} testID="lobby-withdraw">
+              <Ionicons name="cash-outline" size={17} color="#FFE8A3" />
+              <Text style={lobbyStyles.withdrawText}>WITHDRAW</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={lobbyStyles.headerTools}>
+            <View style={lobbyStyles.livePill}>
+              <View style={lobbyStyles.liveDot} />
+              <Text style={lobbyStyles.liveText}>LIVE GAMES</Text>
+            </View>
+            <TouchableOpacity style={lobbyStyles.toolButton} onPress={() => router.push('/(tabs)/notifications')}>
+              <Ionicons name="notifications" size={18} color="#FFF2C7" />
+            </TouchableOpacity>
+            <TouchableOpacity style={lobbyStyles.toolButton} onPress={() => router.push('/(tabs)/profile')}>
+              <Ionicons name="person-circle" size={20} color="#FFF2C7" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={lobbyStyles.body}>
+          <TouchableOpacity style={lobbyStyles.hero} onPress={openDragonTiger} activeOpacity={0.9} testID="lobby-featured-dragon-tiger">
+            <Image source={require('../../assets/images/dragon-tiger-casino-wide.png')} style={lobbyStyles.heroImage} resizeMode="cover" />
+            <LinearGradient colors={['transparent', 'rgba(45,6,12,0.92)']} style={StyleSheet.absoluteFill} />
+            <View style={lobbyStyles.featuredBadge}>
+              <Ionicons name="flash" size={11} color="#7C2D12" />
+              <Text style={lobbyStyles.featuredBadgeText}>LIVE NOW</Text>
+            </View>
+            <View style={lobbyStyles.heroCopy}>
+              <Text style={lobbyStyles.heroTitle}>DRAGON TIGER</Text>
+              <Text style={lobbyStyles.heroSubtitle}>Fast rounds • Real wallet</Text>
+              <View style={lobbyStyles.playNow}>
+                <Text style={lobbyStyles.playNowText}>PLAY NOW</Text>
+                <Ionicons name="play" size={12} color="#7C2D12" />
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          <View style={lobbyStyles.catalog}>
+            <View style={lobbyStyles.sectionHeading}>
+              <View>
+                <Text style={lobbyStyles.sectionTitle}>CHOOSE A GAME</Text>
+                <Text style={lobbyStyles.sectionSubtitle}>More games will appear here</Text>
+              </View>
+              <Text style={lobbyStyles.gameCount}>1 LIVE</Text>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={lobbyStyles.gameRow}>
+              <TouchableOpacity style={lobbyStyles.gameCard} onPress={openDragonTiger} testID="lobby-game-dragon-tiger">
+                <Image source={require('../../assets/images/icon.png')} style={lobbyStyles.gameImage} />
+                <View style={lobbyStyles.hotBadge}><Text style={lobbyStyles.hotText}>HOT</Text></View>
+                <View style={lobbyStyles.gameCardFooter}>
+                  <Text style={lobbyStyles.gameTitle}>Dragon Tiger</Text>
+                  <Text style={lobbyStyles.gameMeta}>Live table</Text>
+                </View>
+              </TouchableOpacity>
+
+              <View style={lobbyStyles.comingCard}>
+                <Ionicons name="game-controller" size={30} color="#FFD76A" />
+                <Text style={lobbyStyles.comingTitle}>MORE GAMES</Text>
+                <Text style={lobbyStyles.comingText}>Coming soon</Text>
+              </View>
+              <View style={lobbyStyles.comingCard}>
+                <Ionicons name="dice" size={30} color="#FFD76A" />
+                <Text style={lobbyStyles.comingTitle}>NEW TABLE</Text>
+                <Text style={lobbyStyles.comingText}>Coming soon</Text>
+              </View>
+            </ScrollView>
+
+            <View style={lobbyStyles.recentRow}>
+              <Ionicons name="time" size={14} color="#FFD76A" />
+              <Text style={lobbyStyles.recentLabel}>RECENTLY PLAYED</Text>
+              <TouchableOpacity style={lobbyStyles.recentChip} onPress={openDragonTiger}>
+                <Image source={require('../../assets/images/icon.png')} style={lobbyStyles.recentIcon} />
+                <Text style={lobbyStyles.recentName}>Dragon Tiger</Text>
+                <Ionicons name="chevron-forward" size={13} color="#7C2D12" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </View>
+    </LinearGradient>
+  );
+}
+
+function DragonTigerGame() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { user, token } = useAuth();
@@ -304,6 +444,9 @@ export default function HomeScreen() {
 
         <View style={styles.header}>
           <View style={styles.brand}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)')} testID="game-back-to-lobby">
+              <Ionicons name="chevron-back" size={18} color="#FFF7ED" />
+            </TouchableOpacity>
             <Text style={styles.brandTitle}>JAZMENT</Text>
             <View style={styles.connectionBadge}>
               <View style={[styles.dot, { backgroundColor: connected ? '#10B981' : '#F43F5E' }]} />
@@ -518,6 +661,10 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(253,186,116,0.75)',
   },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  backButton: {
+    width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,247,237,0.14)', borderWidth: 1, borderColor: 'rgba(255,237,213,0.5)',
+  },
   brandTitle: { color: '#FFF7ED', fontFamily: 'Inter_700Bold', fontSize: 18, letterSpacing: 2 },
   connectionBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   dot: { width: 6, height: 6, borderRadius: 3 },
@@ -616,4 +763,194 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: 'rgba(0,0,0,0.1)', borderStyle: 'dashed',
   },
   chipText: { color: '#000', fontFamily: 'Inter_700Bold', fontSize: 10 },
+});
+
+const lobbyStyles = StyleSheet.create({
+  root: { flex: 1 },
+  safeContent: { flex: 1 },
+  header: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(65,8,18,0.76)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,106,0.65)',
+  },
+  profileBlock: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 150 },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF2C7',
+  },
+  eyebrow: { color: '#FBCB72', fontSize: 8, letterSpacing: 0.8, fontFamily: 'Inter_700Bold' },
+  balance: { color: '#FFFFFF', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  cashActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cashButton: {
+    height: 34,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFD348',
+    borderWidth: 1,
+    borderColor: '#FFF0A6',
+  },
+  cashButtonText: { color: '#6B1020', fontSize: 11, fontFamily: 'Inter_700Bold' },
+  withdrawButton: {
+    height: 34,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#A62B23',
+    borderWidth: 1,
+    borderColor: '#E8A943',
+  },
+  withdrawText: { color: '#FFE8A3', fontSize: 11, fontFamily: 'Inter_700Bold' },
+  headerTools: { minWidth: 150, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 7 },
+  livePill: {
+    height: 25,
+    paddingHorizontal: 9,
+    borderRadius: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#40E685' },
+  liveText: { color: '#FFF2C7', fontSize: 8, letterSpacing: 0.7, fontFamily: 'Inter_700Bold' },
+  toolButton: {
+    width: 29,
+    height: 29,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  body: { flex: 1, flexDirection: 'row', gap: 10, paddingTop: 8 },
+  hero: {
+    width: '35%',
+    minWidth: 250,
+    borderRadius: 13,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#F7C951',
+    backgroundColor: '#4A0915',
+  },
+  heroImage: { width: '100%', height: '100%' },
+  featuredBadge: {
+    position: 'absolute',
+    top: 9,
+    left: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    backgroundColor: '#FFD348',
+  },
+  featuredBadgeText: { color: '#6B1020', fontSize: 8, fontFamily: 'Inter_700Bold' },
+  heroCopy: { position: 'absolute', left: 13, right: 13, bottom: 11 },
+  heroTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    letterSpacing: 1,
+    fontFamily: 'Inter_700Bold',
+    textShadowColor: '#6B1020',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  heroSubtitle: { color: '#FFE8A3', fontSize: 10, marginTop: 1, fontFamily: 'Inter_500Medium' },
+  playNow: {
+    alignSelf: 'flex-start',
+    marginTop: 7,
+    paddingHorizontal: 12,
+    height: 26,
+    borderRadius: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FFD348',
+  },
+  playNowText: { color: '#6B1020', fontSize: 9, fontFamily: 'Inter_700Bold' },
+  catalog: {
+    flex: 1,
+    borderRadius: 13,
+    padding: 10,
+    backgroundColor: 'rgba(80,8,17,0.56)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,106,0.5)',
+  },
+  sectionHeading: { height: 35, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionTitle: { color: '#FFF8E1', fontSize: 14, letterSpacing: 0.8, fontFamily: 'Inter_700Bold' },
+  sectionSubtitle: { color: '#E8B99E', fontSize: 8, marginTop: 1, fontFamily: 'Inter_500Medium' },
+  gameCount: {
+    color: '#6B1020',
+    fontSize: 8,
+    fontFamily: 'Inter_700Bold',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    backgroundColor: '#FFD348',
+  },
+  gameRow: { gap: 8, paddingVertical: 3 },
+  gameCard: {
+    width: 116,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#FFF6DF',
+    borderWidth: 2,
+    borderColor: '#FFD348',
+  },
+  gameImage: { width: '100%', height: 78 },
+  hotBadge: {
+    position: 'absolute',
+    top: 5,
+    left: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: '#E23921',
+  },
+  hotText: { color: '#FFFFFF', fontSize: 7, fontFamily: 'Inter_700Bold' },
+  gameCardFooter: { flex: 1, justifyContent: 'center', paddingHorizontal: 7 },
+  gameTitle: { color: '#6B1020', fontSize: 10, fontFamily: 'Inter_700Bold' },
+  gameMeta: { color: '#A14C3A', fontSize: 7, fontFamily: 'Inter_500Medium' },
+  comingCard: {
+    width: 105,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#E6A93E',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  comingTitle: { color: '#FFF2C7', fontSize: 9, marginTop: 5, fontFamily: 'Inter_700Bold' },
+  comingText: { color: '#D99B83', fontSize: 7, marginTop: 1, fontFamily: 'Inter_500Medium' },
+  recentRow: { height: 34, flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  recentLabel: { color: '#F8C66A', fontSize: 8, letterSpacing: 0.5, fontFamily: 'Inter_700Bold' },
+  recentChip: {
+    height: 28,
+    flex: 1,
+    maxWidth: 190,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 5,
+    borderRadius: 14,
+    backgroundColor: '#FFF2C7',
+  },
+  recentIcon: { width: 22, height: 22, borderRadius: 11 },
+  recentName: { flex: 1, color: '#6B1020', fontSize: 9, fontFamily: 'Inter_700Bold' },
 });
