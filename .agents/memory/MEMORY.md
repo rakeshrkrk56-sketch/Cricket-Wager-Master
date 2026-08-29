@@ -1,2 +1,3 @@
 - [Jazment platform direction](jazment-platform.md) — Dragon Tiger runtime with preserved accounts, wallets, payments, support, and historical records
 - [Jazment authentication](jazment-auth.md) — normalized Indian phone identity, real OTP only, and signed expiring sessions
+- [Dragon Tiger rapid taps](dragon-tiger-rapid-taps.md) — round betting selections must lock synchronously so same-frame taps cannot change sides

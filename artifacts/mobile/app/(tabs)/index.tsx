@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   Easing,
   Image,
@@ -9,7 +8,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -224,8 +222,9 @@ function DragonTigerGame() {
   const [game, setGame] = useState<GameState>(EMPTY_GAME);
   const [history, setHistory] = useState<{roundId: string, result: Choice}[]>([]);
   const [connected, setConnected] = useState(false);
-  const [stake, setStake] = useState('100');
-  const [choice, setChoice] = useState<Choice>('DRAGON');
+  const [stake, setStake] = useState(0);
+  const [choice, setChoice] = useState<Choice | null>(null);
+  const [selectedChip, setSelectedChip] = useState<number | null>(null);
   const [privateBalance, setPrivateBalance] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
@@ -233,6 +232,10 @@ function DragonTigerGame() {
   const socketRef = useRef<WebSocket | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttempt = useRef(0);
+  const pendingBetsRef = useRef<number[]>([]);
+  const activeRoundRef = useRef<string | undefined>(undefined);
+  const lockedChoiceRef = useRef<Choice | null>(null);
+  const selectedChipRef = useRef<number | null>(null);
   
   const revealAnim = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -279,6 +282,7 @@ function DragonTigerGame() {
           const type = String(incoming.type ?? payload.type ?? '').toUpperCase();
           
           if (type === 'ERROR' || type === 'BET_REJECTED' || incoming.error) {
+            pendingBetsRef.current.shift();
             setMessage(String(payload.message ?? incoming.error ?? 'The game request failed.'));
             setPlacing(false);
             return;
@@ -287,8 +291,10 @@ function DragonTigerGame() {
             setPrivateBalance(numberFrom(payload.balance, payload.walletBalance));
           }
           if (type === 'BET_ACCEPTED' || type === 'BET_PLACED') {
+            const acceptedAmount = numberFrom(payload.amount, pendingBetsRef.current.shift() ?? 0);
+            if (acceptedAmount > 0) setStake((current) => current + acceptedAmount);
             setMessage(payload.message ?? 'Bet accepted for this round.');
-            setPlacing(false);
+            setPlacing(pendingBetsRef.current.length > 0);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           }
           
@@ -368,6 +374,18 @@ function DragonTigerGame() {
     }
   }, [game.result, game.roundId]);
 
+  useEffect(() => {
+    if (!game.roundId || activeRoundRef.current === game.roundId) return;
+    activeRoundRef.current = game.roundId;
+    pendingBetsRef.current = [];
+    lockedChoiceRef.current = null;
+    selectedChipRef.current = null;
+    setStake(0);
+    setChoice(null);
+    setSelectedChip(null);
+    setPlacing(false);
+  }, [game.roundId]);
+
   // Toast message auto-dismiss
   useEffect(() => {
     if (message) {
@@ -410,12 +428,9 @@ function DragonTigerGame() {
     return () => animation.stop();
   }, [game.phase, game.secondsRemaining, pulseAnim]);
 
-  const placeBet = useCallback(() => {
-    const amount = Number(stake);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setMessage('Enter a valid stake.');
-      return;
-    }
+  const isBetting = game.phase === 'BETTING';
+
+  const placeBet = useCallback((amount: number, targetChoice: Choice) => {
     if (game.phase !== 'BETTING') {
       setMessage('Betting is closed for this round.');
       return;
@@ -427,15 +442,45 @@ function DragonTigerGame() {
     }
     setMessage(null);
     setPlacing(true);
+    pendingBetsRef.current.push(amount);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    socket.send(JSON.stringify({ type: 'BET', choice, amount }));
-  }, [choice, game.phase, stake]);
+    socket.send(JSON.stringify({ type: 'BET', choice: targetChoice, amount }));
+  }, [game.phase]);
+
+  const selectChoice = useCallback((targetChoice: Choice) => {
+    if (!isBetting) return;
+    const lockedChoice = lockedChoiceRef.current;
+    if (lockedChoice && lockedChoice !== targetChoice) {
+      setMessage(`${lockedChoice} is locked until this round finishes.`);
+      return;
+    }
+    lockedChoiceRef.current = targetChoice;
+    setChoice(targetChoice);
+    Haptics.selectionAsync();
+    const chip = selectedChipRef.current;
+    if (chip) {
+      placeBet(chip, targetChoice);
+    } else {
+      setMessage(`${targetChoice} selected. Tap a chip to place your bet.`);
+    }
+  }, [isBetting, placeBet]);
+
+  const selectChip = useCallback((amount: number) => {
+    if (!isBetting) return;
+    selectedChipRef.current = amount;
+    setSelectedChip(amount);
+    Haptics.selectionAsync();
+    const lockedChoice = lockedChoiceRef.current;
+    if (lockedChoice) {
+      placeBet(amount, lockedChoice);
+    } else {
+      setMessage(`₹${amount} selected. Choose Dragon, Tie, or Tiger.`);
+    }
+  }, [isBetting, placeBet]);
 
   const openWallet = (action: 'deposit' | 'withdraw') => {
     router.push({ pathname: '/(tabs)/wallet', params: { open: action, request: Date.now().toString() } });
   };
-
-  const isBetting = game.phase === 'BETTING';
 
   return (
     <View style={styles.root}>
@@ -527,8 +572,8 @@ function DragonTigerGame() {
             <View style={styles.bettingBoard}>
               <TouchableOpacity 
                 style={[styles.betBlockWrap, choice === 'DRAGON' && styles.betSelected]}
-                onPress={() => { setChoice('DRAGON'); Haptics.selectionAsync(); }}
-                disabled={!isBetting}
+                onPress={() => selectChoice('DRAGON')}
+                disabled={!isBetting || (!!choice && choice !== 'DRAGON')}
                 testID="button-choice-dragon"
               >
                 <LinearGradient colors={['#1D4ED8', '#1E3A8A']} style={styles.betBlock}>
@@ -540,8 +585,8 @@ function DragonTigerGame() {
 
               <TouchableOpacity 
                 style={[styles.betBlockWrap, choice === 'TIE' && styles.betSelected]}
-                onPress={() => { setChoice('TIE'); Haptics.selectionAsync(); }}
-                disabled={!isBetting}
+                onPress={() => selectChoice('TIE')}
+                disabled={!isBetting || (!!choice && choice !== 'TIE')}
                 testID="button-choice-tie"
               >
                 <LinearGradient colors={['#15803D', '#064E3B']} style={styles.betBlock}>
@@ -553,8 +598,8 @@ function DragonTigerGame() {
 
               <TouchableOpacity 
                 style={[styles.betBlockWrap, choice === 'TIGER' && styles.betSelected]}
-                onPress={() => { setChoice('TIGER'); Haptics.selectionAsync(); }}
-                disabled={!isBetting}
+                onPress={() => selectChoice('TIGER')}
+                disabled={!isBetting || (!!choice && choice !== 'TIGER')}
                 testID="button-choice-tiger"
               >
                 <LinearGradient colors={['#B91C1C', '#7F1D1D']} style={styles.betBlock}>
@@ -566,22 +611,9 @@ function DragonTigerGame() {
             </View>
 
             <View style={styles.controlsRow}>
-              <TouchableOpacity style={styles.clearBtn} onPress={() => setStake('')} disabled={!isBetting}>
-                <Ionicons name="trash-outline" size={18} color="#94A3B8" />
-              </TouchableOpacity>
-
-              <View style={styles.stakeInputBox}>
-                <Text style={styles.stakeCurrency}>₹</Text>
-                <TextInput
-                  value={stake}
-                  onChangeText={setStake}
-                  keyboardType="decimal-pad"
-                  style={styles.stakeInput}
-                  editable={isBetting}
-                  testID="input-stake"
-                  placeholder="0"
-                  placeholderTextColor="#64748B"
-                />
+              <View style={styles.roundBetBox}>
+                <Text style={styles.roundBetLabel}>{choice ? `${choice} LOCKED` : 'SELECT SIDE'}</Text>
+                <Text style={styles.roundBetAmount}>₹{stake.toFixed(0)}</Text>
               </View>
 
               <View style={styles.chipsStrip}>
@@ -589,23 +621,14 @@ function DragonTigerGame() {
                   <Chip 
                     key={chip} 
                     amount={chip} 
-                    onPress={() => { setStake(String(numberFrom(stake) + chip)); Haptics.selectionAsync(); }} 
+                    selected={selectedChip === chip}
+                    onPress={() => selectChip(chip)}
                     disabled={!isBetting} 
                     testID={`button-chip-${chip}`}
                   />
                 ))}
               </View>
-
-              <TouchableOpacity 
-                style={[styles.placeBetBtn, (!isBetting || placing || !connected) && styles.placeBetBtnDisabled]}
-                onPress={placeBet}
-                disabled={!isBetting || placing || !connected}
-                testID="button-place-bet"
-              >
-                {placing ? <ActivityIndicator color="#000" /> : (
-                  <Text style={[styles.placeBetText, (!isBetting || !connected) && { color: '#94A3B8' }]}>BET</Text>
-                )}
-              </TouchableOpacity>
+              {placing && <View style={styles.sendingDot} />}
             </View>
           </View>
         </View>
@@ -652,11 +675,11 @@ const CHIP_COLORS = {
   500: '#8B5CF6',
 };
 
-function Chip({ amount, onPress, disabled, testID }: { amount: number, onPress: () => void, disabled: boolean, testID: string }) {
+function Chip({ amount, onPress, disabled, selected, testID }: { amount: number, onPress: () => void, disabled: boolean, selected: boolean, testID: string }) {
   const color = CHIP_COLORS[amount as keyof typeof CHIP_COLORS] || '#F59E0B';
   return (
     <TouchableOpacity onPress={onPress} disabled={disabled} style={{ opacity: disabled ? 0.5 : 1 }} testID={testID}>
-      <View style={[styles.chipOuter, { backgroundColor: color }]}>
+      <View style={[styles.chipOuter, selected && styles.chipSelected, { backgroundColor: color }]}>
         <View style={styles.chipInner}>
           <Text style={[styles.chipText, amount === 100 && { color: '#1F2937' }]}>{amount}</Text>
         </View>
@@ -735,7 +758,7 @@ const styles = StyleSheet.create({
   vsText: { color: '#FBBF24', fontFamily: 'Inter_700Bold', fontSize: 18, fontStyle: 'italic' },
   
   bottomSection: {
-    paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12,
+    paddingHorizontal: 8, paddingVertical: 5, borderRadius: 12,
     backgroundColor: 'rgba(249,115,22,0.28)', borderWidth: 1, borderColor: 'rgba(253,186,116,0.8)',
   },
   beadRoad: {
@@ -749,43 +772,37 @@ const styles = StyleSheet.create({
   beadText: { color: '#FFF', fontSize: 8, fontFamily: 'Inter_700Bold' },
   beadEmpty: { color: '#9A3412', fontSize: 9, fontStyle: 'italic', marginLeft: 4 },
   
-  bettingBoard: { flexDirection: 'row', gap: 7, height: 56, marginBottom: 4 },
+  bettingBoard: { flexDirection: 'row', gap: 7, height: 48, marginBottom: 4 },
   betBlockWrap: { flex: 1, borderRadius: 12 },
   betSelected: { borderWidth: 3, borderColor: '#FBBF24', transform: [{ scale: 1.02 }] },
   betBlock: { flex: 1, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-  betBlockTitle: { color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 14, letterSpacing: 1 },
+  betBlockTitle: { color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 13, letterSpacing: 1 },
   betBlockOdds: { color: 'rgba(255,255,255,0.82)', fontSize: 8, fontFamily: 'Inter_600SemiBold', marginBottom: 2 },
   betPoolBox: { backgroundColor: 'rgba(0,0,0,0.42)', paddingHorizontal: 9, paddingVertical: 1, borderRadius: 7 },
   betPoolText: { color: '#FDE68A', fontSize: 10, fontFamily: 'Inter_700Bold' },
   
-  controlsRow: { flexDirection: 'row', height: 34, gap: 7, alignItems: 'center' },
-  clearBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(124,45,18,0.8)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#FDBA74' },
-  stakeInputBox: {
-    width: 82, height: 34, backgroundColor: '#FFF7ED', borderRadius: 17, borderWidth: 1, borderColor: '#FDBA74',
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10,
+  controlsRow: { flexDirection: 'row', minHeight: 46, gap: 8, alignItems: 'center' },
+  roundBetBox: {
+    minWidth: 96, height: 42, backgroundColor: '#FFF7ED', borderRadius: 12, borderWidth: 2, borderColor: '#FBBF24',
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
   },
-  stakeCurrency: { color: '#FBBF24', fontFamily: 'Inter_700Bold', fontSize: 15, marginRight: 2 },
-  stakeInput: { flex: 1, color: '#7C2D12', fontFamily: 'Inter_700Bold', fontSize: 14 },
-  chipsStrip: { flex: 1, flexDirection: 'row', gap: 8, justifyContent: 'center' },
-  placeBetBtn: {
-    minWidth: 82, height: 34, borderRadius: 17, backgroundColor: '#FBBF24',
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 4, elevation: 4,
-  },
-  placeBetBtnDisabled: { backgroundColor: '#334155', shadowOpacity: 0, borderWidth: 1, borderColor: '#475569' },
-  placeBetText: { color: '#000', fontFamily: 'Inter_700Bold', fontSize: 13, letterSpacing: 0.5 },
+  roundBetLabel: { color: '#9A3412', fontFamily: 'Inter_700Bold', fontSize: 8, letterSpacing: 0.5 },
+  roundBetAmount: { color: '#7C2D12', fontFamily: 'Inter_700Bold', fontSize: 17 },
+  chipsStrip: { flex: 1, flexDirection: 'row', gap: 12, justifyContent: 'center', alignItems: 'center' },
+  sendingDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FBBF24' },
   
   chipOuter: {
-    width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)',
+    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: 'rgba(255,255,255,0.65)',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 2, elevation: 3,
   },
+  chipSelected: { borderColor: '#FDE047', borderWidth: 4, transform: [{ scale: 1.08 }] },
   chipInner: {
-    width: 25, height: 25, borderRadius: 13, backgroundColor: '#FFF7ED',
+    width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFF7ED',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: 'rgba(0,0,0,0.1)', borderStyle: 'dashed',
   },
-  chipText: { color: '#000', fontFamily: 'Inter_700Bold', fontSize: 10 },
+  chipText: { color: '#000', fontFamily: 'Inter_700Bold', fontSize: 12 },
 });
 
 const lobbyStyles = StyleSheet.create({
