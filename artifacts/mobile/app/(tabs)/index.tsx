@@ -383,7 +383,8 @@ function DragonTigerGame() {
     }
     return () => {
       if (Platform.OS !== 'web') {
-        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => undefined);
+        // Release the game lock so the next screen can apply its own orientation.
+        ScreenOrientation.unlockAsync().catch(() => undefined);
       }
     };
   }, []));
