@@ -7,6 +7,7 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAvatar } from '@/contexts/AvatarContext';
 import { AvatarChoice, UserAvatar } from '@/components/UserAvatar';
+import { CheckCircleIcon, LogoutIcon } from '@/components/AppIcons';
 
 function MenuItem({ icon, label, onPress, destructive = false, sublabel }: {
   icon: string; label: string; sublabel?: string; onPress: () => void; destructive?: boolean;
@@ -36,10 +37,16 @@ const menuStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { avatar, selectAvatar } = useAvatar();
   const s = styles(colors, insets);
   const isGuest = user?.phone?.startsWith('guest:') ?? true;
+  const isVerified = !isGuest && Boolean(user?.name?.trim());
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/(tabs)');
+  };
 
   return (
     <ScrollView style={s.root} contentContainerStyle={s.content}>
@@ -49,8 +56,11 @@ export default function ProfileScreen() {
         <View style={s.currentAvatar}>
           <UserAvatar choice={avatar} size={92} />
         </View>
-        <Text style={s.name}>{user?.name ?? 'Jazment User'}</Text>
-        <Text style={s.verificationStatus}>{isGuest ? 'Phone number not verified' : 'Verified phone number'}</Text>
+        <View style={s.nameRow}>
+          <Text style={s.name}>{user?.name ?? 'Jazment User'}</Text>
+          {isVerified ? <CheckCircleIcon size={20} color={colors.success} /> : null}
+        </View>
+        <Text style={s.verificationStatus}>{isVerified ? 'Verified phone number' : 'Not verified'}</Text>
       </View>
 
       <View style={s.avatarPicker}>
@@ -96,6 +106,16 @@ export default function ProfileScreen() {
             onPress={() => router.push({ pathname: '/login', params: { from: 'profile' } })}
           />
         )}
+        <TouchableOpacity
+          style={s.logoutRow}
+          onPress={handleLogout}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Logout"
+        >
+          <LogoutIcon size={20} color={colors.destructive} />
+          <Text style={s.logoutLabel}>Logout</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -121,7 +141,8 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
     borderWidth: 2, borderColor: '#F7C957',
     shadowColor: colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
   },
-  name: { fontSize: 22, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 4 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 4 },
+  name: { fontSize: 22, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold' },
   verificationStatus: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
   avatarPicker: {
     marginHorizontal: 20, marginBottom: 20, padding: 16, borderRadius: 16,
@@ -152,4 +173,9 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   },
   choiceLabelSelected: { color: colors.foreground },
   menuSection: { paddingHorizontal: 20 },
+  logoutRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16,
+    marginTop: 16, borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  logoutLabel: { fontSize: 15, fontWeight: '600' as const, color: colors.destructive, fontFamily: 'Inter_600SemiBold' },
 });

@@ -63,6 +63,26 @@ export function HeadsetIcon(props: AppIconProps) {
   );
 }
 
+export function CheckCircleIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Circle cx="12" cy="12" r="9" />
+      <Path d="m8.5 12 2.3 2.3 4.7-4.7" />
+    </IconCanvas>
+  );
+}
+
+export function LogoutIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Path d="M10 17l5-5-5-5" />
+      <Path d="M15 12H3" />
+      <Path d="M21 19V5a2 2 0 0 0-2-2h-4" />
+      <Path d="M15 21h4a2 2 0 0 0 2-2" />
+    </IconCanvas>
+  );
+}
+
 export function DepositIcon(props: AppIconProps) {
   return (
     <IconCanvas {...props}>
