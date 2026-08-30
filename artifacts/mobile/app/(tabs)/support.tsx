@@ -47,7 +47,6 @@ export default function SupportScreen() {
   const { token } = useAuth();
   const { t } = useLanguage();
   const [tab, setTab] = useState<Tab>('home');
-  const [subject, setSubject]         = useState('');
   const [category, setCategory]       = useState<Category>('other');
   const [description, setDescription] = useState('');
 
@@ -83,15 +82,16 @@ export default function SupportScreen() {
   const s = styles(colors, insets);
 
   const handleSubmitTicket = async () => {
-    if (!subject.trim())     { Alert.alert(t('support_required'), t('support_enter_subject')); return; }
     if (!description.trim()) { Alert.alert(t('support_required'), t('support_enter_desc')); return; }
+    const selectedCategory = CATEGORIES.find((item) => item.value === category);
+    const subject = selectedCategory ? t(selectedCategory.labelKey as any) : t('support_cat_other');
     try {
       await createTicket.mutateAsync({ data: { subject, category, description } });
       Alert.alert(t('support_ticket_ok_title'), t('support_ticket_ok_msg'), [
         { text: t('support_view_tickets'), onPress: () => { setTab('tickets'); refetch(); } },
         { text: 'OK' },
       ]);
-      setSubject(''); setDescription(''); setCategory('other');
+      setDescription(''); setCategory('other');
     } catch {
       Alert.alert('Error', 'Failed to submit ticket. Please try again.');
     }
@@ -199,10 +199,7 @@ export default function SupportScreen() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
           <Text style={s.sectionTitle}>{t('support_create_ticket')}</Text>
 
-          <Text style={[s.fieldLabel, { marginTop: 16 }]}>{t('support_subject')}</Text>
-          <TextInput style={s.input} value={subject} onChangeText={setSubject} placeholder={t('support_subject_ph')} placeholderTextColor={colors.mutedForeground} />
-
-          <Text style={s.fieldLabel}>{t('support_category')}</Text>
+          <Text style={[s.fieldLabel, { marginTop: 16 }]}>{t('support_category')}</Text>
           <View style={s.categorySelect}>
             {CATEGORIES.map((c) => (
               <TouchableOpacity key={c.value} style={[s.catChip, category === c.value && s.catChipActive]} onPress={() => setCategory(c.value)} activeOpacity={0.7}>
