@@ -1115,6 +1115,10 @@ components:
           type: string
         hasScreenshot:
           type: boolean
+        screenshotBase64:
+          type: string
+          nullable: true
+          description: Attached support image, included on ticket detail responses only
         status:
           type: string
           enum: [open, in_progress, resolved, closed]

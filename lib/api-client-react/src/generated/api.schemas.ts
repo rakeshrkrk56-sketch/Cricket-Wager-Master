@@ -35,6 +35,8 @@ export interface SupportTicket {
   category: SupportTicketCategory;
   description: string;
   hasScreenshot: boolean;
+  /** Attached support image, included on ticket detail responses only */
+  screenshotBase64?: string | null;
   status: SupportTicketStatus;
   createdAt: string;
   updatedAt: string;

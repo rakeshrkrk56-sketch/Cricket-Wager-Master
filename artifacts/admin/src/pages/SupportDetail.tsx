@@ -55,6 +55,12 @@ export function SupportDetail() {
 
   const { ticket, messages, recentTransactions } = data;
   const user = (ticket as any).user;
+  const screenshotBase64 = ticket.screenshotBase64;
+  const screenshotSrc = screenshotBase64
+    ? screenshotBase64.startsWith("data:")
+      ? screenshotBase64
+      : `data:image/jpeg;base64,${screenshotBase64}`
+    : null;
   const cfg = STATUS_CONFIG[ticket.status] ?? STATUS_CONFIG.open;
   const StatusIcon = cfg.icon;
 
@@ -124,6 +130,19 @@ export function SupportDetail() {
           <div className="bg-card border border-border rounded-lg p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3 font-semibold">Original Report</p>
             <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
+            {screenshotSrc && (
+              <div className="mt-4">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2 font-semibold">Attached Screenshot</p>
+                <a href={screenshotSrc} target="_blank" rel="noreferrer" className="block w-fit">
+                  <img
+                    src={screenshotSrc}
+                    alt="User support attachment"
+                    className="max-h-80 max-w-full rounded-lg border border-border object-contain bg-background"
+                  />
+                </a>
+                <p className="text-xs text-muted-foreground mt-2">Click the image to open it full size.</p>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground mt-3">
               {new Date(ticket.createdAt).toLocaleString("en-IN")}
             </p>

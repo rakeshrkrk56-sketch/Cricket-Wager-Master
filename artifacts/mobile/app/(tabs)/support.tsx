@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  TextInput, Alert, ActivityIndicator, Platform,
+  TextInput, Alert, ActivityIndicator, Platform, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -49,6 +50,8 @@ export default function SupportScreen() {
   const [tab, setTab] = useState<Tab>('home');
   const [category, setCategory]       = useState<Category>('other');
   const [description, setDescription] = useState('');
+  const [screenshotUri, setScreenshotUri] = useState<string | null>(null);
+  const [screenshotBase64, setScreenshotBase64] = useState<string | null>(null);
 
   const CATEGORIES: { value: Category; labelKey: string; icon: string }[] = [
     { value: 'deposit_issue',    labelKey: 'support_cat_deposit',    icon: 'arrow-down-circle-outline' },
@@ -81,17 +84,47 @@ export default function SupportScreen() {
 
   const s = styles(colors, insets);
 
+  const pickSupportScreenshot = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(t('wallet_permission_title'), t('wallet_permission_msg'));
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.5,
+        base64: true,
+        allowsEditing: false,
+      });
+
+      const asset = result.canceled ? undefined : result.assets[0];
+      if (!asset) return;
+      if (!asset.base64) {
+        Alert.alert('Image error', 'This image could not be attached. Please choose another photo.');
+        return;
+      }
+
+      const mimeType = asset.mimeType ?? 'image/jpeg';
+      setScreenshotUri(asset.uri);
+      setScreenshotBase64(`data:${mimeType};base64,${asset.base64}`);
+    } catch {
+      Alert.alert('Image error', 'Could not open your photos. Please try again.');
+    }
+  };
+
   const handleSubmitTicket = async () => {
     if (!description.trim()) { Alert.alert(t('support_required'), t('support_enter_desc')); return; }
     const selectedCategory = CATEGORIES.find((item) => item.value === category);
     const subject = selectedCategory ? t(selectedCategory.labelKey as any) : t('support_cat_other');
     try {
-      await createTicket.mutateAsync({ data: { subject, category, description } });
+      await createTicket.mutateAsync({ data: { subject, category, description, screenshotBase64: screenshotBase64 ?? undefined } });
       Alert.alert(t('support_ticket_ok_title'), t('support_ticket_ok_msg'), [
         { text: t('support_view_tickets'), onPress: () => { setTab('tickets'); refetch(); } },
         { text: 'OK' },
       ]);
-      setDescription(''); setCategory('other');
+      setDescription(''); setCategory('other'); setScreenshotUri(null); setScreenshotBase64(null);
     } catch {
       Alert.alert('Error', 'Failed to submit ticket. Please try again.');
     }
@@ -219,11 +252,24 @@ export default function SupportScreen() {
           />
 
           <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{t('support_screenshot')}</Text>
-          <TouchableOpacity style={s.uploadBox} activeOpacity={0.7}>
-            <Ionicons name="cloud-upload-outline" size={24} color={colors.mutedForeground} />
-            <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 6 }}>{t('support_tap_attach')}</Text>
-            <Text style={{ color: colors.mutedForeground, fontSize: 11, fontFamily: 'Inter_400Regular' }}>{t('support_file_size')}</Text>
-          </TouchableOpacity>
+          {screenshotUri ? (
+            <View style={s.attachmentPreview}>
+              <Image source={{ uri: screenshotUri }} style={s.attachmentImage} resizeMode="cover" />
+              <View style={{ flex: 1 }}>
+                <Text style={s.attachmentTitle}>Screenshot attached</Text>
+                <Text style={s.attachmentHint}>It will be sent with this support request.</Text>
+                <TouchableOpacity onPress={() => { setScreenshotUri(null); setScreenshotBase64(null); }} activeOpacity={0.7}>
+                  <Text style={s.removeAttachment}>Remove image</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity style={s.uploadBox} onPress={pickSupportScreenshot} activeOpacity={0.7} testID="support-attach-screenshot">
+              <Ionicons name="cloud-upload-outline" size={24} color={colors.mutedForeground} />
+              <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 6 }}>{t('support_tap_attach')}</Text>
+              <Text style={{ color: colors.mutedForeground, fontSize: 11, fontFamily: 'Inter_400Regular' }}>{t('support_file_size')}</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[s.submitBtn, createTicket.isPending && { opacity: 0.6 }]}
@@ -291,6 +337,11 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   catChipLabel: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' },
   catChipLabelActive: { color: colors.primary },
   uploadBox: { borderWidth: 1.5, borderColor: colors.border, borderStyle: 'dashed', borderRadius: 10, padding: 20, alignItems: 'center', marginTop: 6, backgroundColor: colors.card },
+  attachmentPreview: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, marginTop: 6, backgroundColor: colors.card },
+  attachmentImage: { width: 64, height: 64, borderRadius: 8, backgroundColor: colors.muted },
+  attachmentTitle: { fontSize: 13, color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
+  attachmentHint: { fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  removeAttachment: { fontSize: 12, color: colors.destructive, fontFamily: 'Inter_600SemiBold', marginTop: 7 },
   submitBtn: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 24 },
   submitBtnLabel: { color: colors.primaryForeground, fontSize: 16, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   submitHint: { fontSize: 12, color: colors.mutedForeground, textAlign: 'center', marginTop: 12, fontFamily: 'Inter_400Regular' },

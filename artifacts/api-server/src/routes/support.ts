@@ -59,7 +59,7 @@ router.get("/support/tickets/my", requireAuth, async (req, res): Promise<void> =
     .from(supportTicketsTable)
     .where(eq(supportTicketsTable.userId, user.id));
 
-  res.json({ tickets: tickets.map(serializeTicket), total: Number(total), page, limit });
+  res.json({ tickets: tickets.map((ticket) => serializeTicket(ticket)), total: Number(total), page, limit });
 });
 
 // ─── User: Ticket detail + messages ──────────────────────────────────────────
@@ -78,7 +78,7 @@ router.get("/support/tickets/:ticketId", requireAuth, async (req, res): Promise<
     .where(eq(ticketMessagesTable.ticketId, ticketId))
     .orderBy(ticketMessagesTable.createdAt);
 
-  res.json({ ticket: serializeTicket(ticket), messages: messages.map(serializeMessage) });
+  res.json({ ticket: serializeTicket(ticket, true), messages: messages.map(serializeMessage) });
 });
 
 // ─── User: Reply to ticket ────────────────────────────────────────────────────
@@ -178,7 +178,7 @@ router.get("/admin/support/tickets/:ticketId", requireAdmin, async (req, res): P
     .limit(10);
 
   res.json({
-    ticket: { ...serializeTicket(row.ticket), user: row.user ? serializeUser(row.user) : null },
+    ticket: { ...serializeTicket(row.ticket, true), user: row.user ? serializeUser(row.user) : null },
     messages: messages.map(serializeMessage),
     recentTransactions: recentTxs.map((t) => ({
       id: t.id, type: t.type, amount: Number(t.amount), status: t.status,
@@ -255,8 +255,8 @@ router.patch("/admin/support/tickets/:ticketId/status", requireAdmin, async (req
 
 // ─── Serializers ──────────────────────────────────────────────────────────────
 
-function serializeTicket(t: any) {
-  return {
+function serializeTicket(t: any, includeScreenshot = false) {
+  const serialized = {
     id: t.id,
     userId: t.userId,
     subject: t.subject,
@@ -268,6 +268,9 @@ function serializeTicket(t: any) {
     updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : t.updatedAt,
     resolvedAt: t.resolvedAt instanceof Date ? t.resolvedAt.toISOString() : (t.resolvedAt ?? null),
   };
+  return includeScreenshot
+    ? { ...serialized, screenshotBase64: t.screenshotBase64 ?? null }
+    : serialized;
 }
 
 function serializeMessage(m: any) {
