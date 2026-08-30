@@ -163,7 +163,7 @@ function GameLobby() {
         </View>
 
         <View style={[lobbyStyles.body, isPortrait && lobbyStyles.bodyPortrait]}>
-          <TouchableOpacity style={[lobbyStyles.hero, isPortrait && lobbyStyles.heroPortrait]} onPress={openDragonTiger} activeOpacity={0.9} testID="lobby-featured-dragon-tiger">
+          <View style={[lobbyStyles.hero, isPortrait && lobbyStyles.heroPortrait]}>
             <Image source={require('../../assets/images/dragon-tiger-casino-wide.png')} style={lobbyStyles.heroImage} resizeMode="cover" />
             <LinearGradient colors={['transparent', 'rgba(45,6,12,0.92)']} style={StyleSheet.absoluteFill} />
             <View style={lobbyStyles.featuredBadge}>
@@ -173,12 +173,19 @@ function GameLobby() {
             <View style={lobbyStyles.heroCopy}>
               <Text style={lobbyStyles.heroTitle}>DRAGON TIGER</Text>
               <Text style={lobbyStyles.heroSubtitle}>Fast rounds • Real wallet</Text>
-              <View style={lobbyStyles.playNow}>
+              <TouchableOpacity
+                style={lobbyStyles.playNow}
+                onPress={openDragonTiger}
+                activeOpacity={0.82}
+                accessibilityRole="button"
+                accessibilityLabel="Play Now"
+                testID="lobby-featured-dragon-tiger"
+              >
                 <Text style={lobbyStyles.playNowText}>PLAY NOW</Text>
                 <Ionicons name="play" size={12} color="#7C2D12" />
-              </View>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+          </View>
 
           <View style={lobbyStyles.catalog}>
             <View style={lobbyStyles.sectionHeading}>
@@ -1463,7 +1470,11 @@ const lobbyStyles = StyleSheet.create({
   heroCopy: { position: 'absolute', bottom: 20, left: 20, right: 20 },
   heroTitle: { color: '#FFF', fontSize: 42, fontWeight: '900', textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 },
   heroSubtitle: { color: '#FFD76A', fontSize: 14, fontWeight: '600', marginBottom: 16 },
-  playNow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFD76A', alignSelf: 'flex-start', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 16, gap: 8 },
+  playNow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#FFD76A', alignSelf: 'flex-start', width: '100%', maxWidth: 240,
+    minHeight: 56, paddingHorizontal: 20, paddingVertical: 16, borderRadius: 16, gap: 8,
+  },
   playNowText: { color: '#7C2D12', fontWeight: '900', fontSize: 14, letterSpacing: 0.5 },
   catalog: { flex: 1, gap: 16 },
   sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 4 },
