@@ -14,23 +14,19 @@ import { useSendOtp, useVerifyOtp } from '@workspace/api-client-react';
 export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { token, login, logout } = useAuth();
+  const { token, login } = useAuth();
   const { t } = useLanguage();
   const { from } = useLocalSearchParams<{ from?: string }>();
   const openedFromProfile = from === 'profile';
 
-  // If already logged in, go to tabs. But stay if user was explicitly sent here to re-login.
-  const [forcedLogout, setForcedLogout] = useState(false);
+  // Signed-in users go to the lobby unless Profile explicitly opened verification.
   useEffect(() => {
-    if (token && !forcedLogout && !openedFromProfile) {
+    if (token && !openedFromProfile) {
       router.replace('/(tabs)');
     }
-  }, [token, forcedLogout, openedFromProfile]);
+  }, [token, openedFromProfile]);
 
-  const handleForceLogout = async () => {
-    await logout();
-    setForcedLogout(true);
-  };
+  const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
@@ -39,6 +35,7 @@ export default function LoginScreen() {
   const verifyOtp = useVerifyOtp();
 
   const handleSendOtp = () => {
+    if (!name.trim()) { Alert.alert('User Name Required', 'Enter the display name you want to use.'); return; }
     const cleaned = phone.trim();
     if (!cleaned) { Alert.alert(t('login_empty_number_title'), t('login_empty_number_msg')); return; }
     const full = cleaned.startsWith('+') ? cleaned : `+91${cleaned}`;
@@ -55,7 +52,7 @@ export default function LoginScreen() {
     if (!otp.trim()) { Alert.alert(t('login_empty_otp_title'), t('login_empty_otp_msg')); return; }
     const cleaned = phone.trim();
     const full = cleaned.startsWith('+') ? cleaned : `+91${cleaned}`;
-    verifyOtp.mutate({ data: { phone: full, otp: otp.trim() } }, {
+    verifyOtp.mutate({ data: { name: name.trim(), phone: full, otp: otp.trim() } }, {
       onSuccess: (data) => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         login(data.token, {
@@ -104,20 +101,34 @@ export default function LoginScreen() {
           </Text>
 
           {step === 'phone' ? (
-            <View style={s.inputRow}>
-              <View style={s.prefix}><Text style={s.prefixText}>+91</Text></View>
+            <>
               <TextInput
                 style={s.input}
-                placeholder={t('login_mobile_placeholder')}
+                placeholder="User Name"
                 placeholderTextColor={colors.mutedForeground}
-                keyboardType="phone-pad"
-                maxLength={10}
-                value={phone}
-                onChangeText={setPhone}
-                returnKeyType="done"
-                onSubmitEditing={handleSendOtp}
+                value={name}
+                onChangeText={setName}
+                maxLength={32}
+                autoCapitalize="words"
+                returnKeyType="next"
+                accessibilityLabel="User Name"
               />
-            </View>
+              <View style={s.inputRow}>
+                <View style={s.prefix}><Text style={s.prefixText}>+91</Text></View>
+                <TextInput
+                  style={[s.input, s.phoneInput]}
+                  placeholder={t('login_mobile_placeholder')}
+                  placeholderTextColor={colors.mutedForeground}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  value={phone}
+                  onChangeText={setPhone}
+                  returnKeyType="done"
+                  onSubmitEditing={handleSendOtp}
+                  accessibilityLabel="Mobile Number"
+                />
+              </View>
+            </>
           ) : (
             <TextInput
               style={[s.input, s.otpInput]}
@@ -130,6 +141,7 @@ export default function LoginScreen() {
               returnKeyType="done"
               autoFocus
               onSubmitEditing={handleVerifyOtp}
+              accessibilityLabel="WhatsApp OTP"
             />
           )}
 
@@ -154,13 +166,6 @@ export default function LoginScreen() {
             </TouchableOpacity>
           )}
         </View>
-
-        {/* Already logged in banner — tap to clear session and test OTP */}
-        {token && !forcedLogout && (
-          <TouchableOpacity style={s.alreadyLoggedIn} onPress={handleForceLogout} activeOpacity={0.8}>
-            <Text style={s.alreadyLoggedInText}>Already logged in — tap here to log out and test OTP</Text>
-          </TouchableOpacity>
-        )}
 
         <View style={s.bottomSpacer} />
       </ScrollView>
@@ -198,6 +203,7 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
     borderWidth: 1, borderColor: colors.border, color: colors.foreground,
     fontSize: 16, fontFamily: 'Inter_400Regular', marginBottom: 16,
   },
+  phoneInput: { minWidth: 0, marginBottom: 0 },
   otpInput: { letterSpacing: 6, fontSize: 22, textAlign: 'center' as const, fontFamily: 'Inter_600SemiBold' },
   btn: {
     backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 16, alignItems: 'center',
@@ -208,12 +214,4 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   backBtn: { marginTop: 16, alignItems: 'center' },
   backText: { color: colors.primary, fontSize: 14, fontFamily: 'Inter_500Medium' },
   bottomSpacer: { height: 16 },
-  alreadyLoggedIn: {
-    marginTop: 20, padding: 14, borderRadius: 12,
-    backgroundColor: colors.warning + '20', borderWidth: 1, borderColor: colors.warning + '60',
-    alignItems: 'center',
-  },
-  alreadyLoggedInText: {
-    color: colors.warning, fontSize: 13, fontFamily: 'Inter_500Medium', textAlign: 'center' as const,
-  },
 });

@@ -158,6 +158,11 @@ export interface SendOtpResponse {
 }
 
 export interface VerifyOtpRequest {
+  /**
+     * @minLength 1
+     * @maxLength 32
+     */
+  name: string;
   phone: string;
   /**
      * @minLength 4

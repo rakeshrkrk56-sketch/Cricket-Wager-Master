@@ -1,12 +1,10 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
-import { useLanguage } from '@/contexts/LanguageContext';
-import { getGetWalletQueryKey, useGetWallet } from '@workspace/api-client-react';
 import { useAvatar } from '@/contexts/AvatarContext';
 import { AvatarChoice, UserAvatar } from '@/components/UserAvatar';
 
@@ -38,44 +36,10 @@ const menuStyles = (colors: ReturnType<typeof useColors>) => StyleSheet.create({
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { user, logout, token } = useAuth();
+  const { user } = useAuth();
   const { avatar, selectAvatar } = useAvatar();
-  const { data: walletData } = useGetWallet({
-    query: { enabled: !!token, queryKey: getGetWalletQueryKey() },
-  });
-  const liveBalance = Number(walletData?.balance ?? user?.walletBalance ?? 0);
-  const { t } = useLanguage();
   const s = styles(colors, insets);
   const isGuest = user?.phone?.startsWith('guest:') ?? true;
-
-  const handleLogout = () => {
-    Alert.alert(t('profile_logout_title'), t('profile_logout_msg'), [
-      { text: t('profile_cancel'), style: 'cancel' },
-      { text: t('profile_logout'), style: 'destructive', onPress: async () => { await logout(); router.replace('/login'); } },
-    ]);
-  };
-
-  const kycLabel: Record<string, string> = {
-    pending:  t('profile_kyc_pending'),
-    verified: t('profile_kyc_verified'),
-    rejected: t('profile_kyc_rejected'),
-  };
-  const kycColor: Record<string, string> = {
-    pending: colors.warning,
-    verified: colors.success,
-    rejected: colors.destructive,
-  };
-
-  const accountStatusColor: Record<string, string> = {
-    active: colors.success,
-    hold: colors.warning,
-    suspended: colors.destructive,
-  };
-  const accountStatusLabel: Record<string, string> = {
-    active: t('profile_status_active'),
-    hold: 'On Hold',
-    suspended: t('profile_status_suspended'),
-  };
 
   return (
     <ScrollView style={s.root} contentContainerStyle={s.content}>
@@ -86,11 +50,7 @@ export default function ProfileScreen() {
           <UserAvatar choice={avatar} size={92} />
         </View>
         <Text style={s.name}>{user?.name ?? 'Jazment User'}</Text>
-        <Text style={s.phone}>{isGuest ? 'Guest account • Play instantly' : user?.phone}</Text>
-        <View style={[s.kycBadge, { backgroundColor: kycColor[user?.kycStatus ?? 'pending'] + '20' }]}>
-          <Ionicons name={user?.kycStatus === 'verified' ? 'checkmark-circle' : 'time-outline'} size={13} color={kycColor[user?.kycStatus ?? 'pending']} />
-          <Text style={[s.kycText, { color: kycColor[user?.kycStatus ?? 'pending'] }]}>KYC: {kycLabel[user?.kycStatus ?? 'pending']}</Text>
-        </View>
+        <Text style={s.verificationStatus}>{isGuest ? 'Phone number not verified' : 'Verified phone number'}</Text>
       </View>
 
       <View style={s.avatarPicker}>
@@ -127,27 +87,6 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Stats */}
-      <View style={s.statsCard}>
-        <View style={s.stat}>
-          <Text style={s.statVal}>₹{liveBalance.toFixed(2)}</Text>
-          <Text style={s.statLabel}>{t('profile_balance')}</Text>
-        </View>
-        <View style={s.statDivider} />
-        <View style={s.stat}>
-          <Text style={s.statVal}>{user?.role === 'admin' ? t('profile_role_admin') : t('profile_role_user')}</Text>
-          <Text style={s.statLabel}>{t('profile_role')}</Text>
-        </View>
-        <View style={s.statDivider} />
-        <View style={s.stat}>
-          <Text style={[s.statVal, { color: accountStatusColor[user?.status ?? 'active'] }]}>
-            {accountStatusLabel[user?.status ?? 'active'] ?? user?.status}
-          </Text>
-          <Text style={[s.statLabel, { color: accountStatusColor[user?.status ?? 'active'] }]}>{t('profile_status')}</Text>
-        </View>
-      </View>
-
-      {/* Menu */}
       <View style={s.menuSection}>
         {isGuest && (
           <MenuItem
@@ -157,31 +96,6 @@ export default function ProfileScreen() {
             onPress={() => router.push({ pathname: '/login', params: { from: 'profile' } })}
           />
         )}
-        <MenuItem icon="wallet-outline"            label={t('profile_wallet')}          onPress={() => router.push('/(tabs)/wallet')} />
-        <MenuItem icon="headset-outline"           label={t('profile_support')}         onPress={() => router.push('/(tabs)/support')} />
-
-        {/* KYC Documents */}
-        <MenuItem
-          icon="document-text-outline"
-          label="KYC Verification"
-          sublabel={kycLabel[user?.kycStatus ?? 'pending']}
-          onPress={() => router.push('/kyc')}
-        />
-
-        {user?.role === 'admin' && (
-          <MenuItem
-            icon="shield-checkmark-outline"
-            label="Admin Workspace"
-            sublabel="Manage users, deposits, withdrawals"
-            onPress={() => router.push('/admin')}
-          />
-        )}
-        <MenuItem
-          icon="information-circle-outline"
-          label={t('profile_about')}
-          onPress={() => Alert.alert('Jazment', t('profile_about_msg'))}
-        />
-        <MenuItem icon="log-out-outline" label={t('profile_logout')} onPress={handleLogout} destructive />
       </View>
     </ScrollView>
   );
@@ -208,9 +122,7 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
     shadowColor: colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
   },
   name: { fontSize: 22, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 4 },
-  phone: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 10 },
-  kycBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
-  kycText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600' as const },
+  verificationStatus: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
   avatarPicker: {
     marginHorizontal: 20, marginBottom: 20, padding: 16, borderRadius: 16,
     backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
@@ -239,13 +151,5 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
     color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold', fontSize: 12, textAlign: 'center',
   },
   choiceLabelSelected: { color: colors.foreground },
-  statsCard: {
-    flexDirection: 'row', marginHorizontal: 20, backgroundColor: colors.card,
-    borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 20, marginBottom: 24,
-  },
-  stat: { flex: 1, alignItems: 'center' },
-  statVal: { fontSize: 17, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 4 },
-  statLabel: { fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-  statDivider: { width: 1, backgroundColor: colors.border },
   menuSection: { paddingHorizontal: 20 },
 });

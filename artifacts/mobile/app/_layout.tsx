@@ -12,6 +12,7 @@ import {
   Inter_700Bold,
   useFonts,
 } from '@expo-google-fonts/inter';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { getGetWalletQueryKey, setBaseUrl } from '@workspace/api-client-react';
@@ -62,6 +63,8 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    ...Ionicons.font,
+    ...Feather.font,
   });
   const [startupTimedOut, setStartupTimedOut] = React.useState(false);
 

@@ -237,12 +237,15 @@ export const SendOtpResponse = zod.object({
 /**
  * @summary Verify OTP and get auth token
  */
+export const verifyOtpBodyNameMax = 32;
+
 export const verifyOtpBodyOtpMin = 4;
 export const verifyOtpBodyOtpMax = 4;
 
 
 
 export const VerifyOtpBody = zod.object({
+  "name": zod.string().min(1).max(verifyOtpBodyNameMax),
   "phone": zod.string(),
   "otp": zod.string().min(verifyOtpBodyOtpMin).max(verifyOtpBodyOtpMax)
 })
@@ -280,12 +283,15 @@ export const SendOtpAliasResponse = zod.object({
 /**
  * @summary Verify a WhatsApp OTP
  */
+export const verifyOtpAliasBodyNameMax = 32;
+
 export const verifyOtpAliasBodyOtpMin = 4;
 export const verifyOtpAliasBodyOtpMax = 4;
 
 
 
 export const VerifyOtpAliasBody = zod.object({
+  "name": zod.string().min(1).max(verifyOtpAliasBodyNameMax),
   "phone": zod.string(),
   "otp": zod.string().min(verifyOtpAliasBodyOtpMin).max(verifyOtpAliasBodyOtpMax)
 })

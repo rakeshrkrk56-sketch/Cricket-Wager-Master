@@ -226,6 +226,11 @@ const verifyOtpHandler = async (req: Request, res: Response): Promise<void> => {
     return;
   }
   const { otp } = parsed.data;
+  const displayName = parsed.data.name.trim();
+  if (!displayName) {
+    res.status(400).json({ error: "User name is required" });
+    return;
+  }
   const phone = normalizePhone(parsed.data.phone);
   const mobile = toFast2smsMobile(phone);
   if (!mobile) {
@@ -273,7 +278,7 @@ const verifyOtpHandler = async (req: Request, res: Response): Promise<void> => {
   if (!user) {
     const inserted = await db
       .insert(usersTable)
-      .values({ phone })
+      .values({ phone, name: displayName })
       .onConflictDoNothing({ target: usersTable.phone })
       .returning();
     user = inserted[0] ?? (await db.select().from(usersTable).where(eq(usersTable.phone, phone)))[0];
@@ -287,6 +292,12 @@ const verifyOtpHandler = async (req: Request, res: Response): Promise<void> => {
     });
     return;
   }
+
+  [user] = await db
+    .update(usersTable)
+    .set({ name: displayName, updatedAt: new Date() })
+    .where(eq(usersTable.id, user.id))
+    .returning();
 
   // Record login history (non-blocking)
   const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket.remoteAddress ?? undefined;
