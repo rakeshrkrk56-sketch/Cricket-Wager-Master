@@ -1003,11 +1003,17 @@ export const MarkNotificationReadResponse = zod.object({
 /**
  * @summary Create a support ticket
  */
+export const createSupportTicketBodyDescriptionMax = 2000;
+
+export const createSupportTicketBodyScreenshotBase64Max = 7000000;
+
+
+
 export const CreateSupportTicketBody = zod.object({
   "subject": zod.string(),
   "category": zod.string(),
-  "description": zod.string(),
-  "screenshotBase64": zod.string().optional()
+  "description": zod.string().max(createSupportTicketBodyDescriptionMax),
+  "screenshotBase64": zod.string().max(createSupportTicketBodyScreenshotBase64Max).optional()
 })
 
 export const CreateSupportTicketResponse = zod.object({
@@ -1095,8 +1101,12 @@ export const AddTicketMessageParams = zod.object({
   "ticketId": zod.coerce.string()
 })
 
+export const addTicketMessageBodyMessageMax = 2000;
+
+
+
 export const AddTicketMessageBody = zod.object({
-  "message": zod.string()
+  "message": zod.string().max(addTicketMessageBodyMessageMax)
 })
 
 export const AddTicketMessageResponse = zod.object({
@@ -1197,8 +1207,12 @@ export const AdminReplyToTicketParams = zod.object({
   "ticketId": zod.coerce.string()
 })
 
+export const adminReplyToTicketBodyMessageMax = 2000;
+
+
+
 export const AdminReplyToTicketBody = zod.object({
-  "message": zod.string()
+  "message": zod.string().max(adminReplyToTicketBodyMessageMax)
 })
 
 export const AdminReplyToTicketResponse = zod.object({

@@ -1,10 +1,37 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import { db, supportTicketsTable, ticketMessagesTable, usersTable, transactionsTable } from "@workspace/db";
-import { eq, and, desc, count, like } from "drizzle-orm";
+import { eq, and, desc, count, like, gte } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { createNotification } from "../lib/createNotification";
 
 const router: IRouter = Router();
+const SUPPORT_HOUR_MS = 60 * 60 * 1000;
+const MESSAGE_COOLDOWN_MS = 10 * 1000;
+const MAX_TICKETS_PER_HOUR = 3;
+const MAX_MESSAGES_PER_HOUR = 30;
+const MAX_MESSAGE_LENGTH = 2000;
+const MAX_SCREENSHOT_BASE64_LENGTH = 7_000_000;
+
+function rejectRateLimited(res: Response, message: string, retryAfterSeconds: number): void {
+  res.setHeader("Retry-After", String(Math.max(1, Math.ceil(retryAfterSeconds))));
+  res.status(429).json({ error: message, code: "SUPPORT_RATE_LIMITED" });
+}
+
+function isValidScreenshot(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const screenshot = value.trim();
+  if (!screenshot || screenshot.length > MAX_SCREENSHOT_BASE64_LENGTH) return false;
+
+  const commaIndex = screenshot.indexOf(",");
+  if (screenshot.startsWith("data:")) {
+    if (commaIndex < 0 || !/^data:image\/(?:jpeg|jpg|png);base64$/i.test(screenshot.slice(0, commaIndex))) {
+      return false;
+    }
+    return /^[A-Za-z0-9+/=\s]+$/.test(screenshot.slice(commaIndex + 1));
+  }
+
+  return /^[A-Za-z0-9+/=\s]+$/.test(screenshot);
+}
 
 // ─── User: Create ticket ──────────────────────────────────────────────────────
 
@@ -14,9 +41,27 @@ router.post("/support/tickets", requireAuth, async (req, res): Promise<void> => 
 
   if (!subject?.trim()) { res.status(400).json({ error: "Subject is required" }); return; }
   if (!description?.trim()) { res.status(400).json({ error: "Description is required" }); return; }
+  if (description.trim().length > MAX_MESSAGE_LENGTH) {
+    res.status(400).json({ error: `Description must be ${MAX_MESSAGE_LENGTH} characters or less` });
+    return;
+  }
+  if (screenshotBase64 !== undefined && screenshotBase64 !== null && !isValidScreenshot(screenshotBase64)) {
+    res.status(400).json({ error: "Screenshot must be a JPEG or PNG image smaller than 5 MB" });
+    return;
+  }
 
   const validCategories = ["deposit_issue", "withdrawal_issue", "prediction_issue", "kyc_issue", "account_issue", "technical_problem", "other"];
   if (!validCategories.includes(category)) { res.status(400).json({ error: "Invalid category" }); return; }
+
+  const ticketWindowStart = new Date(Date.now() - SUPPORT_HOUR_MS);
+  const [{ total: recentTicketCount }] = await db
+    .select({ total: count() })
+    .from(supportTicketsTable)
+    .where(and(eq(supportTicketsTable.userId, user.id), gte(supportTicketsTable.createdAt, ticketWindowStart)));
+  if (Number(recentTicketCount) >= MAX_TICKETS_PER_HOUR) {
+    rejectRateLimited(res, "You have reached the support ticket limit. Please continue in your existing ticket.", 60 * 60);
+    return;
+  }
 
   const [ticket] = await db.insert(supportTicketsTable).values({
     userId: user.id,
@@ -88,12 +133,48 @@ router.post("/support/tickets/:ticketId/messages", requireAuth, async (req, res)
   const ticketId = req.params["ticketId"] as string;
   const { message } = req.body;
 
-  if (!message?.trim()) { res.status(400).json({ error: "Message is required" }); return; }
+  if (typeof message !== "string" || !message.trim()) { res.status(400).json({ error: "Message is required" }); return; }
+  if (message.trim().length > MAX_MESSAGE_LENGTH) {
+    res.status(400).json({ error: `Message must be ${MAX_MESSAGE_LENGTH} characters or less` });
+    return;
+  }
 
   const [ticket] = await db.select().from(supportTicketsTable)
     .where(and(eq(supportTicketsTable.id, ticketId), eq(supportTicketsTable.userId, user.id)));
   if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
   if (ticket.status === "closed") { res.status(400).json({ error: "Ticket is closed" }); return; }
+
+  const now = Date.now();
+  const messageWindowStart = new Date(now - SUPPORT_HOUR_MS);
+  const [lastMessage] = await db
+    .select({ createdAt: ticketMessagesTable.createdAt })
+    .from(ticketMessagesTable)
+    .where(and(
+      eq(ticketMessagesTable.ticketId, ticketId),
+      eq(ticketMessagesTable.senderId, user.id),
+      gte(ticketMessagesTable.createdAt, new Date(now - MESSAGE_COOLDOWN_MS)),
+    ))
+    .orderBy(desc(ticketMessagesTable.createdAt))
+    .limit(1);
+  if (lastMessage) {
+    const retryAfter = (lastMessage.createdAt.getTime() + MESSAGE_COOLDOWN_MS - now) / 1000;
+    rejectRateLimited(res, "Please wait a few seconds before sending another message.", retryAfter);
+    return;
+  }
+
+  const [{ total: recentMessageCount }] = await db
+    .select({ total: count() })
+    .from(ticketMessagesTable)
+    .innerJoin(supportTicketsTable, eq(ticketMessagesTable.ticketId, supportTicketsTable.id))
+    .where(and(
+      eq(supportTicketsTable.userId, user.id),
+      eq(ticketMessagesTable.senderId, user.id),
+      gte(ticketMessagesTable.createdAt, messageWindowStart),
+    ));
+  if (Number(recentMessageCount) >= MAX_MESSAGES_PER_HOUR) {
+    rejectRateLimited(res, "You have reached the hourly message limit. Please try again later.", 60 * 60);
+    return;
+  }
 
   const [msg] = await db.insert(ticketMessagesTable).values({
     ticketId,

@@ -15,6 +15,8 @@ import { useGetMyTickets, getGetMyTicketsQueryKey, useCreateSupportTicket } from
 const STATUS_COLOR: Record<string, string> = {
   open: '#F59E0B', in_progress: '#3B82F6', resolved: '#10B981', closed: '#6B7280',
 };
+const MAX_SUPPORT_TEXT_LENGTH = 2000;
+const MAX_SCREENSHOT_BASE64_LENGTH = 7_000_000;
 
 type Tab = 'home' | 'tickets' | 'new';
 
@@ -107,8 +109,13 @@ export default function SupportScreen() {
       }
 
       const mimeType = asset.mimeType ?? 'image/jpeg';
+      const encodedScreenshot = `data:${mimeType};base64,${asset.base64}`;
+      if (encodedScreenshot.length > MAX_SCREENSHOT_BASE64_LENGTH) {
+        Alert.alert('Image too large', 'Please choose an image smaller than 5 MB.');
+        return;
+      }
       setScreenshotUri(asset.uri);
-      setScreenshotBase64(`data:${mimeType};base64,${asset.base64}`);
+      setScreenshotBase64(encodedScreenshot);
     } catch {
       Alert.alert('Image error', 'Could not open your photos. Please try again.');
     }
@@ -116,6 +123,14 @@ export default function SupportScreen() {
 
   const handleSubmitTicket = async () => {
     if (!description.trim()) { Alert.alert(t('support_required'), t('support_enter_desc')); return; }
+    if (description.trim().length > MAX_SUPPORT_TEXT_LENGTH) {
+      Alert.alert('Message too long', `Please keep your message under ${MAX_SUPPORT_TEXT_LENGTH} characters.`);
+      return;
+    }
+    if (screenshotBase64 && screenshotBase64.length > MAX_SCREENSHOT_BASE64_LENGTH) {
+      Alert.alert('Image too large', 'Please choose an image smaller than 5 MB.');
+      return;
+    }
     const selectedCategory = CATEGORIES.find((item) => item.value === category);
     const subject = selectedCategory ? t(selectedCategory.labelKey as any) : t('support_cat_other');
     try {
@@ -125,8 +140,9 @@ export default function SupportScreen() {
         { text: 'OK' },
       ]);
       setDescription(''); setCategory('other'); setScreenshotUri(null); setScreenshotBase64(null);
-    } catch {
-      Alert.alert('Error', 'Failed to submit ticket. Please try again.');
+    } catch (error: any) {
+      const message = error?.data?.error ?? 'Failed to submit ticket. Please try again.';
+      Alert.alert(error?.status === 429 ? 'Please wait' : 'Error', message);
     }
   };
 
@@ -248,8 +264,10 @@ export default function SupportScreen() {
             onChangeText={setDescription}
             placeholder={t('support_desc_ph')}
             placeholderTextColor={colors.mutedForeground}
+            maxLength={MAX_SUPPORT_TEXT_LENGTH}
             multiline numberOfLines={5} textAlignVertical="top"
           />
+          <Text style={s.characterCount}>{description.length}/{MAX_SUPPORT_TEXT_LENGTH}</Text>
 
           <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>{t('support_screenshot')}</Text>
           {screenshotUri ? (
@@ -345,4 +363,5 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   submitBtn: { backgroundColor: colors.primary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 24 },
   submitBtnLabel: { color: colors.primaryForeground, fontSize: 16, fontWeight: '700', fontFamily: 'Inter_700Bold' },
   submitHint: { fontSize: 12, color: colors.mutedForeground, textAlign: 'center', marginTop: 12, fontFamily: 'Inter_400Regular' },
+  characterCount: { fontSize: 10, color: colors.mutedForeground, textAlign: 'right', marginTop: 3, fontFamily: 'Inter_400Regular' },
 });

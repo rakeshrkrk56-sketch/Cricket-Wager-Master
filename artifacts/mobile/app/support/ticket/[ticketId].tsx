@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   TextInput, ActivityIndicator, Alert, Platform, KeyboardAvoidingView,
@@ -19,6 +19,7 @@ export default function TicketDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [reply, setReply] = useState('');
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
 
   const { t } = useLanguage();
   const STATUS_LABEL: Record<string, string> = {
@@ -32,14 +33,29 @@ export default function TicketDetailScreen() {
 
   const s = styles(colors, insets);
 
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setCooldownSeconds((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldownSeconds]);
+
   const handleSend = async () => {
-    if (!reply.trim()) return;
+    if (!reply.trim() || cooldownSeconds > 0) return;
     try {
       await addMessage.mutateAsync({ ticketId: ticketId ?? '', data: { message: reply.trim() } });
       setReply('');
+      setCooldownSeconds(10);
       refetch();
-    } catch {
-      Alert.alert('Error', 'Failed to send message. Please try again.');
+    } catch (error: any) {
+      const retryAfter = Number(error?.headers?.get?.('Retry-After'));
+      if (error?.status === 429) {
+        setCooldownSeconds(Number.isFinite(retryAfter) && retryAfter > 0 ? Math.ceil(retryAfter) : 10);
+        Alert.alert('Please wait', error?.data?.error ?? 'Please wait before sending another message.');
+      } else {
+        Alert.alert('Error', error?.data?.error ?? 'Failed to send message. Please try again.');
+      }
     }
   };
 
@@ -109,12 +125,16 @@ export default function TicketDetailScreen() {
               onChangeText={setReply}
               placeholder="Type your message…"
               placeholderTextColor={colors.mutedForeground}
+              maxLength={2000}
               multiline
             />
+            {cooldownSeconds > 0 && (
+              <Text style={s.cooldownText}>Send again in {cooldownSeconds}s</Text>
+            )}
             <TouchableOpacity
-              style={[s.sendBtn, (!reply.trim() || addMessage.isPending) && { opacity: 0.4 }]}
+              style={[s.sendBtn, (!reply.trim() || addMessage.isPending || cooldownSeconds > 0) && { opacity: 0.4 }]}
               onPress={handleSend}
-              disabled={!reply.trim() || addMessage.isPending}
+              disabled={!reply.trim() || addMessage.isPending || cooldownSeconds > 0}
               activeOpacity={0.8}
             >
               {addMessage.isPending
@@ -177,6 +197,7 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
     borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10,
     maxHeight: 100, fontSize: 14, color: colors.foreground, fontFamily: 'Inter_400Regular',
   },
+  cooldownText: { position: 'absolute', right: 60, bottom: 12, fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
   sendBtn: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',

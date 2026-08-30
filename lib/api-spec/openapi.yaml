@@ -1172,8 +1172,10 @@ components:
           type: string
         description:
           type: string
+          maxLength: 2000
         screenshotBase64:
           type: string
+          maxLength: 7000000
       required:
         - subject
         - category
@@ -1184,6 +1186,7 @@ components:
       properties:
         message:
           type: string
+          maxLength: 2000
       required:
         - message
 

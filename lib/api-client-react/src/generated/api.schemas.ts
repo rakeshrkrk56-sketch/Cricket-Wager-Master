@@ -55,11 +55,14 @@ export interface TicketMessage {
 export interface CreateSupportTicketRequest {
   subject: string;
   category: string;
+  /** @maxLength 2000 */
   description: string;
+  /** @maxLength 7000000 */
   screenshotBase64?: string;
 }
 
 export interface AddTicketMessageRequest {
+  /** @maxLength 2000 */
   message: string;
 }
 
