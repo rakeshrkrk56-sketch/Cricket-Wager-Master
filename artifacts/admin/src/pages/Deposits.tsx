@@ -17,6 +17,16 @@ import { useToast } from '@/hooks/use-toast';
 import { exportToCsv } from '@/lib/export';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type StatusFilter = 'pending' | 'approved' | 'rejected' | 'all';
 
@@ -30,6 +40,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const PAGE_SIZE = 20;
+type DepositAction = 'approve' | 'reject';
 
 export function Deposits() {
   const queryClient = useQueryClient();
@@ -42,6 +53,8 @@ export function Deposits() {
   const [remarksMap, setRemarksMap] = useState<Record<string, string>>({});
   const [screenshotOpen, setScreenshotOpen] = useState<string | null>(null);
   const [screenshotLoading, setScreenshotLoading] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ id: string; action: DepositAction } | null>(null);
+  const [confirmationCountdown, setConfirmationCountdown] = useState(0);
   const adminFetch = useAdminFetch();
 
   const apiStatus = statusFilter === 'all' ? undefined : statusFilter;
@@ -70,6 +83,34 @@ export function Deposits() {
     const status = (error as any)?.status;
     if (status === 401 || status === 403) logout();
   }, [error, logout]);
+
+  useEffect(() => {
+    if (!pendingAction) {
+      setConfirmationCountdown(0);
+      return;
+    }
+
+    setConfirmationCountdown(5);
+    const interval = window.setInterval(() => {
+      setConfirmationCountdown((current) => {
+        if (current <= 1) {
+          window.clearInterval(interval);
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [pendingAction]);
+
+  const requestAction = (id: string, action: DepositAction) => {
+    if (action === 'reject' && !remarksMap[id]?.trim()) {
+      toast({ variant: 'destructive', title: 'Remarks required', description: 'Add a reason before rejecting this deposit.' });
+      return;
+    }
+    setPendingAction({ id, action });
+  };
 
   const handleApprove = (id: string) => {
     approve.mutate(
@@ -101,6 +142,18 @@ export function Deposits() {
         onError: (err: any) => toast({ variant: 'destructive', title: 'Error', description: err?.data?.error ?? 'Failed' }),
       }
     );
+  };
+
+  const handleConfirmedAction = () => {
+    if (!pendingAction || confirmationCountdown > 0) return;
+
+    const { id, action } = pendingAction;
+    setPendingAction(null);
+    if (action === 'approve') {
+      handleApprove(id);
+    } else {
+      handleReject(id);
+    }
   };
 
   const handleViewScreenshot = async (depositId: string) => {
@@ -254,11 +307,11 @@ export function Deposits() {
                       className="flex-1 text-sm"
                     />
                     <Button size="sm" className="bg-success hover:bg-success/90 text-white gap-1"
-                      onClick={() => handleApprove(dep.id)} disabled={approve.isPending}>
+                      onClick={() => requestAction(dep.id, 'approve')} disabled={approve.isPending || reject.isPending}>
                       <CheckCircle className="w-4 h-4" /> Approve
                     </Button>
                     <Button size="sm" variant="destructive" className="gap-1"
-                      onClick={() => handleReject(dep.id)} disabled={reject.isPending}>
+                      onClick={() => requestAction(dep.id, 'reject')} disabled={approve.isPending || reject.isPending}>
                       <XCircle className="w-4 h-4" /> Reject
                     </Button>
                   </div>
@@ -294,6 +347,44 @@ export function Deposits() {
           </div>
         </div>
       )}
+
+      <AlertDialog
+        open={pendingAction !== null}
+        onOpenChange={(open) => {
+          if (!open && !approve.isPending && !reject.isPending) setPendingAction(null);
+        }}
+      >
+        <AlertDialogContent data-testid="deposit-action-confirmation">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingAction?.action === 'approve' ? 'Confirm deposit approval' : 'Confirm deposit rejection'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAction?.action === 'approve'
+                ? 'This will credit the user wallet. Please check the amount, UTR, and screenshot before continuing.'
+                : 'This will reject the deposit request. Please make sure the rejection remarks are correct.'}
+              {' '}
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                if (confirmationCountdown > 0) event.preventDefault();
+                handleConfirmedAction();
+              }}
+              disabled={confirmationCountdown > 0 || approve.isPending || reject.isPending}
+              className={pendingAction?.action === 'reject' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : 'bg-success text-white hover:bg-success/90'}
+              data-testid="deposit-action-confirm"
+            >
+              {confirmationCountdown > 0
+                ? `Wait ${confirmationCountdown}s`
+                : pendingAction?.action === 'approve' ? 'Confirm approval' : 'Confirm rejection'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
