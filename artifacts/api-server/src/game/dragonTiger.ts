@@ -14,6 +14,7 @@ import { and, eq, gte, sql } from "drizzle-orm";
 import WebSocket, { WebSocketServer, type RawData } from "ws";
 import { parseToken } from "../middlewares/auth";
 import { logger } from "../lib/logger";
+import { ensureGameConfig } from "../lib/gameConfig";
 
 const BETTING_MS = 15_000;
 const REVEAL_MS = 5_000;
@@ -196,6 +197,7 @@ export class DragonTigerGame {
   }
 
   private async resume(): Promise<void> {
+    await ensureGameConfig();
     await db.insert(platformSettingsTable).values([
       { key: CONTROL_MODE_KEY, value: "AUTOMATIC", updatedAt: new Date() },
       { key: CONTROL_PAUSED_KEY, value: "false", updatedAt: new Date() },

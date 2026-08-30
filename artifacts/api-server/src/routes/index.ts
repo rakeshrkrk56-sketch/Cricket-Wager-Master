@@ -11,6 +11,7 @@ import settingsRouter from "./settings";
 import kycRouter from "./kyc";
 import riskRouter from "./risk";
 import gameControlRouter from "./gameControl";
+import gameConfigsRouter from "./gameConfigs";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(settingsRouter);
 router.use(kycRouter);
 router.use(riskRouter);
 router.use(gameControlRouter);
+router.use(gameConfigsRouter);
 
 export default router;

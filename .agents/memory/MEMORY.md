@@ -4,3 +4,4 @@
 - [Admin session failures](admin-session-failures.md) — unauthorized list requests must trigger login, never appear as valid empty admin data
 - [WhatsApp Web Chromium](whatsapp-web-chromium.md) — Replit WhatsApp Web sessions require a direct Puppeteer dependency and an absolute system Chromium path
 - [PostgreSQL pool restarts](postgres-pool-restarts.md) — idle-client pool errors must be handled so transient database restarts do not terminate the API
+- [Dragon Tiger fairness](dragon-tiger-fairness.md) — outcomes stay independent of wager totals and user tiers; risk controls happen before bet acceptance
