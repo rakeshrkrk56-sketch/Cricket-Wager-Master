@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { dragonTigerGame } from "./game/dragonTiger";
 import { pool } from "@workspace/db";
 import { startWhatsAppClient, stopWhatsAppClient } from "./lib/whatsappClient";
+import { deleteExpiredSupportScreenshots } from "./jobs/supportCleanup";
 
 const rawPort = process.env["PORT"];
 
@@ -21,12 +22,21 @@ if (Number.isNaN(port) || port <= 0) {
 
 const server = createServer(app);
 dragonTigerGame.attach(server);
+const supportCleanupTimer = setInterval(() => {
+  void deleteExpiredSupportScreenshots().catch((err) => {
+    logger.error({ err }, "Support screenshot cleanup failed");
+  });
+}, 24 * 60 * 60 * 1000);
+supportCleanupTimer.unref();
 server.on("error", (err) => {
   logger.error({ err }, "Error listening on port");
   process.exit(1);
 });
 server.listen(port, () => {
   logger.info({ port }, "Server listening");
+  void deleteExpiredSupportScreenshots().catch((err) => {
+    logger.error({ err }, "Support screenshot cleanup failed");
+  });
   void startWhatsAppClient().catch((err) => {
     logger.error({ err }, "WhatsApp OTP client failed to initialize");
   });
@@ -50,6 +60,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
     const httpClosed = new Promise<void>((resolve, reject) => {
       server.close((err) => err ? reject(err) : resolve());
     });
+    clearInterval(supportCleanupTimer);
     await Promise.all([httpClosed, dragonTigerGame.stop(), stopWhatsAppClient()]);
     await pool.end();
     clearTimeout(deadline);
