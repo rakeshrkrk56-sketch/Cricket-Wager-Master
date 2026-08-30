@@ -141,15 +141,15 @@ function GameLobby() {
               <View style={lobbyStyles.liveDot} />
               <Text style={lobbyStyles.liveText}>LIVE GAMES</Text>
             </View>
-            <TouchableOpacity style={lobbyStyles.toolButton} onPress={() => router.push('/(tabs)/notifications')}>
-              <Ionicons name="notifications" size={18} color="#FFF2C7" />
-            </TouchableOpacity>
-            <TouchableOpacity style={lobbyStyles.toolButton} onPress={() => router.push('/(tabs)/support')} testID="lobby-support">
-              <Ionicons name="headset" size={19} color="#FFF2C7" />
-            </TouchableOpacity>
-            <TouchableOpacity style={lobbyStyles.toolButton} onPress={() => router.push('/(tabs)/profile')}>
-              <Ionicons name="person-circle" size={20} color="#FFF2C7" />
-            </TouchableOpacity>
+              <TouchableOpacity style={lobbyStyles.toolButton} onPress={() => router.push('/(tabs)/notifications')}>
+                <Text style={lobbyStyles.toolButtonText}>Notifications</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={lobbyStyles.toolButton} onPress={() => router.push('/(tabs)/support')} testID="lobby-support">
+                <Text style={lobbyStyles.toolButtonText}>Support</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={lobbyStyles.toolButton} onPress={() => router.push('/(tabs)/profile')}>
+                <Text style={lobbyStyles.toolButtonText}>Profile</Text>
+              </TouchableOpacity>
           </View>
         </View>
 
@@ -1431,7 +1431,8 @@ const lobbyStyles = StyleSheet.create({
   },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981', marginRight: 6 },
   liveText: { color: '#FFF', fontSize: 10, fontWeight: 'bold', letterSpacing: 0.5 },
-  toolButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' },
+  toolButton: { minWidth: 76, height: 36, paddingHorizontal: 10, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' },
+  toolButtonText: { color: '#FFF2C7', fontWeight: '700', fontSize: 11 },
   body: { flex: 1, flexDirection: 'row', gap: 16 },
   bodyPortrait: { flexDirection: 'column' },
   hero: { flex: 1, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', minHeight: 220 },
