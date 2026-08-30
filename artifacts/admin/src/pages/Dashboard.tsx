@@ -8,9 +8,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
+import { usePendingRequestAlerts } from "@/components/PendingRequestAlerts";
 import { format } from "date-fns";
 import {
-  Users, Activity, ArrowUpRight, ArrowDownRight, Clock, RefreshCw,
+  Users, Activity, ArrowUpRight, ArrowDownRight, Clock, RefreshCw, AlertTriangle, MessageSquare, ChevronRight,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -33,6 +34,11 @@ function fmtShort(n: number) {
 
 export function Dashboard() {
   const [chartDays, setChartDays] = useState<7 | 14 | 30>(30);
+  const {
+    pendingDeposits,
+    unresolvedSupportTickets,
+    supportTickets,
+  } = usePendingRequestAlerts();
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useGetAdminStats({
     query: { queryKey: getGetAdminStatsQueryKey(), refetchInterval: 30_000 },
   });
@@ -63,6 +69,79 @@ export function Dashboard() {
           </Button>
         </div>
       </div>
+
+      {(pendingDeposits > 0 || unresolvedSupportTickets > 0) && (
+        <section
+          className="rounded-xl border border-warning/30 bg-warning/[0.06] p-4 md:p-5 shadow-[0_0_24px_hsl(var(--warning)/0.08)]"
+          aria-label="Items needing attention"
+          data-testid="dashboard-attention-alert"
+        >
+          <div className="flex items-start gap-3 mb-4">
+            <div className="rounded-lg bg-warning/15 p-2 text-warning">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-foreground">Needs your attention</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Review these items as soon as possible.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {pendingDeposits > 0 && (
+              <Link
+                href="/deposits?status=pending"
+                className="group rounded-lg border border-warning/25 bg-card/70 p-4 hover:border-warning/60 transition-colors"
+                data-testid="dashboard-pending-deposits-alert"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-md bg-emerald-500/10 p-2 text-emerald-400">
+                      <ArrowDownRight className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">Deposit requests</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {pendingDeposits} pending {pendingDeposits === 1 ? "request" : "requests"} awaiting review
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-warning transition-colors" />
+                </div>
+              </Link>
+            )}
+
+            {unresolvedSupportTickets > 0 && (
+              <Link
+                href="/support"
+                className="group rounded-lg border border-warning/25 bg-card/70 p-4 hover:border-warning/60 transition-colors"
+                data-testid="dashboard-support-alert"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="rounded-md bg-rose-500/10 p-2 text-rose-400 shrink-0">
+                      <MessageSquare className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">Support issues</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {unresolvedSupportTickets} unresolved {unresolvedSupportTickets === 1 ? "issue" : "issues"} need a response
+                      </p>
+                      {supportTickets.slice(0, 2).map((ticket) => (
+                        <p key={ticket.id} className="text-xs text-foreground/80 truncate mt-1">
+                          {ticket.subject}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-warning transition-colors shrink-0" />
+                </div>
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
 
       <section>
         <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3 font-semibold">Users & Accounts</p>

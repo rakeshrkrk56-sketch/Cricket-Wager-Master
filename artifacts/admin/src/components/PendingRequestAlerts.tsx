@@ -2,6 +2,8 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, u
 import {
   getGetAdminStatsQueryKey,
   useGetAdminStats,
+  getAdminListSupportTicketsQueryKey,
+  useAdminListSupportTickets,
 } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -14,6 +16,18 @@ interface PendingRequestAlertsContextValue {
   alertsEnabled: boolean;
   setAlertsEnabled: (enabled: boolean) => void;
   notificationState: NotificationState;
+  pendingDeposits: number;
+  unresolvedSupportTickets: number;
+  supportTickets: SupportAlertTicket[];
+}
+
+export interface SupportAlertTicket {
+  id: string;
+  subject: string;
+  category: string;
+  status: string;
+  updatedAt: string;
+  user?: { phone?: string; name?: string | null };
 }
 
 const PendingRequestAlertsContext = createContext<PendingRequestAlertsContextValue | undefined>(undefined);
@@ -31,7 +45,11 @@ export function PendingRequestAlertsProvider({ children }: { children: ReactNode
   const { isAuthenticated } = useAuth();
   const [alertsEnabled, setAlertsEnabledState] = useState(readAlertsPreference);
   const [notificationState, setNotificationState] = useState<NotificationState>(getNotificationState);
-  const previousCounts = useRef<{ deposits: number; withdrawals: number } | null>(null);
+  const previousAlertState = useRef<{
+    deposits: number;
+    withdrawals: number;
+    supportActivity: string;
+  } | null>(null);
   const audioContext = useRef<AudioContext | null>(null);
 
   const getAudioContext = useCallback(() => {
@@ -110,35 +128,71 @@ export function PendingRequestAlertsProvider({ children }: { children: ReactNode
     },
   });
 
+  const { data: openSupportData } = useAdminListSupportTickets(
+    { status: "open", page: 1, limit: 5 },
+    {
+      query: {
+        queryKey: getAdminListSupportTicketsQueryKey({ status: "open", page: 1, limit: 5 }),
+        enabled: isAuthenticated,
+        refetchInterval: 30_000,
+      },
+    },
+  );
+  const { data: inProgressSupportData } = useAdminListSupportTickets(
+    { status: "in_progress", page: 1, limit: 5 },
+    {
+      query: {
+        queryKey: getAdminListSupportTicketsQueryKey({ status: "in_progress", page: 1, limit: 5 }),
+        enabled: isAuthenticated,
+        refetchInterval: 30_000,
+      },
+    },
+  );
+
   const pendingDeposits = isAuthenticated ? (stats?.pendingDepositsCount ?? 0) : 0;
   const pendingWithdrawals = isAuthenticated ? (stats?.pendingWithdrawalsCount ?? 0) : 0;
+  const supportTickets = [
+    ...(openSupportData?.tickets ?? []),
+    ...(inProgressSupportData?.tickets ?? []),
+  ]
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 5) as SupportAlertTicket[];
+  const unresolvedSupportTickets = isAuthenticated
+    ? (openSupportData?.total ?? 0) + (inProgressSupportData?.total ?? 0)
+    : 0;
   const totalPending = pendingDeposits + pendingWithdrawals;
+  const totalAttention = pendingDeposits + unresolvedSupportTickets;
+  const supportActivity = supportTickets.map((ticket) => `${ticket.id}:${ticket.updatedAt}`).join("|");
 
   useEffect(() => {
-    document.title = totalPending > 0 ? `(${totalPending}) ${APP_TITLE}` : APP_TITLE;
-  }, [totalPending]);
+    document.title = totalPending + unresolvedSupportTickets > 0
+      ? `(${totalPending + unresolvedSupportTickets}) ${APP_TITLE}`
+      : APP_TITLE;
+  }, [totalPending, unresolvedSupportTickets]);
 
   useEffect(() => {
     if (!isAuthenticated) {
-      previousCounts.current = null;
+      previousAlertState.current = null;
       return;
     }
-    if (!stats) return;
+    if (!stats || !openSupportData || !inProgressSupportData) return;
 
-    const currentCounts = {
+    const currentState = {
       deposits: stats.pendingDepositsCount,
       withdrawals: stats.pendingWithdrawalsCount,
+      supportActivity,
     };
-    const previous = previousCounts.current;
-    previousCounts.current = currentCounts;
+    const previous = previousAlertState.current;
+    previousAlertState.current = currentState;
 
     // Establish a baseline on the first response so opening the admin panel
     // does not announce requests that were already waiting.
     if (!previous || !alertsEnabled) return;
 
-    const newDeposits = Math.max(0, currentCounts.deposits - previous.deposits);
-    const newWithdrawals = Math.max(0, currentCounts.withdrawals - previous.withdrawals);
-    if (newDeposits === 0 && newWithdrawals === 0) return;
+    const newDeposits = Math.max(0, currentState.deposits - previous.deposits);
+    const newWithdrawals = Math.max(0, currentState.withdrawals - previous.withdrawals);
+    const newSupportActivity = currentState.supportActivity !== previous.supportActivity;
+    if (newDeposits === 0 && newWithdrawals === 0 && !newSupportActivity) return;
 
     playChime();
 
@@ -146,10 +200,11 @@ export function PendingRequestAlertsProvider({ children }: { children: ReactNode
       const parts = [
         newDeposits > 0 ? `${newDeposits} new deposit${newDeposits === 1 ? "" : "s"}` : "",
         newWithdrawals > 0 ? `${newWithdrawals} new withdrawal${newWithdrawals === 1 ? "" : "s"}` : "",
+        newSupportActivity ? "new support activity" : "",
       ].filter(Boolean);
       try {
         new Notification("Jazment Ops: New request", {
-          body: `${parts.join(" and ")} awaiting review.`,
+          body: `${parts.join(" and ")} needs attention.`,
           tag: "jazment-pending-requests",
         });
       } catch {
@@ -157,7 +212,16 @@ export function PendingRequestAlertsProvider({ children }: { children: ReactNode
         // intervals. The chime remains available as the fallback alert.
       }
     }
-  }, [alertsEnabled, isAuthenticated, notificationState, playChime, stats]);
+  }, [
+    alertsEnabled,
+    inProgressSupportData,
+    isAuthenticated,
+    notificationState,
+    openSupportData,
+    playChime,
+    stats,
+    supportActivity,
+  ]);
 
   useEffect(() => {
     // A login click or any later interaction unlocks Web Audio for future
@@ -173,7 +237,14 @@ export function PendingRequestAlertsProvider({ children }: { children: ReactNode
 
   return (
     <PendingRequestAlertsContext.Provider
-      value={{ alertsEnabled, setAlertsEnabled, notificationState }}
+      value={{
+        alertsEnabled,
+        setAlertsEnabled,
+        notificationState,
+        pendingDeposits,
+        unresolvedSupportTickets,
+        supportTickets,
+      }}
     >
       {children}
     </PendingRequestAlertsContext.Provider>
