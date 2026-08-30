@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { Link } from "wouter";
 import { useDebounce } from "@/hooks/use-debounce";
 import { exportToCsv } from "@/lib/export";
+import { formatUserIdentifier } from "@/lib/utils";
 
 export function Users() {
   const [search, setSearch] = useState("");
@@ -34,7 +35,7 @@ export function Users() {
     exportToCsv(`users-${format(new Date(), "yyyy-MM-dd")}.csv`,
       users.map((u) => ({
         id: u.id,
-        phone: u.phone,
+         phone: formatUserIdentifier(u.phone),
         name: u.name ?? "",
         wallet_balance: u.walletBalance,
         kyc_status: u.kycStatus,
@@ -113,7 +114,7 @@ export function Users() {
                   onClick={() => { window.location.href = `/users/${user.id}`; }}
                 >
                   <TableCell>
-                    <div className="font-mono text-sm font-bold text-white group-hover:text-primary transition-colors">{user.phone}</div>
+                    <div className="font-mono text-sm font-bold text-white group-hover:text-primary transition-colors">{formatUserIdentifier(user.phone)}</div>
                     <div className="text-xs text-muted-foreground">{user.name ?? "Unknown"}</div>
                   </TableCell>
                   <TableCell>

@@ -15,6 +15,7 @@ import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { exportToCsv } from '@/lib/export';
 import { useDebounce } from '@/hooks/use-debounce';
+import { formatUserIdentifier } from '@/lib/utils';
 
 type StatusFilter = 'pending' | 'approved' | 'rejected' | 'all';
 
@@ -87,7 +88,7 @@ export function Withdrawals() {
     exportToCsv(`withdrawals-${statusFilter}-${format(new Date(), 'yyyy-MM-dd')}.csv`,
       withdrawals.map((w: any) => ({
         id: w.id,
-        user: w.user?.phone ?? w.userId,
+        user: formatUserIdentifier(w.user?.phone ?? w.userId),
         name: w.user?.name ?? '',
         amount: w.amount,
         upi_id: w.upiId ?? '',
@@ -159,7 +160,7 @@ export function Withdrawals() {
                     </div>
                     <div className="text-sm text-muted-foreground space-y-0.5">
                       <p>
-                        <span className="text-foreground font-medium">{wd.user?.phone ?? wd.userId}</span>
+                        <span className="text-foreground font-medium">{formatUserIdentifier(wd.user?.phone ?? wd.userId)}</span>
                         {wd.user?.name && <span className="ml-2">({wd.user.name})</span>}
                         {wd.user?.walletBalance != null && (
                           <span className="ml-2 text-xs">Bal: ₹{Number(wd.user.walletBalance).toLocaleString('en-IN')}</span>

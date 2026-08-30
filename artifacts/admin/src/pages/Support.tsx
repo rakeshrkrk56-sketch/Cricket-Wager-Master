@@ -10,6 +10,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { exportToCsv } from "@/lib/export";
+import { formatUserIdentifier } from "@/lib/utils";
 
 const PAGE_SIZE = 30;
 
@@ -55,7 +56,7 @@ export function Support() {
       Subject: t.subject,
       Category: CATEGORY_LABELS[t.category] ?? t.category,
       Status: t.status,
-      User: (t as any).user?.phone ?? "",
+       User: formatUserIdentifier((t as any).user?.phone),
       Created: t.createdAt,
       Updated: t.updatedAt,
     })));
@@ -164,7 +165,7 @@ export function Support() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm text-foreground">{user?.phone ?? "—"}</span>
+                     <span className="text-sm text-foreground">{formatUserIdentifier(user?.phone)}</span>
                     {user?.name && <p className="text-xs text-muted-foreground">{user.name}</p>}
                   </TableCell>
                   <TableCell>

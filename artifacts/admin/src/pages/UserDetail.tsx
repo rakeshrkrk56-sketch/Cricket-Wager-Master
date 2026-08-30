@@ -20,6 +20,7 @@ import {
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useAdminFetch } from "@/hooks/useAdminFetch";
+import { formatUserIdentifier } from "@/lib/utils";
 
 type UserTab = "overview" | "deposits" | "withdrawals" | "timeline" | "audit";
 
@@ -224,7 +225,7 @@ export function UserDetail() {
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-bold tracking-tight text-white font-mono">{user.phone}</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-white font-mono">{formatUserIdentifier(user.phone)}</h1>
             {status === "active" && <Badge variant="outline" className="text-green-400 border-green-400/30 bg-green-400/10">Active</Badge>}
             {status === "hold" && <Badge variant="outline" className="text-yellow-400 border-yellow-400/30 bg-yellow-400/10">On Hold</Badge>}
             {status === "suspended" && <Badge variant="destructive">Suspended</Badge>}
@@ -367,7 +368,7 @@ export function UserDetail() {
                 )}
                 <label className="flex items-start gap-2 cursor-pointer select-none">
                   <input type="checkbox" checked={adjConfirm} onChange={(e) => setAdjConfirm(e.target.checked)} className="mt-0.5 accent-primary" />
-                  <span className="text-xs text-muted-foreground leading-relaxed">I confirm: {adjType} ₹{adjAmount || "—"} from {user.phone}'s wallet.</span>
+                  <span className="text-xs text-muted-foreground leading-relaxed">I confirm: {adjType} ₹{adjAmount || "—"} from {formatUserIdentifier(user.phone)}'s wallet.</span>
                 </label>
                 <Button onClick={handleAdjust} disabled={adjustWallet.isPending || !adjAmount || !adjReason.trim() || !adjConfirm}
                   className={`w-full ${adjType === "credit" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}`}>
@@ -384,7 +385,7 @@ export function UserDetail() {
                 <CardContent className="space-y-3 text-sm">
                   {[
                     { label: "User ID", value: user.id, mono: true },
-                    { label: "Phone", value: user.phone, mono: true },
+                    { label: "Phone", value: formatUserIdentifier(user.phone), mono: true },
                     { label: "Name", value: user.name ?? "—" },
                     { label: "Role", value: user.role.toUpperCase() },
                     { label: "Status", value: status },

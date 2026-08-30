@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { formatUserIdentifier } from "@/lib/utils";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   open: { label: "Open", color: "bg-amber-500/10 text-amber-400 border-amber-500/20", icon: AlertCircle },
@@ -219,7 +220,7 @@ export function SupportDetail() {
               <div className="space-y-2">
                 <div>
                   <p className="text-xs text-muted-foreground">Phone</p>
-                  <p className="text-sm text-foreground font-medium">{user.phone}</p>
+                   <p className="text-sm text-foreground font-medium">{formatUserIdentifier(user.phone)}</p>
                 </div>
                 {user.name && (
                   <div>

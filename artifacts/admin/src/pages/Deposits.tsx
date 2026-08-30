@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { exportToCsv } from '@/lib/export';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useAuth } from '@/contexts/AuthContext';
+import { formatUserIdentifier } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -175,7 +176,7 @@ export function Deposits() {
     exportToCsv(`deposits-${statusFilter}-${format(new Date(), 'yyyy-MM-dd')}.csv`,
       deposits.map((d: any) => ({
         id: d.id,
-        user: d.user?.phone ?? d.userId,
+        user: formatUserIdentifier(d.user?.phone ?? d.userId),
         name: d.user?.name ?? '',
         amount: d.amount,
         method: d.method,
@@ -273,7 +274,7 @@ export function Deposits() {
                     </div>
                     <div className="text-sm text-muted-foreground space-y-0.5">
                       <p>
-                        <span className="text-foreground font-medium">{dep.user?.phone ?? dep.userId}</span>
+                        <span className="text-foreground font-medium">{formatUserIdentifier(dep.user?.phone ?? dep.userId)}</span>
                         {dep.user?.name && <span className="ml-2">({dep.user.name})</span>}
                       </p>
                       {dep.utrNumber && <p>UTR: <span className="font-mono text-foreground">{dep.utrNumber}</span></p>}
