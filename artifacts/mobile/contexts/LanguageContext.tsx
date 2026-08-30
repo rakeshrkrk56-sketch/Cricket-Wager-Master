@@ -207,6 +207,8 @@ const translations = {
     support_contact_info: 'Contact Information',
     support_categories: 'Support Categories',
     support_faq: 'Frequently Asked Questions',
+    support_ask_questions: 'Ask Questions',
+    support_raise_ticket: 'Raise Ticket',
     support_no_tickets: 'No tickets yet',
     support_create_first: 'Create Your First Ticket',
     support_create_ticket: 'Create Support Ticket',

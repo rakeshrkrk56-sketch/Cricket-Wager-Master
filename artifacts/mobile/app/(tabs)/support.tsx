@@ -159,7 +159,7 @@ export default function SupportScreen() {
         {(['home', 'tickets', 'new'] as Tab[]).map((tb) => (
           <TouchableOpacity key={tb} style={[s.tab, tab === tb && s.tabActive]} onPress={() => setTab(tb)} activeOpacity={0.7}>
             <Text style={[s.tabLabel, tab === tb && s.tabLabelActive]}>
-              {tb === 'home' ? 'FAQ' : tb === 'tickets' ? 'Messages' : 'Live Chat'}
+              {tb === 'home' ? t('support_ask_questions') : tb === 'tickets' ? 'Messages' : t('support_raise_ticket')}
             </Text>
           </TouchableOpacity>
         ))}
@@ -170,19 +170,6 @@ export default function SupportScreen() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }} showsVerticalScrollIndicator={false}>
           <View style={s.section}>
             <Text style={s.sectionTitle}>Frequently asked questions</Text>
-            <View style={s.categoryGrid}>
-              {CATEGORIES.map((c) => (
-                <TouchableOpacity
-                  key={c.value}
-                  style={s.categoryCard}
-                  onPress={() => { setCategory(c.value); setTab('new'); }}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name={c.icon as any} size={22} color={colors.primary} />
-                  <Text style={s.categoryLabel}>{t(c.labelKey as any)}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
           </View>
 
           <View style={s.section}>
@@ -197,10 +184,10 @@ export default function SupportScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.liveChatTitle}>Didn&apos;t find what you need?</Text>
-              <Text style={s.liveChatText}>Write to Jazment Support. Your message goes directly to the admin team.</Text>
+            <Text style={s.liveChatText}>Need help beyond these answers? Raise a ticket and chat with the admin team from Messages.</Text>
             </View>
-            <TouchableOpacity style={s.liveChatBtn} onPress={() => setTab('new')} testID="support-start-chat">
-              <Text style={s.liveChatBtnText}>LIVE CHAT</Text>
+            <TouchableOpacity style={s.liveChatBtn} onPress={() => setTab('new')} testID="support-raise-ticket">
+              <Text style={s.liveChatBtnText}>{t('support_raise_ticket')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -323,9 +310,6 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   infoCard: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, gap: 10 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   infoText: { fontSize: 14, color: colors.foreground, fontFamily: 'Inter_400Regular' },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  categoryCard: { width: '30%', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, alignItems: 'center', gap: 6, minWidth: 90 },
-  categoryLabel: { fontSize: 11, color: colors.foreground, fontFamily: 'Inter_500Medium', textAlign: 'center' },
   faqCard: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14 },
   liveChatCard: {
     marginHorizontal: 16, marginBottom: 28, padding: 16, borderRadius: 14,
