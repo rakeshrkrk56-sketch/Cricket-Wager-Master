@@ -1,14 +1,15 @@
 import { Router, type IRouter, type Response } from "express";
 import { db, supportTicketsTable, ticketMessagesTable, usersTable, transactionsTable } from "@workspace/db";
-import { eq, and, desc, count, like, gte } from "drizzle-orm";
+import { eq, and, desc, count, like, gte, isNotNull } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middlewares/auth";
 import { createNotification } from "../lib/createNotification";
 
 const router: IRouter = Router();
 const SUPPORT_HOUR_MS = 60 * 60 * 1000;
-const MESSAGE_COOLDOWN_MS = 10 * 1000;
+const SUPPORT_DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_TICKETS_PER_HOUR = 3;
-const MAX_MESSAGES_PER_HOUR = 30;
+const MAX_MESSAGES_PER_DAY = 100;
+const MAX_SCREENSHOTS_PER_DAY = 20;
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_SCREENSHOT_BASE64_LENGTH = 7_000_000;
 
@@ -61,6 +62,22 @@ router.post("/support/tickets", requireAuth, async (req, res): Promise<void> => 
   if (Number(recentTicketCount) >= MAX_TICKETS_PER_HOUR) {
     rejectRateLimited(res, "You have reached the support ticket limit. Please continue in your existing ticket.", 60 * 60);
     return;
+  }
+
+  if (screenshotBase64) {
+    const screenshotWindowStart = new Date(Date.now() - SUPPORT_DAY_MS);
+    const [{ total: recentScreenshotCount }] = await db
+      .select({ total: count() })
+      .from(supportTicketsTable)
+      .where(and(
+        eq(supportTicketsTable.userId, user.id),
+        gte(supportTicketsTable.createdAt, screenshotWindowStart),
+        isNotNull(supportTicketsTable.screenshotBase64),
+      ));
+    if (Number(recentScreenshotCount) >= MAX_SCREENSHOTS_PER_DAY) {
+      rejectRateLimited(res, "You have reached the daily screenshot limit. Please try again tomorrow.", 24 * 60 * 60);
+      return;
+    }
   }
 
   const [ticket] = await db.insert(supportTicketsTable).values({
@@ -144,24 +161,7 @@ router.post("/support/tickets/:ticketId/messages", requireAuth, async (req, res)
   if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
   if (ticket.status === "closed") { res.status(400).json({ error: "Ticket is closed" }); return; }
 
-  const now = Date.now();
-  const messageWindowStart = new Date(now - SUPPORT_HOUR_MS);
-  const [lastMessage] = await db
-    .select({ createdAt: ticketMessagesTable.createdAt })
-    .from(ticketMessagesTable)
-    .where(and(
-      eq(ticketMessagesTable.ticketId, ticketId),
-      eq(ticketMessagesTable.senderId, user.id),
-      gte(ticketMessagesTable.createdAt, new Date(now - MESSAGE_COOLDOWN_MS)),
-    ))
-    .orderBy(desc(ticketMessagesTable.createdAt))
-    .limit(1);
-  if (lastMessage) {
-    const retryAfter = (lastMessage.createdAt.getTime() + MESSAGE_COOLDOWN_MS - now) / 1000;
-    rejectRateLimited(res, "Please wait a few seconds before sending another message.", retryAfter);
-    return;
-  }
-
+  const messageWindowStart = new Date(Date.now() - SUPPORT_DAY_MS);
   const [{ total: recentMessageCount }] = await db
     .select({ total: count() })
     .from(ticketMessagesTable)
@@ -171,8 +171,8 @@ router.post("/support/tickets/:ticketId/messages", requireAuth, async (req, res)
       eq(ticketMessagesTable.senderId, user.id),
       gte(ticketMessagesTable.createdAt, messageWindowStart),
     ));
-  if (Number(recentMessageCount) >= MAX_MESSAGES_PER_HOUR) {
-    rejectRateLimited(res, "You have reached the hourly message limit. Please try again later.", 60 * 60);
+  if (Number(recentMessageCount) >= MAX_MESSAGES_PER_DAY) {
+    rejectRateLimited(res, "You have reached the daily message limit. Please try again tomorrow.", 24 * 60 * 60);
     return;
   }
 
