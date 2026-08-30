@@ -105,7 +105,7 @@ export class DragonTigerGame {
           socket.userId = user.id;
           send(socket, { type: "AUTH_OK" });
           send(socket, { type: "BALANCE", balance: Number(user.walletBalance) });
-          send(socket, { type: "GAME_STATE", ...(await this.getPublicState()) });
+          send(socket, { type: "GAME_STATE", ...(await this.getPrivateState(socket.userId)) });
           socket.on("message", (payload: RawData) => void this.handleMessage(socket, payload.toString()));
         } catch {
           socket.close(4401, "Invalid authentication message");
@@ -273,40 +273,46 @@ export class DragonTigerGame {
   }
 
   private async handleMessage(socket: AuthenticatedSocket, raw: string): Promise<void> {
+    let clientBetId: string | undefined;
     try {
       const message = JSON.parse(raw) as {
         type?: string;
         roundId?: string;
+        clientBetId?: string;
         choice?: Choice;
         selection?: Choice;
         side?: Choice;
         amount?: number | string;
       };
+      clientBetId = typeof message.clientBetId === "string"
+        ? message.clientBetId.slice(0, 120)
+        : undefined;
       if (message.type !== "BET" && message.type !== "PLACE_BET") {
-        send(socket, { type: "ERROR", code: "UNKNOWN_MESSAGE", message: "Unknown message type" });
+        send(socket, { type: "ERROR", code: "UNKNOWN_MESSAGE", message: "Unknown message type", clientBetId });
         return;
       }
       if (!socket.userId) return;
       const choice = message.choice ?? message.selection ?? message.side;
       const amount = String(message.amount ?? "");
       if (!choice || !["DRAGON", "TIGER", "TIE"].includes(choice)) {
-        send(socket, { type: "ERROR", code: "INVALID_CHOICE", message: "Invalid bet choice" });
+        send(socket, { type: "ERROR", code: "INVALID_CHOICE", message: "Invalid bet choice", clientBetId });
         return;
       }
       if (!/^\d{1,10}(\.\d{1,2})?$/.test(amount) || Number(amount) <= 0) {
-        send(socket, { type: "ERROR", code: "INVALID_AMOUNT", message: "Amount must be positive with at most two decimals" });
+        send(socket, { type: "ERROR", code: "INVALID_AMOUNT", message: "Amount must be positive with at most two decimals", clientBetId });
         return;
       }
       const placed = await this.placeBet(socket.userId, choice, amount, message.roundId);
-      send(socket, { type: "BET_ACCEPTED", bet: placed.bet });
+      send(socket, { type: "BET_ACCEPTED", bet: placed.bet, clientBetId });
       send(socket, { type: "BALANCE", balance: placed.balance });
       this.broadcast({ type: "POOLS_UPDATED", roundId: placed.bet.roundId, ...(await this.getPools(placed.bet.roundId)) });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to place bet";
       const code = message === "INSUFFICIENT_BALANCE" ? message
         : message === "ACCOUNT_NOT_ACTIVE" ? message
-        : message === "BETTING_CLOSED" ? message : "BET_FAILED";
-      send(socket, { type: "ERROR", code, message });
+        : message === "BETTING_CLOSED" ? message
+        : message === "SIDE_LOCKED" ? message : "BET_FAILED";
+      send(socket, { type: "ERROR", code, message, clientBetId });
     }
   }
 
@@ -320,6 +326,14 @@ export class DragonTigerGame {
         .for("update");
       if (!round || round.bettingClosesAt.getTime() <= Date.now()) throw new Error("BETTING_CLOSED");
       if (expectedRoundId && round.id !== expectedRoundId) throw new Error("BETTING_CLOSED");
+      const [existingBet] = await tx.select({ choice: dragonTigerBetsTable.choice })
+        .from(dragonTigerBetsTable)
+        .where(and(
+          eq(dragonTigerBetsTable.roundId, round.id),
+          eq(dragonTigerBetsTable.userId, userId),
+        ))
+        .limit(1);
+      if (existingBet && existingBet.choice !== choice) throw new Error("SIDE_LOCKED");
 
       const [updatedUser] = await tx.update(usersTable)
         .set({
@@ -498,6 +512,25 @@ export class DragonTigerGame {
       return { round: null, game: null, ...exposure, serverTime: new Date().toISOString() };
     }
     return this.publicStateForRound(round);
+  }
+
+  private async getPrivateState(userId: string) {
+    const state = await this.getPublicState();
+    if (!state.round) return { ...state, myBets: [] };
+    const myBets = await db.select({
+      id: dragonTigerBetsTable.id,
+      roundId: dragonTigerBetsTable.roundId,
+      choice: dragonTigerBetsTable.choice,
+      amount: dragonTigerBetsTable.amount,
+      status: dragonTigerBetsTable.status,
+    }).from(dragonTigerBetsTable).where(and(
+      eq(dragonTigerBetsTable.roundId, state.round.id),
+      eq(dragonTigerBetsTable.userId, userId),
+    ));
+    return {
+      ...state,
+      myBets: myBets.map((bet) => ({ ...bet, amount: Number(bet.amount) })),
+    };
   }
 
   private async publicStateForRound(round: typeof dragonTigerRoundsTable.$inferSelect) {

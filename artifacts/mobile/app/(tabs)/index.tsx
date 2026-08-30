@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
   Animated,
   Easing,
@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useGameAudio } from '@/hooks/useGameAudio';
 import { useGetWallet, getGetWalletQueryKey } from '@workspace/api-client-react';
 
 type Choice = 'DRAGON' | 'TIGER' | 'TIE';
@@ -215,10 +216,78 @@ function GameLobby() {
   );
 }
 
+// --- GAME LOGIC ---
+
+function useGameLayout(width: number, height: number) {
+  return useMemo(() => {
+    const HEADER_H = 60;
+    const BOTTOM_BAR_H = 80;
+    const BOARD_W = width * 0.85;
+    const BOARD_H = height * 0.35;
+    const BOARD_X = (width - BOARD_W) / 2;
+    const BOARD_Y = height - BOTTOM_BAR_H - BOARD_H;
+
+    const DRAGON_ZONE = { x: BOARD_X, y: BOARD_Y, w: BOARD_W * 0.35 - 5, h: BOARD_H };
+    const TIE_ZONE = { x: BOARD_X + BOARD_W * 0.35 + 2.5, y: BOARD_Y, w: BOARD_W * 0.3 - 5, h: BOARD_H };
+    const TIGER_ZONE = { x: BOARD_X + BOARD_W * 0.65 + 5, y: BOARD_Y, w: BOARD_W * 0.35 - 5, h: BOARD_H };
+
+    const CHIP_SPACING = 64;
+    const CHIP_SELECTOR_W = CHIPS.length * CHIP_SPACING;
+    const CHIP_SELECTOR_X = (width - CHIP_SELECTOR_W) / 2;
+    const CHIP_SELECTOR_Y = height - BOTTOM_BAR_H + (BOTTOM_BAR_H - 48) / 2;
+    
+    const CARDS_Y = HEADER_H + 10;
+    const CARD_W = 90;
+    const CARD_H = 126;
+    const DRAGON_CARD_X = width * 0.25 - CARD_W / 2;
+    const TIGER_CARD_X = width * 0.75 - CARD_W / 2;
+    const SHOE_X = width / 2 - CARD_W / 2;
+    const SHOE_Y = -CARD_H;
+
+    return {
+      HEADER_H, BOTTOM_BAR_H, BOARD_W, BOARD_H, BOARD_X, BOARD_Y,
+      DRAGON_ZONE, TIE_ZONE, TIGER_ZONE,
+      CHIP_SPACING, CHIP_SELECTOR_W, CHIP_SELECTOR_X, CHIP_SELECTOR_Y,
+      CARDS_Y, CARD_W, CARD_H, DRAGON_CARD_X, TIGER_CARD_X, SHOE_X, SHOE_Y
+    };
+  }, [width, height]);
+}
+
+interface RenderChip {
+  id: string;
+  amount: number;
+  choice: Choice;
+  anim: Animated.Value;
+  startX: number;
+  startY: number;
+  targetX: number;
+  targetY: number;
+  isMine: boolean;
+}
+
+interface PendingBet {
+  amount: number;
+  choice: Choice;
+  roundId: string;
+  chipId?: string;
+}
+
+interface RecoveredBet {
+  roundId: string;
+  choice: Choice;
+  amount: number;
+}
+
 function DragonTigerGame() {
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const rawDim = useWindowDimensions();
+  const width = rawDim.width;
+  const height = rawDim.height;
+  const isLandscape = width >= height;
+  const layout = useGameLayout(width, height);
+
   const { user, token } = useAuth();
+  const { muted, play: playSound, toggleMuted } = useGameAudio();
   const [game, setGame] = useState<GameState>(EMPTY_GAME);
   const [history, setHistory] = useState<{roundId: string, result: Choice}[]>([]);
   const [connected, setConnected] = useState(false);
@@ -228,18 +297,37 @@ function DragonTigerGame() {
   const [privateBalance, setPrivateBalance] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
+  const [presentedResult, setPresentedResult] = useState<Choice | null>(null);
+  const [recoveredBets, setRecoveredBets] = useState<RecoveredBet[] | null>(null);
+  
+  const [chips, setChips] = useState<RenderChip[]>([]);
   
   const socketRef = useRef<WebSocket | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttempt = useRef(0);
-  const pendingBetsRef = useRef<number[]>([]);
+  const pendingBetsRef = useRef(new Map<string, PendingBet>());
   const activeRoundRef = useRef<string | undefined>(undefined);
   const lockedChoiceRef = useRef<Choice | null>(null);
   const selectedChipRef = useRef<number | null>(null);
+  const prevPoolsRef = useRef(game.pools);
+  const chipSerialRef = useRef(0);
+  const betSequenceRef = useRef(0);
+  const ownPoolDeltaRef = useRef<Record<Choice, number>>({ DRAGON: 0, TIGER: 0, TIE: 0 });
+  const resultTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const chipAnimationsRef = useRef(new Map<string, Animated.CompositeAnimation>());
+  const previousPhaseRef = useRef<Phase>('WAITING');
+  const countdownSoundRef = useRef('');
   
-  const revealAnim = useRef(new Animated.Value(1)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const vsScale = useRef(new Animated.Value(1)).current;
+  const dragonCardAnim = useRef(new Animated.Value(0)).current;
+  const tigerCardAnim = useRef(new Animated.Value(0)).current;
+
+  const stopChipAnimations = useCallback((ids?: string[]) => {
+    const selectedIds = ids ?? [...chipAnimationsRef.current.keys()];
+    selectedIds.forEach((id) => {
+      chipAnimationsRef.current.get(id)?.stop();
+      chipAnimationsRef.current.delete(id);
+    });
+  }, []);
 
   const { data: walletData } = useGetWallet({
     query: { enabled: !!token, queryKey: getGetWalletQueryKey() },
@@ -280,22 +368,142 @@ function DragonTigerGame() {
           const incoming = JSON.parse(String(event.data));
           const payload = incoming.payload ?? incoming.data ?? incoming;
           const type = String(incoming.type ?? payload.type ?? '').toUpperCase();
+          const clientBetId = typeof payload.clientBetId === 'string' ? payload.clientBetId : '';
           
           if (type === 'ERROR' || type === 'BET_REJECTED' || incoming.error) {
-            pendingBetsRef.current.shift();
+            const rejectedBet = clientBetId ? pendingBetsRef.current.get(clientBetId) : undefined;
+            if (clientBetId) pendingBetsRef.current.delete(clientBetId);
+            if (rejectedBet?.chipId) {
+              stopChipAnimations([rejectedBet.chipId]);
+              setChips((current) => current.filter((chip) => chip.id !== rejectedBet.chipId));
+            }
             setMessage(String(payload.message ?? incoming.error ?? 'The game request failed.'));
-            setPlacing(false);
+            setPlacing(pendingBetsRef.current.size > 0);
+            void playSound('betRejected');
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             return;
           }
           if (type === 'BALANCE' || type === 'BALANCE_UPDATE' || payload.balance !== undefined) {
             setPrivateBalance(numberFrom(payload.balance, payload.walletBalance));
           }
           if (type === 'BET_ACCEPTED' || type === 'BET_PLACED') {
-            const acceptedAmount = numberFrom(payload.amount, pendingBetsRef.current.shift() ?? 0);
-            if (acceptedAmount > 0) setStake((current) => current + acceptedAmount);
-            setMessage(payload.message ?? 'Bet accepted for this round.');
-            setPlacing(pendingBetsRef.current.length > 0);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            const acceptedBet = clientBetId ? pendingBetsRef.current.get(clientBetId) : undefined;
+            if (clientBetId) pendingBetsRef.current.delete(clientBetId);
+            const acceptedAmount = numberFrom(payload.bet?.amount, payload.amount, acceptedBet?.amount);
+            const acceptedChoice = String(payload.bet?.choice ?? acceptedBet?.choice ?? '').toUpperCase() as Choice;
+            const acceptedRoundId = String(payload.bet?.roundId ?? acceptedBet?.roundId ?? '');
+            const belongsToCurrentRound = !acceptedRoundId || acceptedRoundId === activeRoundRef.current;
+            if (acceptedBet?.chipId) {
+              setChips((current) => belongsToCurrentRound
+                ? current.map((chip) => (
+                  chip.id === acceptedBet.chipId ? { ...chip, isMine: false } : chip
+                ))
+                : current.filter((chip) => chip.id !== acceptedBet.chipId));
+            }
+            if (belongsToCurrentRound && ['DRAGON', 'TIGER', 'TIE'].includes(acceptedChoice)) {
+              ownPoolDeltaRef.current[acceptedChoice] += acceptedAmount;
+            }
+            if (belongsToCurrentRound && acceptedAmount > 0) {
+              setStake((current) => current + acceptedAmount);
+            }
+            setPlacing(pendingBetsRef.current.size > 0);
+            if (belongsToCurrentRound) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              void playSound('betAccepted');
+            }
+          }
+
+          if (type === 'ROUND_RESULT') {
+            const resultChoice = String(payload.round?.result ?? payload.result ?? '').toUpperCase() as Choice;
+            const resultRoundId = String(payload.round?.id ?? payload.id ?? payload.roundId ?? '');
+            if (['DRAGON', 'TIGER', 'TIE'].includes(resultChoice)) {
+              resultTimersRef.current.forEach(clearTimeout);
+              resultTimersRef.current = [];
+              setPresentedResult(resultChoice);
+              const lockedChoice = lockedChoiceRef.current;
+              if (lockedChoice) {
+                void playSound(lockedChoice === resultChoice ? 'resultWin' : 'resultLoss');
+                Haptics.notificationAsync(
+                  lockedChoice === resultChoice
+                    ? Haptics.NotificationFeedbackType.Success
+                    : Haptics.NotificationFeedbackType.Error,
+                );
+              }
+              resultTimersRef.current.push(setTimeout(() => {
+                void playSound('chipCollect');
+                setChips((current) => {
+                  current
+                    .filter((chip) => !resultRoundId || chip.id.startsWith(`${resultRoundId}-`))
+                    .forEach((chip, index) => {
+                      const animation = Animated.timing(chip.anim, {
+                        toValue: 2,
+                        duration: 460 + (index % 5) * 35,
+                        easing: Easing.in(Easing.cubic),
+                        useNativeDriver: true,
+                      });
+                      chipAnimationsRef.current.set(chip.id, animation);
+                      animation.start(() => chipAnimationsRef.current.delete(chip.id));
+                    });
+                  return current;
+                });
+              }, 650));
+              resultTimersRef.current.push(setTimeout(() => {
+                setPresentedResult(null);
+                if (resultRoundId) {
+                  setChips((current) => {
+                    const removedIds = current
+                      .filter((chip) => chip.id.startsWith(`${resultRoundId}-`))
+                      .map((chip) => chip.id);
+                    stopChipAnimations(removedIds);
+                    return current.filter((chip) => !chip.id.startsWith(`${resultRoundId}-`));
+                  });
+                }
+              }, 1600));
+            }
+          }
+
+          if (type === 'GAME_STATE' && payload.round === null) {
+            stopChipAnimations();
+            pendingBetsRef.current.clear();
+            lockedChoiceRef.current = null;
+            selectedChipRef.current = null;
+            activeRoundRef.current = undefined;
+            setGame({
+              ...EMPTY_GAME,
+              pools: {
+                DRAGON: numberFrom(payload.pools?.DRAGON),
+                TIGER: numberFrom(payload.pools?.TIGER),
+                TIE: numberFrom(payload.pools?.TIE),
+              },
+            });
+            setStake(0);
+            setChoice(null);
+            setSelectedChip(null);
+            setPlacing(false);
+            setRecoveredBets(null);
+            setChips([]);
+            return;
+          }
+
+          if (type === 'GAME_STATE' && Array.isArray(payload.myBets)) {
+            const syncedBets = payload.myBets
+              .map((bet: Record<string, unknown>) => ({
+                roundId: String(bet.roundId ?? ''),
+                choice: String(bet.choice ?? '').toUpperCase() as Choice,
+                amount: numberFrom(bet.amount),
+              }))
+              .filter((bet: RecoveredBet) => (
+                bet.roundId === payload.round?.id
+                && ['DRAGON', 'TIGER', 'TIE'].includes(bet.choice)
+                && bet.amount > 0
+              ));
+            setRecoveredBets(syncedBets);
+            const syncedPools = payload.pools?.pools ?? payload.pools ?? {};
+            prevPoolsRef.current = {
+              DRAGON: numberFrom(syncedPools.DRAGON),
+              TIGER: numberFrom(syncedPools.TIGER),
+              TIE: numberFrom(syncedPools.TIE),
+            };
           }
           
           const state = payload.round ?? payload;
@@ -351,12 +559,14 @@ function DragonTigerGame() {
     return () => {
       disposed = true;
       if (retryRef.current) clearTimeout(retryRef.current);
+      resultTimersRef.current.forEach(clearTimeout);
+      resultTimersRef.current = [];
+      stopChipAnimations();
       socketRef.current?.close();
       socketRef.current = null;
     };
-  }, [token]);
+  }, [token, playSound, stopChipAnimations]);
 
-  // History tracking effect
   useEffect(() => {
     if (game.result && game.roundId) {
       setHistory(prev => {
@@ -377,16 +587,18 @@ function DragonTigerGame() {
   useEffect(() => {
     if (!game.roundId || activeRoundRef.current === game.roundId) return;
     activeRoundRef.current = game.roundId;
-    pendingBetsRef.current = [];
+    pendingBetsRef.current.clear();
     lockedChoiceRef.current = null;
     selectedChipRef.current = null;
     setStake(0);
     setChoice(null);
     setSelectedChip(null);
     setPlacing(false);
+    
+    ownPoolDeltaRef.current = { DRAGON: 0, TIGER: 0, TIE: 0 };
+    prevPoolsRef.current = { DRAGON: 0, TIGER: 0, TIE: 0 };
   }, [game.roundId]);
 
-  // Toast message auto-dismiss
   useEffect(() => {
     if (message) {
       const timer = setTimeout(() => setMessage(null), 4000);
@@ -405,57 +617,226 @@ function DragonTigerGame() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    revealAnim.setValue(0.15);
-    vsScale.setValue(0.5);
-    Animated.parallel([
-      Animated.spring(revealAnim, { toValue: 1, friction: 6, tension: 85, useNativeDriver: true }),
-      Animated.spring(vsScale, { toValue: 1, friction: 5, tension: 100, useNativeDriver: true }),
-    ]).start();
-  }, [game.dragonCard, game.tigerCard, game.result, revealAnim, vsScale]);
+  const spawnChip = useCallback((amount: number, targetChoice: Choice, isMine: boolean, requestedId?: string) => {
+    const serial = chipSerialRef.current++;
+    const id = requestedId ?? `${game.roundId ?? 'round'}-pool-${serial}`;
+    const targetZone = targetChoice === 'DRAGON' ? layout.DRAGON_ZONE : targetChoice === 'TIGER' ? layout.TIGER_ZONE : layout.TIE_ZONE;
+    const slot = serial % 24;
+    const column = slot % 6;
+    const row = Math.floor(slot / 6);
+    const targetX = targetZone.x + targetZone.w * (0.16 + column * 0.136) - 24;
+    const targetY = targetZone.y + targetZone.h * (0.22 + row * 0.17) - 24;
+    
+    let startX = width / 2;
+    let startY = height;
+    
+    if (!isMine) {
+      const edge = serial % 3;
+      if (edge === 0) { startX = -100; startY = height * (0.25 + (serial % 5) * 0.12); }
+      else if (edge === 1) { startX = width + 100; startY = height * (0.25 + (serial % 5) * 0.12); }
+      else { startX = width * (0.2 + (serial % 5) * 0.15); startY = -100; }
+    } else {
+      const index = Math.max(0, CHIPS.indexOf(amount));
+      startX = layout.CHIP_SELECTOR_X + index * layout.CHIP_SPACING + layout.CHIP_SPACING / 2 - 24;
+      startY = layout.CHIP_SELECTOR_Y;
+    }
+    
+    const anim = new Animated.Value(0);
+    setChips((previous) => {
+      const sameChoice = previous.filter((chip) => chip.choice === targetChoice && !chip.isMine);
+      const overflowIds = new Set(
+        sameChoice.slice(0, Math.max(0, sameChoice.length - 23)).map((chip) => chip.id),
+      );
+      stopChipAnimations([...overflowIds]);
+      const bounded = previous.filter((chip) => !overflowIds.has(chip.id));
+      return [...bounded, { id, amount, choice: targetChoice, anim, startX, startY, targetX, targetY, isMine }];
+    });
+    
+    const animation = Animated.timing(anim, {
+      toValue: 1,
+      duration: isMine ? 400 : 520 + (serial % 4) * 60,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    chipAnimationsRef.current.set(id, animation);
+    animation.start(() => chipAnimationsRef.current.delete(id));
+    return id;
+  }, [game.roundId, width, height, layout, stopChipAnimations]);
 
   useEffect(() => {
-    if (game.phase !== 'BETTING' || game.secondsRemaining > 5) {
-      pulseAnim.stopAnimation();
-      pulseAnim.setValue(1);
-      return;
+    if (recoveredBets === null || !game.roundId) return;
+    const currentRoundBets = recoveredBets.filter((bet) => bet.roundId === game.roundId);
+    const recoveredChoice = currentRoundBets[0]?.choice ?? null;
+    const recoveredStake = recoveredChoice
+      ? currentRoundBets
+          .filter((bet) => bet.choice === recoveredChoice)
+          .reduce((sum, bet) => sum + bet.amount, 0)
+      : 0;
+
+    pendingBetsRef.current.clear();
+    setPlacing(false);
+    lockedChoiceRef.current = recoveredChoice;
+    setChoice(recoveredChoice);
+    setStake(recoveredStake);
+    ownPoolDeltaRef.current = { DRAGON: 0, TIGER: 0, TIE: 0 };
+    prevPoolsRef.current = { ...game.pools };
+    setChips((current) => {
+      const oldRoundChips = current
+        .filter((chip) => chip.id.startsWith(`${game.roundId}-`))
+        .map((chip) => chip.id);
+      stopChipAnimations(oldRoundChips);
+      return current.filter((chip) => !chip.id.startsWith(`${game.roundId}-`));
+    });
+
+    if (recoveredChoice && recoveredStake > 0) {
+      let remaining = recoveredStake;
+      let rendered = 0;
+      while (remaining > 0 && rendered < 12) {
+        const amount = remaining >= 500 ? 500 : remaining >= 100 ? 100 : remaining >= 50 ? 50 : 10;
+        spawnChip(amount, recoveredChoice, false, `${game.roundId}-recovered-${rendered}`);
+        remaining -= amount;
+        rendered += 1;
+      }
     }
-    const animation = Animated.loop(Animated.sequence([
-      Animated.timing(pulseAnim, { toValue: 1.12, duration: 340, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(pulseAnim, { toValue: 1, duration: 340, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-    ]));
-    animation.start();
-    return () => animation.stop();
-  }, [game.phase, game.secondsRemaining, pulseAnim]);
+    setRecoveredBets(null);
+  }, [game.pools, game.roundId, recoveredBets, spawnChip, stopChipAnimations]);
+
+  useEffect(() => {
+    if (game.phase !== 'BETTING') return;
+    const newChips: Array<{ amount: number, choice: Choice }> = [];
+    
+    (['DRAGON', 'TIGER', 'TIE'] as Choice[]).forEach(c => {
+      const diff = game.pools[c] - prevPoolsRef.current[c];
+      if (diff > 0) {
+        const coveredByOwnBet = Math.min(diff, ownPoolDeltaRef.current[c]);
+        ownPoolDeltaRef.current[c] -= coveredByOwnBet;
+        let remaining = diff - coveredByOwnBet;
+        let spawned = 0;
+        while (remaining > 0 && spawned < 3) {
+          const chipVal = remaining >= 500 ? 500 : remaining >= 100 ? 100 : remaining >= 50 ? 50 : 10;
+          newChips.push({ amount: chipVal, choice: c });
+          remaining -= chipVal;
+          spawned++;
+        }
+      }
+    });
+    
+    const timers = newChips.map((chip, index) => setTimeout(
+      () => spawnChip(chip.amount, chip.choice, false),
+      index * 150,
+    ));
+    
+    prevPoolsRef.current = { ...game.pools };
+    return () => timers.forEach(clearTimeout);
+  }, [game.pools, game.phase, spawnChip]);
+
+  useEffect(() => {
+    if (game.phase !== 'BETTING' || game.secondsRemaining < 1 || game.secondsRemaining > 3) return;
+    const countdownKey = `${game.roundId}:${game.secondsRemaining}`;
+    if (countdownSoundRef.current === countdownKey) return;
+    countdownSoundRef.current = countdownKey;
+    void playSound('countdown');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [game.phase, game.roundId, game.secondsRemaining, playSound]);
+
+  useEffect(() => {
+    const previousPhase = previousPhaseRef.current;
+    if (previousPhase === game.phase) return;
+    previousPhaseRef.current = game.phase;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    if (game.phase === 'BETTING') {
+      void playSound('nextRound');
+    } else if (game.phase === 'REVEAL') {
+      void playSound('bettingClosed');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      timers.push(setTimeout(() => void playSound('cardDeal'), 320));
+      timers.push(setTimeout(() => void playSound('cardReveal'), 900));
+    }
+
+    return () => timers.forEach(clearTimeout);
+  }, [game.phase, playSound]);
+
+  useEffect(() => {
+    let animation: Animated.CompositeAnimation | undefined;
+    if (game.phase === 'REVEAL' || game.phase === 'SETTLED') {
+      if (game.dragonCard && game.tigerCard) {
+        animation = Animated.sequence([
+          Animated.timing(dragonCardAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+          Animated.timing(dragonCardAnim, { toValue: 2, duration: 300, useNativeDriver: true }),
+          Animated.timing(tigerCardAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+          Animated.timing(tigerCardAnim, { toValue: 2, duration: 300, useNativeDriver: true }),
+        ]);
+      } else {
+        animation = Animated.parallel([
+          Animated.timing(dragonCardAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(tigerCardAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        ]);
+      }
+    } else if (game.phase === 'WAITING' || game.phase === 'BETTING') {
+      dragonCardAnim.stopAnimation();
+      tigerCardAnim.stopAnimation();
+      dragonCardAnim.setValue(0);
+      tigerCardAnim.setValue(0);
+    }
+    animation?.start();
+    return () => animation?.stop();
+  }, [game.phase, game.dragonCard, game.tigerCard, dragonCardAnim, tigerCardAnim]);
 
   const isBetting = game.phase === 'BETTING';
 
   const placeBet = useCallback((amount: number, targetChoice: Choice) => {
     if (game.phase !== 'BETTING') {
       setMessage('Betting is closed for this round.');
+      void playSound('betRejected');
       return;
     }
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       setMessage('Reconnecting to the live table. Please wait.');
+      void playSound('betRejected');
+      return;
+    }
+    if (!game.roundId) {
+      setMessage('Waiting for the next live round.');
+      void playSound('betRejected');
       return;
     }
     setMessage(null);
     setPlacing(true);
-    pendingBetsRef.current.push(amount);
+    const clientBetId = `${game.roundId}-${Date.now()}-${betSequenceRef.current++}`;
+    const chipId = pendingBetsRef.current.size < 24
+      ? spawnChip(amount, targetChoice, true, `${game.roundId}-bet-${clientBetId}`)
+      : undefined;
+    pendingBetsRef.current.set(clientBetId, {
+      amount,
+      choice: targetChoice,
+      roundId: game.roundId,
+      chipId,
+    });
+    void playSound('betPlace');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    socket.send(JSON.stringify({ type: 'BET', choice: targetChoice, amount }));
-  }, [game.phase]);
+    socket.send(JSON.stringify({
+      type: 'BET',
+      choice: targetChoice,
+      amount,
+      roundId: game.roundId,
+      clientBetId,
+    }));
+  }, [game.phase, game.roundId, playSound, spawnChip]);
 
   const selectChoice = useCallback((targetChoice: Choice) => {
     if (!isBetting) return;
     const lockedChoice = lockedChoiceRef.current;
     if (lockedChoice && lockedChoice !== targetChoice) {
       setMessage(`${lockedChoice} is locked until this round finishes.`);
+      void playSound('betRejected');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
     lockedChoiceRef.current = targetChoice;
     setChoice(targetChoice);
+    void playSound('chipSelect');
     Haptics.selectionAsync();
     const chip = selectedChipRef.current;
     if (chip) {
@@ -463,543 +844,463 @@ function DragonTigerGame() {
     } else {
       setMessage(`${targetChoice} selected. Tap a chip to place your bet.`);
     }
-  }, [isBetting, placeBet]);
+  }, [isBetting, placeBet, playSound]);
 
   const selectChip = useCallback((amount: number) => {
     if (!isBetting) return;
     selectedChipRef.current = amount;
     setSelectedChip(amount);
+    void playSound('chipSelect');
     Haptics.selectionAsync();
     const lockedChoice = lockedChoiceRef.current;
     if (lockedChoice) {
       placeBet(amount, lockedChoice);
-    } else {
-      setMessage(`₹${amount} selected. Choose Dragon, Tie, or Tiger.`);
     }
-  }, [isBetting, placeBet]);
+  }, [isBetting, placeBet, playSound]);
 
-  const openWallet = (action: 'deposit' | 'withdraw') => {
-    router.push({ pathname: '/(tabs)/wallet', params: { open: action, request: Date.now().toString() } });
-  };
+  if (!isLandscape) {
+    return (
+      <LinearGradient colors={['#12030A', '#4A0918', '#12030A']} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }}>
+        <Ionicons name="phone-landscape-outline" size={52} color="#FCD34D" />
+        <Text style={{ color: '#FFF7D6', fontSize: 22, fontWeight: '900', marginTop: 16, textAlign: 'center' }}>TURN YOUR PHONE SIDEWAYS</Text>
+        <Text style={{ color: '#D6B7A0', fontSize: 14, marginTop: 8, textAlign: 'center' }}>Dragon Tiger opens in landscape for the full table.</Text>
+      </LinearGradient>
+    );
+  }
 
   return (
-    <View style={styles.root}>
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
       <ImageBackground
         source={require('../../assets/images/dragon-tiger-casino-wide.png')}
         style={StyleSheet.absoluteFill}
-        imageStyle={styles.arenaArtwork}
         resizeMode="cover"
       />
       <LinearGradient
-        colors={['rgba(126,34,8,0.42)', 'rgba(249,115,22,0.08)', 'rgba(127,29,29,0.68)']}
-        locations={[0, 0.42, 1]}
+        colors={['rgba(0,0,0,0.85)', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.95)']}
         style={StyleSheet.absoluteFill}
       />
 
-      <View style={[styles.safeContent, { 
-        paddingLeft: Math.max(insets.left, 12), 
-        paddingRight: Math.max(insets.right, 12), 
-          paddingBottom: Math.max(insets.bottom, 8), 
-        paddingTop: Math.max(insets.top, 8) 
-      }]}>
-        
-        {message && (
-          <View style={styles.messageBox}>
-            <Ionicons name="information-circle" size={14} color="#000" />
-            <Text style={styles.messageText}>{message}</Text>
-          </View>
-        )}
+      <View style={{ position: 'absolute', top: Math.max(insets.top, 8), left: Math.max(insets.left, 16), right: Math.max(insets.right, 16), height: layout.HEADER_H, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 30 }}>
+        <TouchableOpacity
+          style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)', padding: 8, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}
+          onPress={() => {
+            void playSound('chipSelect');
+            router.replace('/(tabs)');
+          }}
+          testID="game-back-to-lobby"
+        >
+          <Ionicons name="chevron-back" size={20} color="#FFF" />
+          <Text style={{ color: '#FFF', fontWeight: 'bold', marginLeft: 4 }}>LOBBY</Text>
+        </TouchableOpacity>
 
-        <View style={styles.header}>
-          <View style={styles.brand}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)')} testID="game-back-to-lobby">
-              <Ionicons name="chevron-back" size={18} color="#FFF7ED" />
-            </TouchableOpacity>
-            <Text style={styles.brandTitle}>JAZMENT</Text>
-            <View style={styles.connectionBadge}>
-              <View style={[styles.dot, { backgroundColor: connected ? '#10B981' : '#F43F5E' }]} />
-              <Text style={styles.connectionText}>{connected ? 'LIVE' : 'CONNECTING'}</Text>
-            </View>
-          </View>
-
-          <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.balanceBox} onPress={() => openWallet('deposit')}>
-              <Ionicons name="wallet" size={14} color="#FBBF24" />
-              <Text style={styles.balanceText}>₹{liveBalance.toFixed(2)}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.headerBtn} onPress={() => openWallet('deposit')}>
-              <Text style={styles.headerBtnText}>DEPOSIT</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.headerBtn, styles.headerBtnOutline]} onPress={() => openWallet('withdraw')}>
-              <Text style={styles.headerBtnTextOutline}>WITHDRAW</Text>
-            </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity
+            onPress={toggleMuted}
+            style={{ width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.65)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }}
+            accessibilityRole="button"
+            accessibilityLabel={muted ? 'Turn game sound on' : 'Mute game sound'}
+            testID="game-sound-toggle"
+          >
+            <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={19} color="#FFF" />
+          </TouchableOpacity>
+          <View style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 8, paddingHorizontal: 16, borderRadius: 20, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#F59E0B' }}>
+            <View style={{ width: 7, height: 7, borderRadius: 4, marginRight: 7, backgroundColor: connected ? '#22C55E' : '#EF4444' }} />
+            <Ionicons name="wallet" size={14} color="#FBBF24" style={{ marginRight: 6 }} />
+            <Text style={{ color: '#FBBF24', fontWeight: 'bold' }}>₹{liveBalance.toFixed(2)}</Text>
           </View>
         </View>
+      </View>
 
-        <View style={styles.content}>
-          <View style={styles.topSection}>
-            <View style={styles.statusBox}>
-              <Text style={styles.roundText}>ROUND {game.roundId ? game.roundId.slice(-6).toUpperCase() : '------'}</Text>
-              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                {isBetting ? (
-                  <Text style={[styles.timerText, { color: '#10B981' }]}>{game.secondsRemaining}s</Text>
-                ) : (
-                  <Text style={[styles.timerText, { color: '#FBBF24', fontSize: 18, letterSpacing: 2, marginTop: 4 }]}>{game.phase}</Text>
-                )}
-              </Animated.View>
-            </View>
+      <View style={{ 
+        position: 'absolute', top: layout.HEADER_H - 10, left: width / 2 - 35, 
+        width: 70, height: 70, borderRadius: 35, 
+        backgroundColor: isBetting ? 'rgba(16,185,129,0.9)' : 'rgba(245,158,11,0.9)', 
+        borderWidth: 4, borderColor: '#fff', 
+        alignItems: 'center', justifyContent: 'center',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 6,
+        zIndex: 15
+      }}>
+        <Text style={{ color: '#fff', fontSize: 32, fontWeight: 'bold' }}>
+          {isBetting ? game.secondsRemaining : '!'}
+        </Text>
+      </View>
 
-            <View style={styles.battleArea}>
-              <PlayerCard card={game.dragonCard} animation={revealAnim} winner={game.result === 'DRAGON'} />
-              <Animated.View style={[styles.vsContainer, { transform: [{ scale: vsScale }] }]}>
-                <Text style={styles.vsText}>VS</Text>
-              </Animated.View>
-              <PlayerCard card={game.tigerCard} animation={revealAnim} winner={game.result === 'TIGER'} />
-            </View>
-          </View>
+      <PlayingCard 
+        card={game.dragonCard} anim={dragonCardAnim} 
+        startX={layout.SHOE_X} startY={layout.SHOE_Y} targetX={layout.DRAGON_CARD_X} targetY={layout.CARDS_Y} 
+        isWinner={game.result === 'DRAGON'} width={layout.CARD_W} height={layout.CARD_H}
+      />
+      <PlayingCard 
+        card={game.tigerCard} anim={tigerCardAnim} 
+        startX={layout.SHOE_X} startY={layout.SHOE_Y} targetX={layout.TIGER_CARD_X} targetY={layout.CARDS_Y} 
+        isWinner={game.result === 'TIGER'} width={layout.CARD_W} height={layout.CARD_H}
+      />
+      <VersusMark roundId={game.roundId} phase={game.phase} top={layout.CARDS_Y + 35} left={width / 2 - 29} />
 
-          <View style={styles.bottomSection}>
-            <View style={styles.beadRoad}>
-              {history.slice(-25).map((h, i) => (
-                <View key={i} style={[styles.bead, h.result === 'DRAGON' ? styles.beadDragon : h.result === 'TIGER' ? styles.beadTiger : styles.beadTie]}>
-                  <Text style={styles.beadText}>{h.result === 'DRAGON' ? 'D' : h.result === 'TIGER' ? 'T' : 'T'}</Text>
-                </View>
-              ))}
-              {history.length === 0 && <Text style={styles.beadEmpty}>Awaiting results...</Text>}
-            </View>
+      <BetZone title="DRAGON" odds="1:1" choice="DRAGON" layout={layout.DRAGON_ZONE} selected={choice === 'DRAGON'} pool={game.pools.DRAGON} myBet={lockedChoiceRef.current === 'DRAGON' ? stake : 0} isWinner={game.result === 'DRAGON'} onSelect={() => selectChoice('DRAGON')} disabled={!isBetting || (!!choice && choice !== 'DRAGON')} />
+      <BetZone title="TIE" odds="8:1" choice="TIE" layout={layout.TIE_ZONE} selected={choice === 'TIE'} pool={game.pools.TIE} myBet={lockedChoiceRef.current === 'TIE' ? stake : 0} isWinner={game.result === 'TIE'} onSelect={() => selectChoice('TIE')} disabled={!isBetting || (!!choice && choice !== 'TIE')} />
+      <BetZone title="TIGER" odds="1:1" choice="TIGER" layout={layout.TIGER_ZONE} selected={choice === 'TIGER'} pool={game.pools.TIGER} myBet={lockedChoiceRef.current === 'TIGER' ? stake : 0} isWinner={game.result === 'TIGER'} onSelect={() => selectChoice('TIGER')} disabled={!isBetting || (!!choice && choice !== 'TIGER')} />
 
-            <View style={styles.bettingBoard}>
-              <TouchableOpacity 
-                style={[styles.betBlockWrap, choice === 'DRAGON' && styles.betSelected]}
-                onPress={() => selectChoice('DRAGON')}
-                disabled={!isBetting || (!!choice && choice !== 'DRAGON')}
-                testID="button-choice-dragon"
-              >
-                <LinearGradient colors={['#1D4ED8', '#1E3A8A']} style={styles.betBlock}>
-                  <Text style={styles.betBlockTitle}>DRAGON</Text>
-                  <Text style={styles.betBlockOdds}>1:1</Text>
-                  <View style={styles.betPoolBox}><Text style={styles.betPoolText}>₹{game.pools.DRAGON.toFixed(0)}</Text></View>
-                </LinearGradient>
-              </TouchableOpacity>
+      {chips.map(c => <FlyingChip key={c.id} chip={c} collectorX={width / 2} />)}
 
-              <TouchableOpacity 
-                style={[styles.betBlockWrap, choice === 'TIE' && styles.betSelected]}
-                onPress={() => selectChoice('TIE')}
-                disabled={!isBetting || (!!choice && choice !== 'TIE')}
-                testID="button-choice-tie"
-              >
-                <LinearGradient colors={['#15803D', '#064E3B']} style={styles.betBlock}>
-                  <Text style={styles.betBlockTitle}>TIE</Text>
-                  <Text style={styles.betBlockOdds}>8:1</Text>
-                  <View style={styles.betPoolBox}><Text style={styles.betPoolText}>₹{game.pools.TIE.toFixed(0)}</Text></View>
-                </LinearGradient>
-              </TouchableOpacity>
+      <View style={{ position: 'absolute', left: layout.CHIP_SELECTOR_X, top: layout.CHIP_SELECTOR_Y, flexDirection: 'row', width: layout.CHIP_SELECTOR_W, justifyContent: 'space-around', zIndex: 20 }}>
+        {CHIPS.map((amount) => (
+          <TouchableOpacity key={amount} onPress={() => selectChip(amount)} disabled={!isBetting} activeOpacity={0.8} testID={`button-chip-${amount}`}>
+            <Chip amount={amount} selected={selectedChip === amount} />
+          </TouchableOpacity>
+        ))}
+      </View>
 
-              <TouchableOpacity 
-                style={[styles.betBlockWrap, choice === 'TIGER' && styles.betSelected]}
-                onPress={() => selectChoice('TIGER')}
-                disabled={!isBetting || (!!choice && choice !== 'TIGER')}
-                testID="button-choice-tiger"
-              >
-                <LinearGradient colors={['#B91C1C', '#7F1D1D']} style={styles.betBlock}>
-                  <Text style={styles.betBlockTitle}>TIGER</Text>
-                  <Text style={styles.betBlockOdds}>1:1</Text>
-                  <View style={styles.betPoolBox}><Text style={styles.betPoolText}>₹{game.pools.TIGER.toFixed(0)}</Text></View>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.controlsRow}>
-              <View style={styles.roundBetBox}>
-                <Text style={styles.roundBetLabel}>{choice ? `${choice} LOCKED` : 'SELECT SIDE'}</Text>
-                <Text style={styles.roundBetAmount}>₹{stake.toFixed(0)}</Text>
-              </View>
-
-              <View style={styles.chipsStrip}>
-                {CHIPS.map((chip) => (
-                  <Chip 
-                    key={chip} 
-                    amount={chip} 
-                    selected={selectedChip === chip}
-                    onPress={() => selectChip(chip)}
-                    disabled={!isBetting} 
-                    testID={`button-chip-${chip}`}
-                  />
-                ))}
-              </View>
-              {placing && <View style={styles.sendingDot} />}
-            </View>
-          </View>
+      <PhaseOverlay phase={game.phase} result={presentedResult ?? undefined} height={height} />
+      
+      {message && (
+        <View style={{ position: 'absolute', top: 90, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.8)', padding: 8, paddingHorizontal: 16, borderRadius: 20, zIndex: 100 }}>
+          <Text style={{ color: '#fff', fontWeight: 'bold' }}>{message}</Text>
         </View>
+      )}
+
+      <View style={{ position: 'absolute', bottom: Math.max(insets.bottom, 16), left: Math.max(insets.left, 16), backgroundColor: 'rgba(0,0,0,0.6)', padding: 6, borderRadius: 8, flexDirection: 'row', maxWidth: width * 0.3, flexWrap: 'wrap', zIndex: 5 }}>
+        {history.length === 0 && <Text style={{ color: '#aaa', fontSize: 12 }}>Awaiting results...</Text>}
+        {history.slice(-14).map((h, i) => (
+          <View key={i} style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: h.result === 'DRAGON' ? '#EF4444' : h.result === 'TIGER' ? '#3B82F6' : '#10B981', margin: 2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' }}>
+            <Text style={{ fontSize: 10, color: '#fff', fontWeight: 'bold' }}>{h.result.charAt(0)}</Text>
+          </View>
+        ))}
       </View>
     </View>
   );
 }
 
-function PlayerCard({ card, animation, winner }: { card: Card; animation: Animated.Value; winner: boolean }) {
+function PlayingCard({ 
+  card, anim, startX, startY, targetX, targetY, isWinner, width, height 
+}: { 
+  card: Card, anim: Animated.Value, startX: number, startY: number, targetX: number, targetY: number, isWinner: boolean, width: number, height: number 
+}) {
   const parts = cardParts(card);
+  
+  const translateX = anim.interpolate({ inputRange: [0, 1, 2], outputRange: [startX, targetX, targetX], extrapolate: 'clamp' });
+  const translateY = anim.interpolate({ inputRange: [0, 1, 2], outputRange: [startY, targetY, targetY], extrapolate: 'clamp' });
+  const scale = anim.interpolate({ inputRange: [0, 1, 2], outputRange: [0.5, 1, 1], extrapolate: 'clamp' });
+  const rotateYFront = anim.interpolate({ inputRange: [0, 1, 2], outputRange: ['180deg', '180deg', '0deg'], extrapolate: 'clamp' });
+  const rotateYBack = anim.interpolate({ inputRange: [0, 1, 2], outputRange: ['0deg', '0deg', '-180deg'], extrapolate: 'clamp' });
+  
   return (
-    <Animated.View
-      style={[
-        styles.playingCard,
-        parts.hidden && styles.hiddenCard,
-        winner && styles.winnerCard,
-        {
-          opacity: animation,
-          transform: [
-            { scale: animation },
-            { rotateY: animation.interpolate({ inputRange: [0, 1], outputRange: ['90deg', '0deg'] }) },
-          ],
-        },
-      ]}
-    >
-      {parts.hidden ? (
-        <View style={styles.cardBack}>
-          <Ionicons name="diamond" size={24} color="#334155" />
-        </View>
-      ) : (
-        <>
-          <Text style={[styles.cardRank, parts.red && { color: '#DC2626' }]}>{parts.rank}</Text>
-          <Text style={[styles.cardSuit, parts.red && { color: '#DC2626' }]}>{parts.suit}</Text>
-        </>
-      )}
+    <Animated.View style={{
+      position: 'absolute', left: 0, top: 0, width, height,
+      transform: [{ perspective: 1000 }, { translateX }, { translateY }, { scale }],
+      opacity: anim.interpolate({ inputRange: [0, 0.05, 1], outputRange: [0, 1, 1] }),
+      zIndex: 10,
+    }}>
+      <Animated.View style={{
+        ...StyleSheet.absoluteFillObject, backfaceVisibility: 'hidden', transform: [{ perspective: 1000 }, { rotateY: rotateYFront }],
+        backgroundColor: '#fff', borderRadius: 8, borderWidth: isWinner ? 4 : 1, borderColor: isWinner ? '#FBBF24' : '#ccc',
+        padding: 8, shadowColor: isWinner ? '#FBBF24' : '#000', shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: isWinner ? 0.8 : 0.3, shadowRadius: isWinner ? 10 : 4, alignItems: 'center'
+      }}>
+         <Text style={{ color: parts.red ? '#DC2626' : '#0f172a', fontSize: 24, fontWeight: 'bold', alignSelf: 'flex-start' }}>{parts.rank}</Text>
+         <Text style={{ color: parts.red ? '#DC2626' : '#0f172a', fontSize: 36, marginTop: -4 }}>{parts.suit}</Text>
+         <Text style={{ position: 'absolute', bottom: 4, right: 6, color: parts.red ? '#DC2626' : '#0f172a', fontSize: 24, fontWeight: 'bold', transform: [{rotate: '180deg'}] }}>{parts.rank}</Text>
+      </Animated.View>
+
+      <Animated.View style={{
+        ...StyleSheet.absoluteFillObject, backfaceVisibility: 'hidden', transform: [{ perspective: 1000 }, { rotateY: rotateYBack }],
+        backgroundColor: '#1E293B', borderRadius: 8, borderWidth: 2, borderColor: '#475569', justifyContent: 'center', alignItems: 'center',
+      }}>
+        <Ionicons name="diamond" size={32} color="#334155" />
+      </Animated.View>
     </Animated.View>
   );
 }
 
-const CHIP_COLORS = {
-  10: '#2563EB',
-  50: '#10B981',
-  100: '#1F2937',
-  500: '#8B5CF6',
-};
+function BetZone({ 
+  title, odds, choice, layout, selected, pool, myBet, isWinner, onSelect, disabled 
+}: { 
+  title: string, odds: string, choice: Choice, layout: {x: number, y: number, w: number, h: number}, selected: boolean, pool: number, myBet: number, isWinner: boolean, onSelect: () => void, disabled: boolean 
+}) {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (isWinner) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.05, duration: 400, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 400, useNativeDriver: true })
+        ])
+      );
+      loop.start();
+      return () => { loop.stop(); pulseAnim.setValue(1); };
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [isWinner, pulseAnim]);
 
-function Chip({ amount, onPress, disabled, selected, testID }: { amount: number, onPress: () => void, disabled: boolean, selected: boolean, testID: string }) {
-  const color = CHIP_COLORS[amount as keyof typeof CHIP_COLORS] || '#F59E0B';
+  const colors: readonly [string, string] = choice === 'DRAGON'
+    ? ['#991B1B', '#7F1D1D']
+    : choice === 'TIGER'
+      ? ['#1E3A8A', '#1E40AF']
+      : ['#064E3B', '#047857'];
+  const borderColor = isWinner ? '#FCD34D' : choice === 'DRAGON' ? '#EF4444' : choice === 'TIGER' ? '#3B82F6' : '#10B981';
+  
   return (
-    <TouchableOpacity onPress={onPress} disabled={disabled} style={{ opacity: disabled ? 0.5 : 1 }} testID={testID}>
-      <View style={[styles.chipOuter, selected && styles.chipSelected, { backgroundColor: color }]}>
-        <View style={styles.chipInner}>
-          <Text style={[styles.chipText, amount === 100 && { color: '#1F2937' }]}>{amount}</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
+    <Animated.View style={{
+      position: 'absolute', left: layout.x, top: layout.y, width: layout.w, height: layout.h,
+      transform: [{ scale: pulseAnim }], zIndex: isWinner ? 10 : 1,
+    }}>
+      <TouchableOpacity 
+        style={{ flex: 1, padding: 4 }} activeOpacity={disabled ? 1 : 0.8}
+        onPress={() => !disabled && onSelect()} testID={`button-choice-${title.toLowerCase()}`}
+      >
+        <LinearGradient 
+          colors={colors}
+          style={{
+            flex: 1, borderRadius: 12, borderWidth: isWinner ? 4 : 2, borderColor: selected ? '#FCD34D' : borderColor,
+            alignItems: 'center', justifyContent: 'center', opacity: disabled && !selected && !isWinner ? 0.8 : 1,
+            shadowColor: isWinner ? '#FCD34D' : '#000', shadowOffset: { width: 0, height: isWinner ? 0 : 4 },
+            shadowOpacity: isWinner ? 0.8 : 0.4, shadowRadius: isWinner ? 12 : 4,
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', letterSpacing: 2 }}>{title}</Text>
+          <Text style={{ color: '#FBBF24', fontSize: 14, marginTop: 4, fontWeight: 'bold' }}>{odds}</Text>
+          <View style={{ marginTop: 8, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>₹{pool}</Text>
+          </View>
+          {myBet > 0 && (
+            <View style={{ position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.8)', padding: 6, borderRadius: 12, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#F59E0B' }}>
+              <Text style={{ color: '#F59E0B', fontWeight: 'bold', fontSize: 10 }}>MY BET: ₹{myBet}</Text>
+            </View>
+          )}
+        </LinearGradient>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F97316' },
-  arenaArtwork: { opacity: 0.96 },
-  safeContent: { flex: 1 },
-  messageBox: {
-    position: 'absolute', top: 56, alignSelf: 'center',
-    backgroundColor: '#FBBF24', paddingHorizontal: 16, paddingVertical: 6,
-    borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 6,
-    zIndex: 20, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.5, shadowRadius: 4, elevation: 5,
-  },
-  messageText: { color: '#000', fontFamily: 'Inter_600SemiBold', fontSize: 12 },
-  
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 10, paddingVertical: 5, marginBottom: 3, zIndex: 10,
-    backgroundColor: 'rgba(124,45,18,0.76)', borderRadius: 12,
-    borderWidth: 1, borderColor: 'rgba(253,186,116,0.75)',
-  },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backButton: {
-    width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: 'rgba(255,247,237,0.14)', borderWidth: 1, borderColor: 'rgba(255,237,213,0.5)',
-  },
-  brandTitle: { color: '#FFF7ED', fontFamily: 'Inter_700Bold', fontSize: 18, letterSpacing: 2 },
-  connectionBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-  connectionText: { color: '#E2E8F0', fontSize: 9, fontFamily: 'Inter_700Bold', letterSpacing: 1 },
-  
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  balanceBox: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 16, borderWidth: 1, borderColor: '#FBBF24', gap: 6,
-  },
-  balanceText: { color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 13 },
-  headerBtn: { backgroundColor: '#FBBF24', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16 },
-  headerBtnOutline: { backgroundColor: 'rgba(0,0,0,0.5)', borderWidth: 1, borderColor: '#FBBF24' },
-  headerBtnText: { color: '#000', fontFamily: 'Inter_700Bold', fontSize: 11, letterSpacing: 0.5 },
-  headerBtnTextOutline: { color: '#FBBF24', fontFamily: 'Inter_700Bold', fontSize: 11, letterSpacing: 0.5 },
-  
-  content: { flex: 1, justifyContent: 'space-between' },
-  
-  topSection: { flex: 1, minHeight: 96, alignItems: 'center', justifyContent: 'center' },
-  statusBox: {
-    position: 'absolute', top: 3, alignItems: 'center',
-    backgroundColor: 'rgba(124,45,18,0.58)', paddingHorizontal: 12, paddingVertical: 2, borderRadius: 12,
-  },
-  roundText: { color: '#FFEDD5', fontFamily: 'Inter_600SemiBold', fontSize: 9, letterSpacing: 1 },
-  timerText: { fontFamily: 'Inter_700Bold', fontSize: 28, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: {width: 0, height: 2}, textShadowRadius: 4 },
-  
-  battleArea: { flexDirection: 'row', alignItems: 'center', marginTop: 18 },
-  playingCard: {
-    width: 48, height: 64, backgroundColor: '#fff', borderRadius: 6, padding: 5,
-    justifyContent: 'space-between', borderWidth: 1, borderColor: '#cbd5e1',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 5,
-  },
-  hiddenCard: { backgroundColor: '#1E293B', borderColor: '#475569' },
-  winnerCard: { borderColor: '#FBBF24', borderWidth: 3, shadowColor: '#FBBF24', shadowOpacity: 0.8, shadowRadius: 10, transform: [{scale: 1.05}] },
-  cardBack: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  cardRank: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#0F1729' },
-  cardSuit: { fontSize: 19, alignSelf: 'flex-end', color: '#0F1729' },
-  
-  vsContainer: {
-    width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.7)',
-    borderWidth: 2, borderColor: '#FBBF24', alignItems: 'center', justifyContent: 'center',
-    marginHorizontal: 16, shadowColor: '#FBBF24', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 8, elevation: 4,
-  },
-  vsText: { color: '#FBBF24', fontFamily: 'Inter_700Bold', fontSize: 18, fontStyle: 'italic' },
-  
-  bottomSection: {
-    paddingHorizontal: 8, paddingVertical: 5, borderRadius: 12,
-    backgroundColor: 'rgba(249,115,22,0.28)', borderWidth: 1, borderColor: 'rgba(253,186,116,0.8)',
-  },
-  beadRoad: {
-    flexDirection: 'row', height: 18, backgroundColor: 'rgba(255,247,237,0.92)', borderRadius: 9,
-    paddingHorizontal: 7, alignItems: 'center', marginBottom: 4, gap: 3, overflow: 'hidden',
-  },
-  bead: { width: 14, height: 14, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
-  beadDragon: { backgroundColor: '#3B82F6' },
-  beadTie: { backgroundColor: '#10B981' },
-  beadTiger: { backgroundColor: '#EF4444' },
-  beadText: { color: '#FFF', fontSize: 8, fontFamily: 'Inter_700Bold' },
-  beadEmpty: { color: '#9A3412', fontSize: 9, fontStyle: 'italic', marginLeft: 4 },
-  
-  bettingBoard: { flexDirection: 'row', gap: 7, height: 48, marginBottom: 4 },
-  betBlockWrap: { flex: 1, borderRadius: 12 },
-  betSelected: { borderWidth: 3, borderColor: '#FBBF24', transform: [{ scale: 1.02 }] },
-  betBlock: { flex: 1, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-  betBlockTitle: { color: '#FFF', fontFamily: 'Inter_700Bold', fontSize: 13, letterSpacing: 1 },
-  betBlockOdds: { color: 'rgba(255,255,255,0.82)', fontSize: 8, fontFamily: 'Inter_600SemiBold', marginBottom: 2 },
-  betPoolBox: { backgroundColor: 'rgba(0,0,0,0.42)', paddingHorizontal: 9, paddingVertical: 1, borderRadius: 7 },
-  betPoolText: { color: '#FDE68A', fontSize: 10, fontFamily: 'Inter_700Bold' },
-  
-  controlsRow: { flexDirection: 'row', minHeight: 46, gap: 8, alignItems: 'center' },
-  roundBetBox: {
-    minWidth: 96, height: 42, backgroundColor: '#FFF7ED', borderRadius: 12, borderWidth: 2, borderColor: '#FBBF24',
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
-  },
-  roundBetLabel: { color: '#9A3412', fontFamily: 'Inter_700Bold', fontSize: 8, letterSpacing: 0.5 },
-  roundBetAmount: { color: '#7C2D12', fontFamily: 'Inter_700Bold', fontSize: 17 },
-  chipsStrip: { flex: 1, flexDirection: 'row', gap: 12, justifyContent: 'center', alignItems: 'center' },
-  sendingDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FBBF24' },
-  
-  chipOuter: {
-    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: 'rgba(255,255,255,0.65)',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 2, elevation: 3,
-  },
-  chipSelected: { borderColor: '#FDE047', borderWidth: 4, transform: [{ scale: 1.08 }] },
-  chipInner: {
-    width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFF7ED',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: 'rgba(0,0,0,0.1)', borderStyle: 'dashed',
-  },
-  chipText: { color: '#000', fontFamily: 'Inter_700Bold', fontSize: 12 },
-});
+function Chip({ amount, selected = false }: { amount: number, selected?: boolean }) {
+  const isHigh = amount >= 100;
+  return (
+    <View style={{
+      width: 48, height: 48, borderRadius: 24, backgroundColor: isHigh ? '#111827' : '#F8FAFC',
+      borderWidth: 4, borderColor: isHigh ? '#F59E0B' : '#3B82F6', alignItems: 'center', justifyContent: 'center',
+      shadowColor: '#000', shadowOffset: { width: 0, height: selected ? 4 : 2 }, shadowOpacity: 0.5, shadowRadius: selected ? 6 : 2,
+      transform: [{ scale: selected ? 1.15 : 1 }]
+    }}>
+      <View style={{
+        width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: isHigh ? '#F59E0B' : '#3B82F6',
+        alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed'
+      }}>
+        <Text style={{ color: isHigh ? '#F59E0B' : '#1E293B', fontWeight: 'bold', fontSize: 14 }}>{amount}</Text>
+      </View>
+    </View>
+  );
+}
 
+function FlyingChip({ chip, collectorX }: { chip: RenderChip, collectorX: number }) {
+  const translateX = chip.anim.interpolate({ inputRange: [0, 1, 2], outputRange: [chip.startX, chip.targetX, collectorX] });
+  const translateY = chip.anim.interpolate({ inputRange: [0, 1, 2], outputRange: [chip.startY, chip.targetY, -90] });
+  const scale = chip.anim.interpolate({ inputRange: [0, 0.8, 1, 2], outputRange: [chip.isMine ? 1 : 0.5, 0.8, 0.6, 0.18] });
+  const opacity = chip.anim.interpolate({ inputRange: [0, 0.08, 1, 1.85, 2], outputRange: [0, 1, 1, 1, 0] });
+  return (
+    <Animated.View style={{ position: 'absolute', opacity, transform: [{ translateX }, { translateY }, { scale }], zIndex: chip.isMine ? 50 : 20 }}>
+      <Chip amount={chip.amount} />
+    </Animated.View>
+  );
+}
+
+function VersusMark({ roundId, phase, top, left }: { roundId?: string, phase: Phase, top: number, left: number }) {
+  const scale = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!roundId || phase !== 'BETTING') return;
+    scale.setValue(0);
+    const animation = Animated.sequence([
+      Animated.spring(scale, { toValue: 1.25, speed: 18, bounciness: 10, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1, duration: 180, useNativeDriver: true }),
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [phase, roundId, scale]);
+
+  return (
+    <Animated.View style={{ position: 'absolute', top, left, width: 58, height: 58, borderRadius: 29, zIndex: 14, transform: [{ scale }], alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(5,8,20,0.92)', borderWidth: 2, borderColor: '#FCD34D', shadowColor: '#F59E0B', shadowOpacity: 0.85, shadowRadius: 12 }}>
+      <Text style={{ color: '#FFF7D6', fontSize: 20, fontWeight: '900', fontStyle: 'italic' }}>VS</Text>
+    </Animated.View>
+  );
+}
+
+function PhaseOverlay({ phase, result, height }: { phase: Phase, result?: Choice, height: number }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  const [text, setText] = useState('');
+
+  useEffect(() => {
+    let animation: Animated.CompositeAnimation | undefined;
+    if (result) {
+      setText(result === 'TIE' ? 'TIE WINS' : `${result} WINS`);
+      anim.setValue(0);
+      animation = Animated.sequence([
+        Animated.spring(anim, { toValue: 1, speed: 15, bounciness: 9, useNativeDriver: true }),
+        Animated.delay(1500),
+        Animated.timing(anim, { toValue: 0, duration: 360, useNativeDriver: true })
+      ]);
+    } else if (phase === 'REVEAL') {
+      setText('BETS CLOSED');
+      anim.setValue(0);
+      animation = Animated.sequence([
+        Animated.timing(anim, { toValue: 1, duration: 400, easing: Easing.out(Easing.back(1.5)), useNativeDriver: true }),
+        Animated.delay(1200),
+        Animated.timing(anim, { toValue: 0, duration: 300, useNativeDriver: true })
+      ]);
+    } else if (phase === 'BETTING') {
+      setText('PLACE YOUR BETS');
+      anim.setValue(0);
+      animation = Animated.sequence([
+        Animated.timing(anim, { toValue: 1, duration: 400, easing: Easing.out(Easing.back(1.5)), useNativeDriver: true }),
+        Animated.delay(1200),
+        Animated.timing(anim, { toValue: 0, duration: 300, useNativeDriver: true })
+      ]);
+    } else {
+      setText('');
+      anim.setValue(0);
+    }
+    animation?.start();
+    return () => animation?.stop();
+  }, [phase, result, anim]);
+
+  if (!text) return null;
+  return (
+    <Animated.View style={{
+      position: 'absolute', top: height / 2 - 40, width: '100%', alignItems: 'center',
+      opacity: anim, transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }], zIndex: 100, pointerEvents: 'none'
+    }}>
+      <LinearGradient colors={['rgba(0,0,0,0.9)', 'rgba(0,0,0,0.7)']} style={{ paddingHorizontal: 40, paddingVertical: 16, borderRadius: 12, borderWidth: 2, borderColor: '#FCD34D' }}>
+        <Text style={{ color: '#FCD34D', fontSize: 32, fontWeight: 'bold', letterSpacing: 4, textAlign: 'center' }}>{text}</Text>
+      </LinearGradient>
+    </Animated.View>
+  );
+}
+
+// --- LOBBY STYLES ---
 const lobbyStyles = StyleSheet.create({
-  root: { flex: 1 },
+  root: { flex: 1, backgroundColor: '#6B1020' },
   safeContent: { flex: 1 },
   header: {
-    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: 'rgba(65,8,18,0.76)',
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 20,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,215,106,0.65)',
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   headerPortrait: {
-    height: 104,
-    flexWrap: 'wrap',
-    alignContent: 'space-between',
-    paddingVertical: 8,
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
-  profileBlock: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 150 },
+  profileBlock: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#FFF2C7',
+    borderColor: '#FFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
-  eyebrow: { color: '#FBCB72', fontSize: 8, letterSpacing: 0.8, fontFamily: 'Inter_700Bold' },
-  balance: { color: '#FFFFFF', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  eyebrow: { color: '#FFE8A3', fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  balance: { color: '#FFF', fontSize: 22, fontWeight: '800', marginTop: -2 },
   cashActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cashButton: {
-    height: 34,
-    paddingHorizontal: 15,
-    borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFD348',
-    borderWidth: 1,
-    borderColor: '#FFF0A6',
-  },
-  cashButtonText: { color: '#6B1020', fontSize: 11, fontFamily: 'Inter_700Bold' },
-  withdrawButton: {
-    height: 34,
+    backgroundColor: '#FFE58A',
     paddingHorizontal: 14,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 12,
     gap: 6,
-    backgroundColor: '#A62B23',
-    borderWidth: 1,
-    borderColor: '#E8A943',
   },
-  withdrawText: { color: '#FFE8A3', fontSize: 11, fontFamily: 'Inter_700Bold' },
-  headerTools: { minWidth: 150, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 7 },
-  headerToolsPortrait: { minWidth: 112 },
-  livePill: {
-    height: 25,
-    paddingHorizontal: 9,
-    borderRadius: 13,
+  cashButtonText: { color: '#7C2D12', fontWeight: '800', fontSize: 12 },
+  withdrawButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,229,138,0.3)',
+    gap: 6,
   },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#40E685' },
-  liveText: { color: '#FFF2C7', fontSize: 8, letterSpacing: 0.7, fontFamily: 'Inter_700Bold' },
-  toolButton: {
-    width: 29,
-    height: 29,
-    borderRadius: 15,
+  withdrawText: { color: '#FFE8A3', fontWeight: '700', fontSize: 12 },
+  headerTools: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerToolsPortrait: { justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', paddingTop: 12 },
+  livePill: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  body: { flex: 1, flexDirection: 'row', gap: 10, paddingTop: 8 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981', marginRight: 6 },
+  liveText: { color: '#FFF', fontSize: 10, fontWeight: 'bold', letterSpacing: 0.5 },
+  toolButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' },
+  body: { flex: 1, flexDirection: 'row', gap: 16 },
   bodyPortrait: { flexDirection: 'column' },
-  hero: {
-    width: '35%',
-    minWidth: 250,
-    borderRadius: 13,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#F7C951',
-    backgroundColor: '#4A0915',
-  },
-  heroPortrait: { width: '100%', minWidth: 0, height: 220, flexShrink: 0 },
+  hero: { flex: 1, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', minHeight: 220 },
+  heroPortrait: { flex: 0, minHeight: 280 },
   heroImage: { width: '100%', height: '100%' },
   featuredBadge: {
-    position: 'absolute',
-    top: 9,
-    left: 9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    backgroundColor: '#FFD348',
+    position: 'absolute', top: 16, left: 16, flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#FFD76A', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, gap: 4,
   },
-  featuredBadgeText: { color: '#6B1020', fontSize: 8, fontFamily: 'Inter_700Bold' },
-  heroCopy: { position: 'absolute', left: 13, right: 13, bottom: 11 },
-  heroTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    letterSpacing: 1,
-    fontFamily: 'Inter_700Bold',
-    textShadowColor: '#6B1020',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  heroSubtitle: { color: '#FFE8A3', fontSize: 10, marginTop: 1, fontFamily: 'Inter_500Medium' },
-  playNow: {
-    alignSelf: 'flex-start',
-    marginTop: 7,
-    paddingHorizontal: 12,
-    height: 26,
-    borderRadius: 13,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#FFD348',
-  },
-  playNowText: { color: '#6B1020', fontSize: 9, fontFamily: 'Inter_700Bold' },
-  catalog: {
-    flex: 1,
-    borderRadius: 13,
-    padding: 10,
-    backgroundColor: 'rgba(80,8,17,0.56)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,215,106,0.5)',
-  },
-  sectionHeading: { height: 35, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { color: '#FFF8E1', fontSize: 14, letterSpacing: 0.8, fontFamily: 'Inter_700Bold' },
-  sectionSubtitle: { color: '#E8B99E', fontSize: 8, marginTop: 1, fontFamily: 'Inter_500Medium' },
-  gameCount: {
-    color: '#6B1020',
-    fontSize: 8,
-    fontFamily: 'Inter_700Bold',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    backgroundColor: '#FFD348',
-  },
-  gameRow: { gap: 8, paddingVertical: 3 },
+  featuredBadgeText: { color: '#7C2D12', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  heroCopy: { position: 'absolute', bottom: 20, left: 20, right: 20 },
+  heroTitle: { color: '#FFF', fontSize: 42, fontWeight: '900', textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 },
+  heroSubtitle: { color: '#FFD76A', fontSize: 14, fontWeight: '600', marginBottom: 16 },
+  playNow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFD76A', alignSelf: 'flex-start', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 16, gap: 8 },
+  playNowText: { color: '#7C2D12', fontWeight: '900', fontSize: 14, letterSpacing: 0.5 },
+  catalog: { flex: 1, gap: 16 },
+  sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 4 },
+  sectionTitle: { color: '#FFF', fontSize: 18, fontWeight: '800' },
+  sectionSubtitle: { color: '#FFD76A', fontSize: 12, opacity: 0.8 },
+  gameCount: { color: '#10B981', fontSize: 12, fontWeight: 'bold' },
+  gameRow: { gap: 12, paddingBottom: 8 },
   gameCard: {
-    width: 116,
-    borderRadius: 10,
-    overflow: 'hidden',
-    backgroundColor: '#FFF6DF',
-    borderWidth: 2,
-    borderColor: '#FFD348',
+    width: 140, height: 180, borderRadius: 20, backgroundColor: '#4C0519',
+    overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
-  gameImage: { width: '100%', height: 78 },
+  gameImage: { width: '100%', height: '100%', opacity: 0.6 },
   hotBadge: {
-    position: 'absolute',
-    top: 5,
-    left: 5,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: '#E23921',
+    position: 'absolute', top: 8, right: 8, backgroundColor: '#EF4444',
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
   },
-  hotText: { color: '#FFFFFF', fontSize: 7, fontFamily: 'Inter_700Bold' },
-  gameCardFooter: { flex: 1, justifyContent: 'center', paddingHorizontal: 7 },
-  gameTitle: { color: '#6B1020', fontSize: 10, fontFamily: 'Inter_700Bold' },
-  gameMeta: { color: '#A14C3A', fontSize: 7, fontFamily: 'Inter_500Medium' },
+  hotText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
+  gameCardFooter: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 12, backgroundColor: 'rgba(0,0,0,0.8)' },
+  gameTitle: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
+  gameMeta: { color: '#10B981', fontSize: 10, marginTop: 2 },
   comingCard: {
-    width: 105,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: '#E6A93E',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    width: 140, height: 180, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.2)',
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.05)', borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center', gap: 8,
   },
-  comingTitle: { color: '#FFF2C7', fontSize: 9, marginTop: 5, fontFamily: 'Inter_700Bold' },
-  comingText: { color: '#D99B83', fontSize: 7, marginTop: 1, fontFamily: 'Inter_500Medium' },
-  recentRow: { height: 34, flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  recentLabel: { color: '#F8C66A', fontSize: 8, letterSpacing: 0.5, fontFamily: 'Inter_700Bold' },
+  comingTitle: { color: '#FFD76A', fontWeight: 'bold', fontSize: 12 },
+  comingText: { color: '#FFF', fontSize: 10, opacity: 0.5 },
+  recentRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 'auto' },
+  recentLabel: { color: '#FFD76A', fontSize: 10, fontWeight: 'bold', letterSpacing: 0.5 },
   recentChip: {
-    height: 28,
-    flex: 1,
-    maxWidth: 190,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: 5,
-    borderRadius: 14,
-    backgroundColor: '#FFF2C7',
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFD76A',
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, gap: 6,
   },
-  recentIcon: { width: 22, height: 22, borderRadius: 11 },
-  recentName: { flex: 1, color: '#6B1020', fontSize: 9, fontFamily: 'Inter_700Bold' },
+  recentIcon: { width: 16, height: 16, borderRadius: 8 },
+  recentName: { color: '#7C2D12', fontSize: 12, fontWeight: 'bold' },
 });

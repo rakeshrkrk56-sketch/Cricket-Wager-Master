@@ -34,7 +34,9 @@
           "initialOrientation": "PORTRAIT_UP"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-audio",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
