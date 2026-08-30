@@ -170,20 +170,20 @@ function GameLobby() {
               <Ionicons name="flash" size={11} color="#7C2D12" />
               <Text style={lobbyStyles.featuredBadgeText}>LIVE NOW</Text>
             </View>
+            <TouchableOpacity
+              style={[lobbyStyles.playNow, lobbyStyles.playNowTop]}
+              onPress={openDragonTiger}
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel="Play Now"
+              testID="lobby-featured-dragon-tiger"
+            >
+              <Text style={lobbyStyles.playNowText}>PLAY NOW</Text>
+              <Ionicons name="play" size={12} color="#7C2D12" />
+            </TouchableOpacity>
             <View style={lobbyStyles.heroCopy}>
               <Text style={lobbyStyles.heroTitle}>DRAGON TIGER</Text>
               <Text style={lobbyStyles.heroSubtitle}>Fast rounds • Real wallet</Text>
-              <TouchableOpacity
-                style={lobbyStyles.playNow}
-                onPress={openDragonTiger}
-                activeOpacity={0.82}
-                accessibilityRole="button"
-                accessibilityLabel="Play Now"
-                testID="lobby-featured-dragon-tiger"
-              >
-                <Text style={lobbyStyles.playNowText}>PLAY NOW</Text>
-                <Ionicons name="play" size={12} color="#7C2D12" />
-              </TouchableOpacity>
             </View>
           </View>
 
@@ -1467,6 +1467,7 @@ const lobbyStyles = StyleSheet.create({
     backgroundColor: '#FFD76A', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, gap: 4,
   },
   featuredBadgeText: { color: '#7C2D12', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  playNowTop: { position: 'absolute', top: 58, left: 20, right: 20 },
   heroCopy: { position: 'absolute', bottom: 20, left: 20, right: 20 },
   heroTitle: { color: '#FFF', fontSize: 42, fontWeight: '900', textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 },
   heroSubtitle: { color: '#FFD76A', fontSize: 14, fontWeight: '600', marginBottom: 16 },
