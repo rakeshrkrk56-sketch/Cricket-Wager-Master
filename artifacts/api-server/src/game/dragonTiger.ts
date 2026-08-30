@@ -604,45 +604,8 @@ export class DragonTigerGame {
 
   async closeBetting(): Promise<void> {
     this.clearTimer();
-    // 🔄 DATABASE SE ADMIN TOGGLE KI VALUE CHECK KAR RAHE HAIN
-    let systemConfig = null;
-    try {
-      const configRows = await db.select().from(gameConfigsTable).limit(1);
-      if (configRows && configRows.length > 0) {
-        systemConfig = configRows[0];
-      }
-    } catch (e) {
-      // Database check fails fallback safely
-    }
-
-    let dRank = randomInt(1, 14);
-    let tRank = randomInt(1, 14);
-
-    // 🎰 AGAR JAZMENT ADMIN PANEL SE PROFIT MODE ON HAI (payout_balance_mode === true)
-    if (systemConfig && systemConfig.payout_balance_mode === true) {
-      // Is round mein total kitna paisa laga hai check karein
-      let dTotal = currentRound?.dragonTotalBets || 0;
-      let tTotal = currentRound?.tigerTotalBets || 0;
-
-      // Agar Dragon par zyada paisa laga hai -> Tiger ko jitao (Tiger rank ko bada karo)
-      if (dTotal > tTotal) {
-        while (tRank <= dRank) {
-          dRank = randomInt(1, 14);
-          tRank = randomInt(1, 14);
-        }
-      }
-      // Agar Tiger par zyada paisa laga hai -> Dragon ko jitao (Dragon rank ko bada karo)
-      else if (tTotal > dTotal) {
-        while (dRank <= tRank) {
-          dRank = randomInt(1, 14);
-          tRank = randomInt(1, 14);
-        }
-      }
-    }
-
-    // BACKEND VARIABLES KO RE-ASSIGN KAR DIYA TAAKI BAAKI GAME CHALTA RAHE
-    const dragonRank = dRank;
-    const tigerRank = tRank;
+    const dragonRank = randomInt(1, 14);
+    const tigerRank = randomInt(1, 14);
 
     const revealEndsAt = new Date(Date.now() + REVEAL_MS);
     const [round] = await db
