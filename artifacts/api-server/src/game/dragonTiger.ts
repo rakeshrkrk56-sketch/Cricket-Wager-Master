@@ -18,6 +18,7 @@ import { logger } from "../lib/logger";
 const BETTING_MS = 15_000;
 const REVEAL_MS = 5_000;
 const AUTH_TIMEOUT_MS = 5_000;
+const MAX_TABLE_PLAYERS = 4;
 const CONTROL_MODE_KEY = "dragon_tiger_mode";
 const CONTROL_PAUSED_KEY = "dragon_tiger_paused";
 const PUBSUB_CHANNEL = "dragon_tiger_events";
@@ -66,6 +67,7 @@ export class DragonTigerGame {
   private mode: GameMode = "AUTOMATIC";
   private paused = false;
   private stopped = false;
+  private readonly pendingPlayerIds = new Set<string>();
 
   attach(server: Server): void {
     server.on("upgrade", (request, socket, head) => {
@@ -80,8 +82,12 @@ export class DragonTigerGame {
     });
 
     this.wss.on("connection", (socket: AuthenticatedSocket) => {
+      let reservedPlayerId: string | undefined;
       const authTimer = setTimeout(() => socket.close(4401, "Authentication required"), AUTH_TIMEOUT_MS);
-      socket.once("close", () => clearTimeout(authTimer));
+      socket.once("close", () => {
+        clearTimeout(authTimer);
+        if (reservedPlayerId) this.pendingPlayerIds.delete(reservedPlayerId);
+      });
 
       socket.once("message", async (data: RawData) => {
         try {
@@ -101,12 +107,35 @@ export class DragonTigerGame {
             return;
           }
 
+          const connectedPlayerIds = this.getConnectedPlayerIds();
+          const alreadyAtTable = connectedPlayerIds.has(user.id) || this.pendingPlayerIds.has(user.id);
+          if (!alreadyAtTable && connectedPlayerIds.size + this.pendingPlayerIds.size >= MAX_TABLE_PLAYERS) {
+            send(socket, {
+              type: "TABLE_FULL",
+              code: "TABLE_FULL",
+              message: `This table is full. Maximum ${MAX_TABLE_PLAYERS} players can join.`,
+              capacity: MAX_TABLE_PLAYERS,
+            });
+            socket.close(4429, "Dragon Tiger table is full");
+            return;
+          }
+          if (!alreadyAtTable) {
+            reservedPlayerId = user.id;
+            this.pendingPlayerIds.add(user.id);
+          }
+
           clearTimeout(authTimer);
           socket.userId = user.id;
+          if (reservedPlayerId) {
+            this.pendingPlayerIds.delete(reservedPlayerId);
+            reservedPlayerId = undefined;
+          }
           send(socket, { type: "AUTH_OK" });
           send(socket, { type: "BALANCE", balance: Number(user.walletBalance) });
           send(socket, { type: "GAME_STATE", ...(await this.getPrivateState(socket.userId)) });
           socket.on("message", (payload: RawData) => void this.handleMessage(socket, payload.toString()));
+          socket.once("close", () => this.broadcastTableStatus());
+          this.broadcastTableStatus();
         } catch {
           socket.close(4401, "Invalid authentication message");
         }
@@ -539,6 +568,23 @@ export class DragonTigerGame {
       ...state,
       myBets: myBets.map((bet) => ({ ...bet, amount: Number(bet.amount) })),
     };
+  }
+
+  private getConnectedPlayerIds(): Set<string> {
+    const playerIds = new Set<string>();
+    for (const socket of this.wss.clients) {
+      const userId = (socket as AuthenticatedSocket).userId;
+      if (userId) playerIds.add(userId);
+    }
+    return playerIds;
+  }
+
+  private broadcastTableStatus(): void {
+    this.broadcast({
+      type: "TABLE_STATUS",
+      players: this.getConnectedPlayerIds().size,
+      capacity: MAX_TABLE_PLAYERS,
+    });
   }
 
   private async publicStateForRound(round: typeof dragonTigerRoundsTable.$inferSelect) {

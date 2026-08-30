@@ -53,6 +53,8 @@ interface GameState {
   endsAt?: number;
   pools: Record<Choice, number>;
   activePlayers: number;
+  tablePlayers: number;
+  tableCapacity: number;
   dragonCard: Card;
   tigerCard: Card;
   result?: Choice;
@@ -63,6 +65,8 @@ const EMPTY_GAME: GameState = {
   secondsRemaining: 0,
   pools: { DRAGON: 0, TIGER: 0, TIE: 0 },
   activePlayers: 0,
+  tablePlayers: 0,
+  tableCapacity: 4,
   dragonCard: null,
   tigerCard: null,
 };
@@ -342,6 +346,7 @@ function DragonTigerGame() {
   const socketRef = useRef<WebSocket | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttempt = useRef(0);
+  const tableFullRef = useRef(false);
   const pendingBetsRef = useRef(new Map<string, PendingBet>());
   const activeRoundRef = useRef<string | undefined>(undefined);
   const lockedChoiceRef = useRef<Choice | null>(null);
@@ -407,6 +412,26 @@ function DragonTigerGame() {
           const payload = incoming.payload ?? incoming.data ?? incoming;
           const type = String(incoming.type ?? payload.type ?? '').toUpperCase();
           const clientBetId = typeof payload.clientBetId === 'string' ? payload.clientBetId : '';
+
+          if (type === 'AUTH_OK') {
+            tableFullRef.current = false;
+          }
+          if (type === 'TABLE_FULL') {
+            tableFullRef.current = true;
+            setConnected(false);
+            setPlacing(false);
+            setMessage('Table is full (maximum 4 players). Waiting for a seat...');
+            socket.close();
+            return;
+          }
+          if (type === 'TABLE_STATUS') {
+            setGame((current) => ({
+              ...current,
+              tablePlayers: numberFrom(payload.players),
+              tableCapacity: numberFrom(payload.capacity, 4),
+            }));
+            return;
+          }
           
           if (type === 'ERROR' || type === 'BET_REJECTED' || incoming.error) {
             const rejectedBet = clientBetId ? pendingBetsRef.current.get(clientBetId) : undefined;
@@ -588,6 +613,8 @@ function DragonTigerGame() {
                   TIE: numberFrom(pools.TIE, previous.pools.TIE),
                 },
                 activePlayers: numberFrom(payload.activePlayers, previous.activePlayers),
+                tablePlayers: previous.tablePlayers,
+                tableCapacity: previous.tableCapacity,
                 dragonCard: state.dragonRank ?? (isNewRound ? null : previous.dragonCard),
                 tigerCard: state.tigerRank ?? (isNewRound ? null : previous.tigerCard),
                 result: state.result ?? (isNewRound ? undefined : previous.result),
@@ -603,7 +630,9 @@ function DragonTigerGame() {
         if (disposed) return;
         setConnected(false);
         setPlacing(false);
-        const delay = Math.min(1000 * 2 ** reconnectAttempt.current, 15000);
+        const delay = tableFullRef.current
+          ? 10_000
+          : Math.min(1000 * 2 ** reconnectAttempt.current, 15000);
         reconnectAttempt.current += 1;
         retryRef.current = setTimeout(connect, delay);
       };
@@ -927,7 +956,7 @@ function DragonTigerGame() {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <View style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(34,197,94,0.65)' }}>
             <View style={{ width: 7, height: 7, borderRadius: 4, marginRight: 7, backgroundColor: connected ? '#22C55E' : '#64748B' }} />
-            <Text style={{ color: '#DCFCE7', fontWeight: 'bold', fontSize: 12 }}>{game.activePlayers} PLAYING</Text>
+            <Text style={{ color: '#DCFCE7', fontWeight: 'bold', fontSize: 12 }}>{game.tablePlayers}/{game.tableCapacity} SEATS</Text>
           </View>
           <TouchableOpacity
             onPress={toggleMuted}
