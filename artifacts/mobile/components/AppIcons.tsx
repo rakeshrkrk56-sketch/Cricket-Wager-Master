@@ -63,6 +63,114 @@ export function HeadsetIcon(props: AppIconProps) {
   );
 }
 
+export function ArrowLeftIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Path d="M19 12H5" />
+      <Path d="m12 19-7-7 7-7" />
+    </IconCanvas>
+  );
+}
+
+export function ChevronRightIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Path d="m9 5 7 7-7 7" />
+    </IconCanvas>
+  );
+}
+
+export function PlayIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Path d="m8 5 11 7-11 7V5Z" />
+    </IconCanvas>
+  );
+}
+
+export function FlashIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Path d="m13 2-9 12h7l-1 8 9-12h-7l1-8Z" />
+    </IconCanvas>
+  );
+}
+
+export function GameControllerIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Path d="M7 8h10a4 4 0 0 1 3.8 2.8l1.1 4.1a3 3 0 0 1-5.7 1.8L15 15H9l-1.2 1.7a3 3 0 0 1-5.7-1.8l1.1-4.1A4 4 0 0 1 7 8Z" />
+      <Path d="M7 11v4M5 13h4" />
+      <Circle cx="16.5" cy="12.5" r=".5" />
+      <Circle cx="18.5" cy="14.5" r=".5" />
+    </IconCanvas>
+  );
+}
+
+export function DiceIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Rect x="4" y="4" width="16" height="16" rx="2" />
+      <Circle cx="8" cy="8" r=".6" />
+      <Circle cx="16" cy="16" r=".6" />
+      <Circle cx="12" cy="12" r=".6" />
+    </IconCanvas>
+  );
+}
+
+export function ClockIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Circle cx="12" cy="12" r="9" />
+      <Path d="M12 7v5l3 2" />
+    </IconCanvas>
+  );
+}
+
+export function PhoneLandscapeIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Rect x="3" y="7" width="18" height="10" rx="2" />
+      <Path d="M7 10v4M17 10v4" />
+    </IconCanvas>
+  );
+}
+
+export function VolumeIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Path d="M4 10v4h3l5 4V6l-5 4H4Z" />
+      <Path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11" />
+    </IconCanvas>
+  );
+}
+
+export function VolumeMuteIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Path d="M4 10v4h3l5 4V6l-5 4H4Z" />
+      <Path d="m17 9 4 6M21 9l-4 6" />
+    </IconCanvas>
+  );
+}
+
+export function AddCircleIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Circle cx="12" cy="12" r="9" />
+      <Path d="M12 8v8M8 12h8" />
+    </IconCanvas>
+  );
+}
+
+export function DiamondIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Path d="m12 3 8 9-8 9-8-9 8-9Z" />
+    </IconCanvas>
+  );
+}
+
 export function CheckCircleIcon(props: AppIconProps) {
   return (
     <IconCanvas {...props}>

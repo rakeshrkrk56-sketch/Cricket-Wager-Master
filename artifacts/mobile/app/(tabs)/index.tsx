@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -25,7 +24,23 @@ import { useGetWallet, getGetWalletQueryKey } from '@workspace/api-client-react'
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAvatar } from '@/contexts/AvatarContext';
 import { UserAvatar } from '@/components/UserAvatar';
-import { DepositIcon, WithdrawIcon } from '@/components/AppIcons';
+import {
+  AddCircleIcon,
+  ArrowLeftIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  DepositIcon,
+  DiceIcon,
+  DiamondIcon,
+  FlashIcon,
+  GameControllerIcon,
+  PhoneLandscapeIcon,
+  PlayIcon,
+  VolumeIcon,
+  VolumeMuteIcon,
+  WalletIcon,
+  WithdrawIcon,
+} from '@/components/AppIcons';
 
 type Choice = 'DRAGON' | 'TIGER' | 'TIE';
 type Phase = 'BETTING' | 'REVEAL' | 'SETTLED' | 'WAITING' | 'PAUSED';
@@ -167,7 +182,7 @@ function GameLobby() {
             <Image source={require('../../assets/images/dragon-tiger-casino-wide.png')} style={lobbyStyles.heroImage} resizeMode="cover" />
             <LinearGradient colors={['transparent', 'rgba(45,6,12,0.92)']} style={StyleSheet.absoluteFill} />
             <View style={lobbyStyles.featuredBadge}>
-              <Ionicons name="flash" size={11} color="#7C2D12" />
+              <FlashIcon size={11} color="#7C2D12" />
               <Text style={lobbyStyles.featuredBadgeText}>LIVE NOW</Text>
             </View>
             <TouchableOpacity
@@ -179,7 +194,7 @@ function GameLobby() {
               testID="lobby-featured-dragon-tiger"
             >
               <Text style={lobbyStyles.playNowText}>PLAY NOW</Text>
-              <Ionicons name="play" size={12} color="#7C2D12" />
+              <PlayIcon size={12} color="#7C2D12" />
             </TouchableOpacity>
             <View style={lobbyStyles.heroCopy}>
               <Text style={lobbyStyles.heroTitle}>DRAGON TIGER</Text>
@@ -207,24 +222,24 @@ function GameLobby() {
               </TouchableOpacity>
 
               <View style={lobbyStyles.comingCard}>
-                <Ionicons name="game-controller" size={30} color="#FFD76A" />
+                <GameControllerIcon size={30} color="#FFD76A" />
                 <Text style={lobbyStyles.comingTitle}>MORE GAMES</Text>
                 <Text style={lobbyStyles.comingText}>Coming soon</Text>
               </View>
               <View style={lobbyStyles.comingCard}>
-                <Ionicons name="dice" size={30} color="#FFD76A" />
+                <DiceIcon size={30} color="#FFD76A" />
                 <Text style={lobbyStyles.comingTitle}>NEW TABLE</Text>
                 <Text style={lobbyStyles.comingText}>Coming soon</Text>
               </View>
             </ScrollView>
 
             <View style={lobbyStyles.recentRow}>
-              <Ionicons name="time" size={14} color="#FFD76A" />
+              <ClockIcon size={14} color="#FFD76A" />
               <Text style={lobbyStyles.recentLabel}>RECENTLY PLAYED</Text>
               <TouchableOpacity style={lobbyStyles.recentChip} onPress={openDragonTiger}>
                 <Image source={require('../../assets/images/icon.png')} style={lobbyStyles.recentIcon} />
                 <Text style={lobbyStyles.recentName}>Dragon Tiger</Text>
-                <Ionicons name="chevron-forward" size={13} color="#7C2D12" />
+                <ChevronRightIcon size={13} color="#7C2D12" />
               </TouchableOpacity>
             </View>
           </View>
@@ -900,7 +915,7 @@ function DragonTigerGame() {
   if (!isLandscape) {
     return (
       <LinearGradient colors={['#12030A', '#4A0918', '#12030A']} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }}>
-        <Ionicons name="phone-landscape-outline" size={52} color="#FCD34D" />
+        <PhoneLandscapeIcon size={52} color="#FCD34D" />
         <Text style={{ color: '#FFF7D6', fontSize: 22, fontWeight: '900', marginTop: 16, textAlign: 'center' }}>TURN YOUR PHONE SIDEWAYS</Text>
         <Text style={{ color: '#D6B7A0', fontSize: 14, marginTop: 8, textAlign: 'center' }}>Dragon Tiger opens in landscape for the full table.</Text>
       </LinearGradient>
@@ -928,7 +943,7 @@ function DragonTigerGame() {
           }}
           testID="game-back-to-lobby"
         >
-          <Ionicons name="chevron-back" size={20} color="#FFF" />
+          <ArrowLeftIcon size={20} color="#FFF" />
           <Text style={{ color: '#FFF', fontWeight: 'bold', marginLeft: 4 }}>LOBBY</Text>
         </TouchableOpacity>
 
@@ -940,11 +955,11 @@ function DragonTigerGame() {
             accessibilityLabel={muted ? 'Turn game sound on' : 'Mute game sound'}
             testID="game-sound-toggle"
           >
-            <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={19} color="#FFF" />
+            {muted ? <VolumeMuteIcon size={19} color="#FFF" /> : <VolumeIcon size={19} color="#FFF" />}
           </TouchableOpacity>
           <View style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 8, paddingHorizontal: 16, borderRadius: 20, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#F59E0B' }}>
             <View style={{ width: 7, height: 7, borderRadius: 4, marginRight: 7, backgroundColor: connected ? '#22C55E' : '#EF4444' }} />
-            <Ionicons name="wallet" size={14} color="#FBBF24" style={{ marginRight: 6 }} />
+            <View style={{ marginRight: 6 }}><WalletIcon size={14} color="#FBBF24" /></View>
             <Text style={{ color: '#FBBF24', fontWeight: 'bold' }}>₹{liveBalance.toFixed(2)}</Text>
           </View>
         </View>
@@ -1007,7 +1022,7 @@ function DragonTigerGame() {
         <View style={gameModalStyles.backdrop}>
           <View style={gameModalStyles.card}>
             <View style={gameModalStyles.iconCircle}>
-              <Ionicons name="wallet-outline" size={28} color="#FBBF24" />
+              <WalletIcon size={28} color="#FBBF24" />
             </View>
             <Text style={gameModalStyles.title}>{t('game_insufficient_title')}</Text>
             <Text style={gameModalStyles.message}>{t('game_insufficient_message')}</Text>
@@ -1036,7 +1051,7 @@ function DragonTigerGame() {
               accessibilityRole="button"
               accessibilityLabel={t('game_add_balance')}
             >
-              <Ionicons name="add-circle" size={20} color="#35100A" />
+              <AddCircleIcon size={20} color="#35100A" />
               <Text style={gameModalStyles.addButtonText}>{t('game_add_balance')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -1200,7 +1215,7 @@ function PlayingCard({
         ...StyleSheet.absoluteFillObject, backfaceVisibility: 'hidden', transform: [{ perspective: 1000 }, { rotateY: rotateYBack }],
         backgroundColor: '#1E293B', borderRadius: 8, borderWidth: 2, borderColor: '#475569', justifyContent: 'center', alignItems: 'center',
       }}>
-        <Ionicons name="diamond" size={32} color="#334155" />
+        <DiamondIcon size={32} color="#334155" />
       </Animated.View>
     </Animated.View>
   );
