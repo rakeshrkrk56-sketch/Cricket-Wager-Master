@@ -64,7 +64,7 @@ const EMPTY_GAME: GameState = {
   dragonCard: null,
   tigerCard: null,
 };
-const CHIPS = [10, 50, 100, 500];
+const CHIPS = [100, 200, 500, 1000];
 
 const numberFrom = (...values: unknown[]) => {
   const found = values.find((value) => value !== undefined && value !== null);
