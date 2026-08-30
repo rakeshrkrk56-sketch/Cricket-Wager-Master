@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, transactionsTable, depositsTable, withdrawalsTable } from "@workspace/db";
+import { db, usersTable, transactionsTable, depositsTable, withdrawalsTable, dragonTigerBetsTable } from "@workspace/db";
 import { eq, and, desc, count, sum, sql, like, gte } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/auth";
 import { createNotification } from "../lib/createNotification";
@@ -55,15 +55,24 @@ router.get("/admin/users/:userId", requireAdmin, async (req, res): Promise<void>
     return;
   }
 
-  // Prediction history is retained in the database for data safety, but is no
-  // longer read or calculated by the active account-management API.
+  const [predictionTotals] = await db
+    .select({
+      totalPredictions: count(),
+      totalWon: sql<number>`count(*) filter (where ${dragonTigerBetsTable.status} = 'WON')`,
+      totalLost: sql<number>`count(*) filter (where ${dragonTigerBetsTable.status} = 'LOST')`,
+      totalAmountBet: sql<number>`coalesce(sum(${dragonTigerBetsTable.amount}), 0)`,
+      totalAmountWon: sql<number>`coalesce(sum(${dragonTigerBetsTable.payout}), 0)`,
+    })
+    .from(dragonTigerBetsTable)
+    .where(eq(dragonTigerBetsTable.userId, user.id));
+
   res.json(GetUserResponse.parse({
     ...serializeUser(user),
-    totalPredictions: 0,
-    totalWon: 0,
-    totalLost: 0,
-    totalAmountBet: 0,
-    totalAmountWon: 0,
+    totalPredictions: Number(predictionTotals.totalPredictions),
+    totalWon: Number(predictionTotals.totalWon),
+    totalLost: Number(predictionTotals.totalLost),
+    totalAmountBet: Number(predictionTotals.totalAmountBet),
+    totalAmountWon: Number(predictionTotals.totalAmountWon),
   }));
 });
 
