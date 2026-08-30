@@ -8,6 +8,10 @@
     "scheme": "mobile",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "updates": {
+      "enabled": false,
+      "useEmbeddedUpdate": true
+    },
     "splash": {
       "image": "./assets/images/dragon-tiger-casino-wide.png",
       "resizeMode": "contain",
