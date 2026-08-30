@@ -12,6 +12,11 @@ if (!process.env.DATABASE_URL) {
 }
 
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+pool.on("error", (error) => {
+  // pg removes a failed idle client from the pool. Handling the event keeps
+  // transient database restarts from terminating every API/WebSocket session.
+  console.error("Unexpected idle PostgreSQL client error", error);
+});
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";
