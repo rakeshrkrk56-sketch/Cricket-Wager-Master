@@ -52,6 +52,7 @@ interface GameState {
   secondsRemaining: number;
   endsAt?: number;
   pools: Record<Choice, number>;
+  activePlayers: number;
   dragonCard: Card;
   tigerCard: Card;
   result?: Choice;
@@ -61,6 +62,7 @@ const EMPTY_GAME: GameState = {
   phase: 'WAITING',
   secondsRemaining: 0,
   pools: { DRAGON: 0, TIGER: 0, TIE: 0 },
+  activePlayers: 0,
   dragonCard: null,
   tigerCard: null,
 };
@@ -344,12 +346,11 @@ function DragonTigerGame() {
   const activeRoundRef = useRef<string | undefined>(undefined);
   const lockedChoiceRef = useRef<Choice | null>(null);
   const selectedChipRef = useRef<number | null>(null);
-  const prevPoolsRef = useRef(game.pools);
   const chipSerialRef = useRef(0);
   const betSequenceRef = useRef(0);
-  const ownPoolDeltaRef = useRef<Record<Choice, number>>({ DRAGON: 0, TIGER: 0, TIE: 0 });
   const resultTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const chipAnimationsRef = useRef(new Map<string, Animated.CompositeAnimation>());
+  const spawnRemoteChipRef = useRef<((amount: number, choice: Choice) => void) | null>(null);
   const previousPhaseRef = useRef<Phase>('WAITING');
   const countdownSoundRef = useRef('');
   
@@ -433,6 +434,18 @@ function DragonTigerGame() {
           if (type === 'BALANCE' || type === 'BALANCE_UPDATE' || payload.balance !== undefined) {
             setPrivateBalance(numberFrom(payload.balance, payload.walletBalance));
           }
+          if (type === 'BET_ACTIVITY') {
+            const activityChoice = String(payload.choice ?? '').toUpperCase() as Choice;
+            const activityAmount = numberFrom(payload.amount);
+            const activityRoundId = String(payload.roundId ?? '');
+            if (
+              activityRoundId === activeRoundRef.current
+              && ['DRAGON', 'TIGER', 'TIE'].includes(activityChoice)
+              && activityAmount > 0
+            ) {
+              spawnRemoteChipRef.current?.(activityAmount, activityChoice);
+            }
+          }
           if (type === 'BET_ACCEPTED' || type === 'BET_PLACED') {
             const acceptedBet = clientBetId ? pendingBetsRef.current.get(clientBetId) : undefined;
             if (clientBetId) pendingBetsRef.current.delete(clientBetId);
@@ -446,9 +459,6 @@ function DragonTigerGame() {
                   chip.id === acceptedBet.chipId ? { ...chip, isMine: false } : chip
                 ))
                 : current.filter((chip) => chip.id !== acceptedBet.chipId));
-            }
-            if (belongsToCurrentRound && ['DRAGON', 'TIGER', 'TIE'].includes(acceptedChoice)) {
-              ownPoolDeltaRef.current[acceptedChoice] += acceptedAmount;
             }
             if (belongsToCurrentRound && acceptedAmount > 0) {
               setStake((current) => current + acceptedAmount);
@@ -546,11 +556,6 @@ function DragonTigerGame() {
               ));
             setRecoveredBets(syncedBets);
             const syncedPools = payload.pools?.pools ?? payload.pools ?? {};
-            prevPoolsRef.current = {
-              DRAGON: numberFrom(syncedPools.DRAGON),
-              TIGER: numberFrom(syncedPools.TIGER),
-              TIE: numberFrom(syncedPools.TIE),
-            };
           }
           
           const state = payload.round ?? payload;
@@ -582,6 +587,7 @@ function DragonTigerGame() {
                   TIGER: numberFrom(pools.TIGER, previous.pools.TIGER),
                   TIE: numberFrom(pools.TIE, previous.pools.TIE),
                 },
+                activePlayers: numberFrom(payload.activePlayers, previous.activePlayers),
                 dragonCard: state.dragonRank ?? (isNewRound ? null : previous.dragonCard),
                 tigerCard: state.tigerRank ?? (isNewRound ? null : previous.tigerCard),
                 result: state.result ?? (isNewRound ? undefined : previous.result),
@@ -642,8 +648,6 @@ function DragonTigerGame() {
     setSelectedChip(null);
     setPlacing(false);
     
-    ownPoolDeltaRef.current = { DRAGON: 0, TIGER: 0, TIE: 0 };
-    prevPoolsRef.current = { DRAGON: 0, TIGER: 0, TIE: 0 };
   }, [game.roundId]);
 
   useEffect(() => {
@@ -710,6 +714,10 @@ function DragonTigerGame() {
     return id;
   }, [game.roundId, width, height, layout, stopChipAnimations]);
 
+  spawnRemoteChipRef.current = (amount, targetChoice) => {
+    spawnChip(amount, targetChoice, false);
+  };
+
   useEffect(() => {
     if (recoveredBets === null || !game.roundId) return;
     const currentRoundBets = recoveredBets.filter((bet) => bet.roundId === game.roundId);
@@ -725,8 +733,6 @@ function DragonTigerGame() {
     lockedChoiceRef.current = recoveredChoice;
     setChoice(recoveredChoice);
     setStake(recoveredStake);
-    ownPoolDeltaRef.current = { DRAGON: 0, TIGER: 0, TIE: 0 };
-    prevPoolsRef.current = { ...game.pools };
     setChips((current) => {
       const oldRoundChips = current
         .filter((chip) => chip.id.startsWith(`${game.roundId}-`))
@@ -747,35 +753,6 @@ function DragonTigerGame() {
     }
     setRecoveredBets(null);
   }, [game.pools, game.roundId, recoveredBets, spawnChip, stopChipAnimations]);
-
-  useEffect(() => {
-    if (game.phase !== 'BETTING') return;
-    const newChips: Array<{ amount: number, choice: Choice }> = [];
-    
-    (['DRAGON', 'TIGER', 'TIE'] as Choice[]).forEach(c => {
-      const diff = game.pools[c] - prevPoolsRef.current[c];
-      if (diff > 0) {
-        const coveredByOwnBet = Math.min(diff, ownPoolDeltaRef.current[c]);
-        ownPoolDeltaRef.current[c] -= coveredByOwnBet;
-        let remaining = diff - coveredByOwnBet;
-        let spawned = 0;
-        while (remaining > 0 && spawned < 3) {
-          const chipVal = remaining >= 500 ? 500 : remaining >= 100 ? 100 : remaining >= 50 ? 50 : 10;
-          newChips.push({ amount: chipVal, choice: c });
-          remaining -= chipVal;
-          spawned++;
-        }
-      }
-    });
-    
-    const timers = newChips.map((chip, index) => setTimeout(
-      () => spawnChip(chip.amount, chip.choice, false),
-      index * 150,
-    ));
-    
-    prevPoolsRef.current = { ...game.pools };
-    return () => timers.forEach(clearTimeout);
-  }, [game.pools, game.phase, spawnChip]);
 
   useEffect(() => {
     if (game.phase !== 'BETTING' || game.secondsRemaining < 1 || game.secondsRemaining > 3) return;
@@ -948,6 +925,10 @@ function DragonTigerGame() {
         </TouchableOpacity>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(34,197,94,0.65)' }}>
+            <View style={{ width: 7, height: 7, borderRadius: 4, marginRight: 7, backgroundColor: connected ? '#22C55E' : '#64748B' }} />
+            <Text style={{ color: '#DCFCE7', fontWeight: 'bold', fontSize: 12 }}>{game.activePlayers} PLAYING</Text>
+          </View>
           <TouchableOpacity
             onPress={toggleMuted}
             style={{ width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.65)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }}

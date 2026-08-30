@@ -305,6 +305,14 @@ export class DragonTigerGame {
       const placed = await this.placeBet(socket.userId, choice, amount, message.roundId);
       send(socket, { type: "BET_ACCEPTED", bet: placed.bet, clientBetId });
       send(socket, { type: "BALANCE", balance: placed.balance });
+      const publicBetActivity = {
+        type: "BET_ACTIVITY",
+        roundId: placed.bet.roundId,
+        choice: placed.bet.choice,
+        amount: Number(placed.bet.amount),
+      };
+      this.broadcastLocalExcept(socket, publicBetActivity);
+      this.publish("all", publicBetActivity);
       this.broadcast({ type: "POOLS_UPDATED", roundId: placed.bet.roundId, ...(await this.getPools(placed.bet.roundId)) });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to place bet";
@@ -579,6 +587,7 @@ export class DragonTigerGame {
     return {
       pools: { DRAGON: 0, TIGER: 0, TIE: 0 },
       liabilities: { DRAGON: 0, TIGER: 0, TIE: 0 },
+      activePlayers: 0,
     };
   }
 
@@ -586,6 +595,7 @@ export class DragonTigerGame {
     const rows = await db.select({
       choice: dragonTigerBetsTable.choice,
       total: sql<string>`coalesce(sum(${dragonTigerBetsTable.amount}), 0)`,
+      players: sql<string>`count(distinct ${dragonTigerBetsTable.userId})`,
     }).from(dragonTigerBetsTable)
       .where(eq(dragonTigerBetsTable.roundId, roundId))
       .groupBy(dragonTigerBetsTable.choice);
@@ -594,6 +604,7 @@ export class DragonTigerGame {
       const total = Number(row.total);
       values.pools[row.choice] = total;
       values.liabilities[row.choice] = total * (row.choice === "TIE" ? 9 : 2);
+      values.activePlayers += Number(row.players);
     }
     return values;
   }
@@ -607,6 +618,13 @@ export class DragonTigerGame {
     for (const socket of this.wss.clients) {
       const authenticated = socket as AuthenticatedSocket;
       if (authenticated.userId) send(authenticated, message);
+    }
+  }
+
+  private broadcastLocalExcept(excludedSocket: WebSocket, message: unknown): void {
+    for (const socket of this.wss.clients) {
+      const authenticated = socket as AuthenticatedSocket;
+      if (socket !== excludedSocket && authenticated.userId) send(authenticated, message);
     }
   }
 
