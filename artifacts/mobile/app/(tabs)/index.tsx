@@ -23,6 +23,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useGameAudio } from '@/hooks/useGameAudio';
 import { useGetWallet, getGetWalletQueryKey } from '@workspace/api-client-react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAvatar } from '@/contexts/AvatarContext';
+import { UserAvatar } from '@/components/UserAvatar';
 
 type Choice = 'DRAGON' | 'TIGER' | 'TIE';
 type Phase = 'BETTING' | 'REVEAL' | 'SETTLED' | 'WAITING' | 'PAUSED';
@@ -78,6 +80,7 @@ function GameLobby() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { user, token } = useAuth();
+  const { avatar } = useAvatar();
   const isPortrait = height > width;
   const { data: walletData } = useGetWallet({
     query: { enabled: !!token, queryKey: getGetWalletQueryKey() },
@@ -115,14 +118,22 @@ function GameLobby() {
         },
       ]}>
         <View style={[lobbyStyles.header, isPortrait && lobbyStyles.headerPortrait]}>
-          <View style={lobbyStyles.profileBlock}>
-            <LinearGradient colors={['#FFE58A', '#F59E0B']} style={lobbyStyles.avatar}>
-              <Ionicons name="person" size={24} color="#7C2D12" />
-            </LinearGradient>
+          <View style={lobbyStyles.walletSummary}>
             <View>
               <Text style={lobbyStyles.eyebrow}>JAZMENT WALLET</Text>
               <Text style={lobbyStyles.balance}>₹{balance.toFixed(2)}</Text>
             </View>
+            <TouchableOpacity
+              style={lobbyStyles.avatarButton}
+              onPress={() => router.push('/(tabs)/profile')}
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel="Open Profile"
+              accessibilityHint="Opens your profile and avatar settings"
+              testID="lobby-profile-avatar"
+            >
+              <UserAvatar choice={avatar} size={48} />
+            </TouchableOpacity>
           </View>
 
           <View style={lobbyStyles.cashActions}>
@@ -146,9 +157,6 @@ function GameLobby() {
               </TouchableOpacity>
               <TouchableOpacity style={lobbyStyles.toolButton} onPress={() => router.push('/(tabs)/support')} testID="lobby-support">
                 <Text style={lobbyStyles.toolButtonText}>Support</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={lobbyStyles.toolButton} onPress={() => router.push('/(tabs)/profile')}>
-                <Text style={lobbyStyles.toolButtonText}>Profile</Text>
               </TouchableOpacity>
           </View>
         </View>
@@ -1378,19 +1386,27 @@ const lobbyStyles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
-  profileBlock: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  walletSummary: {
+    minWidth: 190,
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  avatarButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    overflow: 'hidden',
     borderWidth: 2,
-    borderColor: '#FFF',
-    shadowColor: '#000',
+    borderColor: '#FFE58A',
+    backgroundColor: '#4B0B18',
+    shadowColor: '#1D0509',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    elevation: 5,
   },
   eyebrow: { color: '#FFE8A3', fontSize: 10, fontWeight: '700', letterSpacing: 1 },
   balance: { color: '#FFF', fontSize: 22, fontWeight: '800', marginTop: -2 },

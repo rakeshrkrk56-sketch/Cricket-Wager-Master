@@ -17,6 +17,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { getGetWalletQueryKey, setBaseUrl } from '@workspace/api-client-react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { LanguageProvider, useLanguage } from '@/contexts/LanguageContext';
+import { AvatarProvider } from '@/contexts/AvatarContext';
 
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 
@@ -89,11 +90,13 @@ export default function RootLayout() {
         <LanguageProvider>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <KeyboardProvider>
-                  <RootLayoutNav />
-                </KeyboardProvider>
-              </GestureHandlerRootView>
+              <AvatarProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <KeyboardProvider>
+                    <RootLayoutNav />
+                  </KeyboardProvider>
+                </GestureHandlerRootView>
+              </AvatarProvider>
             </AuthProvider>
           </QueryClientProvider>
         </LanguageProvider>
