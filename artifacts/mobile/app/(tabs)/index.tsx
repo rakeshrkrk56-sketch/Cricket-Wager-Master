@@ -967,11 +967,19 @@ function DragonTigerGame() {
           >
             {muted ? <VolumeMuteIcon size={19} color="#FFF" /> : <VolumeIcon size={19} color="#FFF" />}
           </TouchableOpacity>
-          <View style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 8, paddingHorizontal: 16, borderRadius: 20, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#F59E0B' }}>
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/wallet')}
+            activeOpacity={0.75}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Open wallet"
+            testID="game-wallet-button"
+            style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: 8, paddingHorizontal: 16, borderRadius: 20, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#F59E0B' }}
+          >
             <View style={{ width: 7, height: 7, borderRadius: 4, marginRight: 7, backgroundColor: connected ? '#22C55E' : '#EF4444' }} />
             <View style={{ marginRight: 6 }}><WalletIcon size={14} color="#FBBF24" /></View>
             <Text style={{ color: '#FBBF24', fontWeight: 'bold' }}>₹{liveBalance.toFixed(2)}</Text>
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
 
