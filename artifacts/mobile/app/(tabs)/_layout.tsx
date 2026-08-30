@@ -5,7 +5,7 @@ import { BlurView } from 'expo-blur';
 import { Tabs, useGlobalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Ionicons } from '@expo/vector-icons';
+import { BellIcon, HeadsetIcon, HomeIcon, WalletIcon } from '@/components/AppIcons';
 
 function ClassicTabLayout() {
   const colors = useColors();
@@ -46,36 +46,28 @@ function ClassicTabLayout() {
         name="index"
         options={{
           title: t('tab_home'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <HomeIcon size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="wallet"
         options={{
           title: t('tab_wallet'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'wallet' : 'wallet-outline'} size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <WalletIcon size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="notifications"
         options={{
           title: t('tab_notifications'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'notifications' : 'notifications-outline'} size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <BellIcon size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="support"
         options={{
           title: t('tab_support'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'headset' : 'headset-outline'} size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <HeadsetIcon size={size} color={color} />,
         }}
       />
       <Tabs.Screen

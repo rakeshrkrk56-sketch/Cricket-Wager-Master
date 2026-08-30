@@ -25,6 +25,7 @@ import { useGetWallet, getGetWalletQueryKey } from '@workspace/api-client-react'
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAvatar } from '@/contexts/AvatarContext';
 import { UserAvatar } from '@/components/UserAvatar';
+import { DepositIcon, WithdrawIcon } from '@/components/AppIcons';
 
 type Choice = 'DRAGON' | 'TIGER' | 'TIE';
 type Phase = 'BETTING' | 'REVEAL' | 'SETTLED' | 'WAITING' | 'PAUSED';
@@ -138,11 +139,11 @@ function GameLobby() {
 
           <View style={lobbyStyles.cashActions}>
             <TouchableOpacity style={lobbyStyles.cashButton} onPress={() => openWallet('deposit')} testID="lobby-deposit">
-              <Ionicons name="add-circle" size={17} color="#7C2D12" />
+              <DepositIcon size={17} color="#7C2D12" />
               <Text style={lobbyStyles.cashButtonText}>ADD CASH</Text>
             </TouchableOpacity>
             <TouchableOpacity style={lobbyStyles.withdrawButton} onPress={() => openWallet('withdraw')} testID="lobby-withdraw">
-              <Ionicons name="cash-outline" size={17} color="#FFE8A3" />
+              <WithdrawIcon size={17} color="#FFE8A3" />
               <Text style={lobbyStyles.withdrawText}>WITHDRAW</Text>
             </TouchableOpacity>
           </View>
