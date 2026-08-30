@@ -4,7 +4,7 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert, ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,14 +16,16 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { token, login, logout } = useAuth();
   const { t } = useLanguage();
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const openedFromProfile = from === 'profile';
 
   // If already logged in, go to tabs. But stay if user was explicitly sent here to re-login.
   const [forcedLogout, setForcedLogout] = useState(false);
   useEffect(() => {
-    if (token && !forcedLogout) {
+    if (token && !forcedLogout && !openedFromProfile) {
       router.replace('/(tabs)');
     }
-  }, [token, forcedLogout]);
+  }, [token, forcedLogout, openedFromProfile]);
 
   const handleForceLogout = async () => {
     await logout();

@@ -149,6 +149,14 @@ export default function ProfileScreen() {
 
       {/* Menu */}
       <View style={s.menuSection}>
+        {isGuest && (
+          <MenuItem
+            icon="phone-portrait-outline"
+            label="Verify phone number"
+            sublabel="Sign in with WhatsApp OTP"
+            onPress={() => router.push({ pathname: '/login', params: { from: 'profile' } })}
+          />
+        )}
         <MenuItem icon="wallet-outline"            label={t('profile_wallet')}          onPress={() => router.push('/(tabs)/wallet')} />
         <MenuItem icon="headset-outline"           label={t('profile_support')}         onPress={() => router.push('/(tabs)/support')} />
 

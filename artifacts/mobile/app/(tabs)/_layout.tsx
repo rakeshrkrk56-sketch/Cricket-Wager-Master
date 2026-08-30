@@ -1,8 +1,8 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { BlurView } from 'expo-blur';
-import { Tabs, useGlobalSearchParams, useRouter } from 'expo-router';
+import { Tabs, useGlobalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -88,11 +88,7 @@ function ClassicTabLayout() {
   );
 }
 export default function TabLayout() {
-  const { isLoading, token } = useAuth();
-  const router = useRouter();
-  useEffect(() => {
-    if (!isLoading && !token) router.replace('/login');
-  }, [isLoading, router, token]);
-  if (isLoading || !token) return null;
+  const { isLoading } = useAuth();
+  if (isLoading) return null;
   return <ClassicTabLayout />;
 }
