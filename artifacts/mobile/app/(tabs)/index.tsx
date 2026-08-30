@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  Modal,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -21,6 +22,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGameAudio } from '@/hooks/useGameAudio';
 import { useGetWallet, getGetWalletQueryKey } from '@workspace/api-client-react';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 type Choice = 'DRAGON' | 'TIGER' | 'TIE';
 type Phase = 'BETTING' | 'REVEAL' | 'SETTLED' | 'WAITING' | 'PAUSED';
@@ -287,6 +289,7 @@ function DragonTigerGame() {
   const layout = useGameLayout(width, height);
 
   const { user, token } = useAuth();
+  const { t } = useLanguage();
   const { muted, play: playSound, toggleMuted } = useGameAudio();
   const [game, setGame] = useState<GameState>(EMPTY_GAME);
   const [history, setHistory] = useState<{roundId: string, result: Choice}[]>([]);
@@ -299,6 +302,7 @@ function DragonTigerGame() {
   const [placing, setPlacing] = useState(false);
   const [presentedResult, setPresentedResult] = useState<Choice | null>(null);
   const [recoveredBets, setRecoveredBets] = useState<RecoveredBet[] | null>(null);
+  const [insufficientFunds, setInsufficientFunds] = useState<{ amount: number; balance: number } | null>(null);
   
   const [chips, setChips] = useState<RenderChip[]>([]);
   
@@ -333,6 +337,8 @@ function DragonTigerGame() {
     query: { enabled: !!token, queryKey: getGetWalletQueryKey() },
   });
   const liveBalance = privateBalance ?? Number(walletData?.balance ?? user?.walletBalance ?? 0);
+  const liveBalanceRef = useRef(liveBalance);
+  liveBalanceRef.current = liveBalance;
 
   useFocusEffect(useCallback(() => {
     if (Platform.OS !== 'web') {
@@ -372,12 +378,22 @@ function DragonTigerGame() {
           
           if (type === 'ERROR' || type === 'BET_REJECTED' || incoming.error) {
             const rejectedBet = clientBetId ? pendingBetsRef.current.get(clientBetId) : undefined;
+            const errorCode = String(payload.code ?? incoming.code ?? '').toUpperCase();
+            const errorMessage = String(payload.message ?? incoming.error ?? '').toUpperCase();
             if (clientBetId) pendingBetsRef.current.delete(clientBetId);
             if (rejectedBet?.chipId) {
               stopChipAnimations([rejectedBet.chipId]);
               setChips((current) => current.filter((chip) => chip.id !== rejectedBet.chipId));
             }
-            setMessage(String(payload.message ?? incoming.error ?? 'The game request failed.'));
+            if (errorCode === 'INSUFFICIENT_BALANCE' || errorMessage.includes('INSUFFICIENT_BALANCE') || errorMessage.includes('INSUFFICIENT FUNDS')) {
+              setInsufficientFunds({
+                amount: rejectedBet?.amount ?? selectedChipRef.current ?? 0,
+                balance: Math.max(0, liveBalanceRef.current),
+              });
+              setMessage(null);
+            } else {
+              setMessage(String(payload.message ?? incoming.error ?? 'The game request failed.'));
+            }
             setPlacing(pendingBetsRef.current.size > 0);
             void playSound('betRejected');
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -802,6 +818,13 @@ function DragonTigerGame() {
       void playSound('betRejected');
       return;
     }
+    if (amount > Math.max(0, liveBalance)) {
+      setInsufficientFunds({ amount, balance: Math.max(0, liveBalance) });
+      setMessage(null);
+      void playSound('betRejected');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
     setMessage(null);
     setPlacing(true);
     const clientBetId = `${game.roundId}-${Date.now()}-${betSequenceRef.current++}`;
@@ -823,7 +846,7 @@ function DragonTigerGame() {
       roundId: game.roundId,
       clientBetId,
     }));
-  }, [game.phase, game.roundId, playSound, spawnChip]);
+  }, [game.phase, game.roundId, liveBalance, playSound, spawnChip]);
 
   const selectChoice = useCallback((targetChoice: Choice) => {
     if (!isBetting) return;
@@ -959,6 +982,59 @@ function DragonTigerGame() {
         </View>
       )}
 
+      <Modal
+        visible={insufficientFunds !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setInsufficientFunds(null)}
+      >
+        <View style={gameModalStyles.backdrop}>
+          <View style={gameModalStyles.card}>
+            <View style={gameModalStyles.iconCircle}>
+              <Ionicons name="wallet-outline" size={28} color="#FBBF24" />
+            </View>
+            <Text style={gameModalStyles.title}>{t('game_insufficient_title')}</Text>
+            <Text style={gameModalStyles.message}>{t('game_insufficient_message')}</Text>
+
+            {insufficientFunds && (
+              <View style={gameModalStyles.amountPanel}>
+                <View style={gameModalStyles.amountRow}>
+                  <Text style={gameModalStyles.amountLabel}>{t('game_available_balance')}</Text>
+                  <Text style={gameModalStyles.amountValue}>₹{insufficientFunds.balance.toFixed(2)}</Text>
+                </View>
+                <View style={gameModalStyles.amountRow}>
+                  <Text style={gameModalStyles.amountLabel}>{t('game_selected_bet')}</Text>
+                  <Text style={[gameModalStyles.amountValue, { color: '#FBBF24' }]}>₹{insufficientFunds.amount.toFixed(2)}</Text>
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={gameModalStyles.addButton}
+              onPress={() => {
+                setInsufficientFunds(null);
+                router.push({ pathname: '/(tabs)/wallet', params: { open: 'deposit', request: Date.now().toString() } });
+              }}
+              activeOpacity={0.85}
+              testID="game-add-balance"
+              accessibilityRole="button"
+              accessibilityLabel={t('game_add_balance')}
+            >
+              <Ionicons name="add-circle" size={20} color="#35100A" />
+              <Text style={gameModalStyles.addButtonText}>{t('game_add_balance')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={gameModalStyles.dismissButton}
+              onPress={() => setInsufficientFunds(null)}
+              activeOpacity={0.75}
+              testID="game-dismiss-insufficient"
+            >
+              <Text style={gameModalStyles.dismissText}>{t('game_not_now')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <View style={{ position: 'absolute', bottom: Math.max(insets.bottom, 16), left: Math.max(insets.left, 16), backgroundColor: 'rgba(0,0,0,0.6)', padding: 6, borderRadius: 8, flexDirection: 'row', maxWidth: width * 0.3, flexWrap: 'wrap', zIndex: 5 }}>
         {history.length === 0 && <Text style={{ color: '#aaa', fontSize: 12 }}>Awaiting results...</Text>}
         {history.slice(-14).map((h, i) => (
@@ -970,6 +1046,108 @@ function DragonTigerGame() {
     </View>
   );
 }
+
+const gameModalStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+  },
+  card: {
+    width: '100%',
+    maxWidth: 380,
+    alignItems: 'center',
+    padding: 22,
+    borderRadius: 18,
+    backgroundColor: '#120A0A',
+    borderWidth: 2,
+    borderColor: '#F59E0B',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.55,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  iconCircle: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(245,158,11,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.55)',
+    marginBottom: 12,
+  },
+  title: {
+    color: '#FFF7D6',
+    fontFamily: 'Inter_700Bold',
+    fontSize: 22,
+    textAlign: 'center',
+  },
+  message: {
+    color: '#D6B7A0',
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: 7,
+    marginBottom: 16,
+  },
+  amountPanel: {
+    width: '100%',
+    gap: 10,
+    padding: 13,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    marginBottom: 16,
+  },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  amountLabel: {
+    color: '#A98B7B',
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+  },
+  amountValue: {
+    color: '#FFF7D6',
+    fontFamily: 'Inter_700Bold',
+    fontSize: 15,
+  },
+  addButton: {
+    width: '100%',
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    backgroundColor: '#FBBF24',
+  },
+  addButtonText: {
+    color: '#35100A',
+    fontFamily: 'Inter_700Bold',
+    fontSize: 15,
+  },
+  dismissButton: {
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  dismissText: {
+    color: '#C9A995',
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+  },
+});
 
 function PlayingCard({ 
   card, anim, startX, startY, targetX, targetY, isWinner, width, height 

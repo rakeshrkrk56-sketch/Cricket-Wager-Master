@@ -181,6 +181,14 @@ const translations = {
     wallet_permission_title: 'Permission Required',
     wallet_permission_msg: 'Allow gallery access',
 
+    // Dragon Tiger
+    game_insufficient_title: 'Insufficient Balance',
+    game_insufficient_message: 'You do not have enough balance to place this bet.',
+    game_available_balance: 'Available balance',
+    game_selected_bet: 'Selected bet',
+    game_add_balance: 'Add Balance',
+    game_not_now: 'Not now',
+
     // Notifications
     notif_title: 'Notifications',
     notif_unread: '%s unread',
@@ -444,6 +452,14 @@ const translations = {
     wallet_submit_withdraw: 'निकासी अनुरोध भेजें',
     wallet_permission_title: 'अनुमति आवश्यक',
     wallet_permission_msg: 'गैलरी एक्सेस की अनुमति दें',
+
+    // Dragon Tiger
+    game_insufficient_title: 'अपर्याप्त बैलेंस',
+    game_insufficient_message: 'यह दांव लगाने के लिए आपके वॉलेट में पर्याप्त बैलेंस नहीं है।',
+    game_available_balance: 'उपलब्ध बैलेंस',
+    game_selected_bet: 'चुना हुआ दांव',
+    game_add_balance: 'बैलेंस जोड़ें',
+    game_not_now: 'अभी नहीं',
 
     // Notifications
     notif_title: 'सूचनाएं',
