@@ -48,7 +48,7 @@ router.post("/withdrawals", requireAuth, requireNotHold, async (req, res): Promi
 
   await createNotification(user.id, "withdrawal_submitted",
     "Withdrawal Request Submitted",
-    `Your withdrawal of ₹${amt.toFixed(0)} is under review. It will be processed within 24 hours.`
+    `Your withdrawal of ₹${amt.toFixed(0)} is under review. It will be processed within 30 minutes.`
   );
 
   res.status(201).json(serializeWithdrawal(withdrawal));

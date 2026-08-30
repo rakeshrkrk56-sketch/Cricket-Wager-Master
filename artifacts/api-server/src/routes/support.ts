@@ -32,7 +32,7 @@ router.post("/support/tickets", requireAuth, async (req, res): Promise<void> => 
     ticketId: ticket.id,
     senderId: null,
     isAdmin: true,
-    message: `नमस्ते! आपकी टिकट #${ticket.id.slice(0, 8)} प्राप्त हुई है। हमारी टीम 24 घंटों में जवाब देगी।\n\nHello! Your ticket #${ticket.id.slice(0, 8)} has been received. Our team will respond within 24 hours.`,
+    message: `नमस्ते! आपकी टिकट #${ticket.id.slice(0, 8)} प्राप्त हुई है। हमारी टीम 30 मिनट में जवाब देगी।\n\nHello! Your ticket #${ticket.id.slice(0, 8)} has been received. Our team will respond within 30 minutes.`,
   });
 
   res.status(201).json(serializeTicket(ticket));
