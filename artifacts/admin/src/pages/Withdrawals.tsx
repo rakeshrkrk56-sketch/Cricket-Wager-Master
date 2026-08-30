@@ -103,7 +103,7 @@ export function Withdrawals() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white">Withdrawals</h1>
-          <p className="text-muted-foreground mt-1 text-sm uppercase tracking-wider">Withdrawal Requests (निकासी अनुरोध)</p>
+          <p className="text-muted-foreground mt-1 text-sm uppercase tracking-wider">Withdrawal Requests</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleExport} disabled={!withdrawals.length}>

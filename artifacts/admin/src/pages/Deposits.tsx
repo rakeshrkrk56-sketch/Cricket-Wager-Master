@@ -140,7 +140,7 @@ export function Deposits() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white">Deposits</h1>
           <p className="text-muted-foreground mt-1 text-sm uppercase tracking-wider">
-            Deposit Requests (जमा अनुरोध)
+             Deposit Requests
             {statusFilter === 'pending' && pending > 0 && (
               <span className="ml-2 text-warning font-semibold">{pending} pending</span>
             )}

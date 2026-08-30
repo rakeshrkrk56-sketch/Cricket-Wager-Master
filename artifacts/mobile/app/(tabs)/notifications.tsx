@@ -31,7 +31,7 @@ const TYPE_CONFIG: Record<string, { icon: string; color: (c: any) => string }> =
 
 function NotifItem({ item, onRead }: { item: any; onRead: (id: string) => void }) {
   const colors = useColors();
-  const { t, lang } = useLanguage();
+  const { t } = useLanguage();
   const cfg = TYPE_CONFIG[item.type] ?? { icon: 'notifications-outline', color: (c: any) => c.primary };
   const iconColor = cfg.color(colors);
   const s = notifStyles(colors);
@@ -42,7 +42,7 @@ function NotifItem({ item, onRead }: { item: any; onRead: (id: string) => void }
     if (diff < 60) return t('notif_just_now');
     if (diff < 3600) return t('notif_min_ago', Math.floor(diff / 60));
     if (diff < 86400) return t('notif_hour_ago', Math.floor(diff / 3600));
-    return d.toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short' });
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
   };
 
   return (

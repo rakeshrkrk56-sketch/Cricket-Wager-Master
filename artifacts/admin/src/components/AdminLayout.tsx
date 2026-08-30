@@ -9,10 +9,10 @@ import { useAdminListDeposits, useAdminListWithdrawals, useAdminListSupportTicke
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/users", label: "Users (उपयोगकर्ता)", icon: Users },
-  { href: "/deposits", label: "Deposits (जमा)", icon: ArrowDownCircle },
-  { href: "/withdrawals", label: "Withdrawals (निकासी)", icon: ArrowUpCircle },
-  { href: "/support", label: "Support (सहायता)", icon: MessageSquare },
+  { href: "/users", label: "Users", icon: Users },
+  { href: "/deposits", label: "Deposits", icon: ArrowDownCircle },
+  { href: "/withdrawals", label: "Withdrawals", icon: ArrowUpCircle },
+  { href: "/support", label: "Support", icon: MessageSquare },
   { href: "/bank-account", label: "Bank Management", icon: Building2 },
   { href: "/audit-logs", label: "Audit Logs", icon: Shield },
   { href: "/game-control", label: "Game Control", icon: Gamepad2 },

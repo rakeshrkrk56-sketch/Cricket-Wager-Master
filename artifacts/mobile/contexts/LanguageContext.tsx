@@ -1,5 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, useContext, useCallback } from 'react';
 
 // ─── Translations ─────────────────────────────────────────────────────────────
 
@@ -11,7 +10,6 @@ const translations = {
     lang_continue: 'Continue',
     lang_change: 'Change Language',
     lang_en: 'English',
-    lang_hi: 'हिंदी (Hindi)',
 
     // Tabs
     tab_home: 'Home',
@@ -276,342 +274,34 @@ const translations = {
     profile_status_suspended: 'Suspended',
   },
 
-  hi: {
-    // Language selection
-    lang_select_title: 'भाषा चुनें',
-    lang_select_subtitle: 'जारी रखने के लिए अपनी पसंदीदा भाषा चुनें',
-    lang_continue: 'जारी रखें',
-    lang_change: 'भाषा बदलें',
-    lang_en: 'English',
-    lang_hi: 'हिंदी (Hindi)',
-
-    // Tabs
-    tab_home: 'होम',
-    tab_matches: 'मैच',
-    tab_predictions: 'भविष्यवाणी',
-    tab_wallet: 'वॉलेट',
-    tab_notifications: 'सूचनाएं',
-    tab_support: 'सहायता',
-    tab_profile: 'प्रोफाइल',
-
-    // Login
-    login_enter_mobile: 'मोबाइल नंबर दर्ज करें',
-    login_otp_will_be_sent: 'आपके नंबर पर OTP भेजा जाएगा',
-    login_enter_otp: 'OTP दर्ज करें',
-    login_otp_sent_to: '%s पर भेजा गया OTP दर्ज करें (टेस्ट: 1234)',
-    login_mobile_placeholder: '10 अंकों का मोबाइल नंबर',
-    login_send_otp: 'OTP भेजें',
-    login_verify_login: 'लॉगिन करें',
-    login_change_number: 'नंबर बदलें',
-    login_empty_number_title: 'खाली नंबर',
-    login_empty_number_msg: 'अपना मोबाइल नंबर दर्ज करें',
-    login_empty_otp_title: 'OTP खाली है',
-    login_empty_otp_msg: 'OTP दर्ज करें',
-    login_wrong_otp_title: 'गलत OTP',
-    login_wrong_otp_msg: 'सही OTP दर्ज करें (1234)',
-    login_send_failed: 'OTP भेजने में विफल, दोबारा कोशिश करें',
-
-    // Home
-    home_greeting: 'नमस्ते %s 🏏',
-    home_subtitle: 'आज कौन जीतेगा?',
-    home_live: 'लाइव',
-    home_upcoming: 'आगामी',
-    home_completed: 'समाप्त',
-    home_live_badge: '● लाइव',
-    home_no_matches: 'कोई मैच नहीं मिला',
-    home_live_predict: 'लाइव मैच • भविष्यवाणी करें',
-    home_markets_soon: 'भविष्यवाणी बाज़ार जल्द आ रहे हैं',
-
-    // Match detail
-    match_yes: 'हाँ',
-    match_no: 'नहीं',
-    match_bets: 'दांव',
-    match_live: 'लाइव',
-    score_loading: 'लाइव स्कोर लोड हो रहा है…',
-    score_unavailable: 'लाइव स्कोर उपलब्ध नहीं',
-    score_updated: 'अपडेट %s',
-    match_no_markets: 'अभी कोई मार्केट नहीं है',
-    match_answer_yes: 'उत्तर: हाँ ✓',
-    match_answer_no: 'उत्तर: नहीं ✓',
-    match_predict_title: 'भविष्यवाणी करें',
-    match_enter_amount: 'राशि दर्ज करें (न्यूनतम ₹100)',
-    match_min_amount_title: 'न्यूनतम राशि',
-    match_min_amount_msg: 'कम से कम ₹100 का दांव लगाएं',
-    match_insufficient_title: 'अपर्याप्त बैलेंस',
-    match_insufficient_msg: 'पर्याप्त बैलेंस नहीं है',
-    match_success: 'भविष्यवाणी हो गई!',
-    match_error_title: 'त्रुटि',
-    match_error_msg: 'भविष्यवाणी नहीं हो सकी',
-    match_stake: 'दांव राशि',
-    match_estimated_return: 'अनुमानित वापसी',
-    match_platform_fee: 'प्लेटफॉर्म शुल्क (7.5%)',
-    match_net_profit: 'शुद्ध लाभ',
-    match_wallet_balance: 'वॉलेट बैलेंस: ₹%s',
-    match_confirm: 'कन्फर्म करें',
-    match_not_found: 'मैच नहीं मिला',
-    match_open: 'खुला',
-    match_paused: 'रुका',
-    match_closed: 'बंद',
-    match_settled: 'तय हुआ',
-    match_refunded: 'वापसी',
-    match_cat_toss: '🪙 टॉस',
-    match_cat_innings: '🏏 पारी',
-    match_cat_over: '⚡ ओवर',
-    match_cat_batsman: '🏏 बल्लेबाज',
-    match_cat_bowler: '🎯 गेंदबाज',
-    match_cat_winner: '🏆 विजेता',
-
-    // Predictions
-    pred_title: 'मेरी भविष्यवाणियां',
-    pred_all: 'सभी',
-    pred_pending: 'प्रतीक्षा',
-    pred_won: 'जीत',
-    pred_lost: 'हार',
-    pred_refunded: 'वापसी',
-    pred_yes: 'हाँ',
-    pred_no: 'नहीं',
-    pred_empty: 'कोई भविष्यवाणी नहीं',
-    pred_empty_sub: 'मैच में जाकर भविष्यवाणी करें',
-
-    // Wallet
-    wallet_title: 'वॉलेट',
-    wallet_balance_label: 'उपलब्ध बैलेंस',
-    wallet_deposit_btn: 'जमा करें',
-    wallet_withdraw_btn: 'निकालें',
-    wallet_stat_deposit: 'कुल जमा',
-    wallet_stat_withdraw: 'कुल निकासी',
-    wallet_stat_win: 'जीत',
-    wallet_tab_tx: 'लेनदेन',
-    wallet_tab_deposits: 'जमा',
-    wallet_tab_withdrawals: 'निकासी',
-    wallet_empty_tx: 'कोई लेनदेन नहीं',
-    wallet_empty_deposits: 'अभी कोई जमा नहीं',
-    wallet_empty_withdrawals: 'अभी कोई निकासी नहीं',
-    wallet_tx_deposit: 'जमा',
-    wallet_tx_withdraw: 'निकासी',
-    wallet_tx_win: 'जीत',
-    wallet_tx_loss: 'लगाया',
-    wallet_tx_bonus: 'बोनस',
-    wallet_tx_refund: 'वापसी',
-    wallet_tx_bet_placed: 'भविष्यवाणी राशि',
-    wallet_status_pending: 'प्रतीक्षारत',
-    wallet_status_approved: 'स्वीकृत',
-    wallet_status_rejected: 'अस्वीकृत',
-    wallet_upi_label: 'UPI विकल्प %s',
-    wallet_copy_id: 'कॉपी करें',
-    wallet_copied: 'कॉपी हो गया!',
-    wallet_pay_now: 'अभी भुगतान करें',
-    wallet_utr_tab: 'UTR सबमिट',
-    wallet_bank_tab: 'बैंक ट्रांसफर',
-    wallet_min_deposit_title: 'न्यूनतम जमा',
-    wallet_min_deposit_msg: 'कम से कम ₹200 दर्ज करें',
-    wallet_utr_required_title: 'UTR आवश्यक',
-    wallet_utr_required_msg: 'UTR नंबर दर्ज करें',
-    wallet_utr_label: 'UTR नंबर',
-    wallet_utr_placeholder: '12 अंकों का UTR नंबर',
-    wallet_screenshot_label: 'स्क्रीनशॉट (वैकल्पिक)',
-    wallet_tap_upload: 'स्क्रीनशॉट अटैच करने के लिए टैप करें',
-    wallet_file_types: 'PNG, JPG अधिकतम 5MB',
-    wallet_submit_deposit: 'जमा अनुरोध भेजें',
-    wallet_deposit_success_title: 'जमा अनुरोध भेजा',
-    wallet_deposit_success_msg: 'आपका अनुरोध समीक्षा में है। 24 घंटे में अपडेट मिलेगा।',
-    wallet_no_upi_app_title: 'UPI ऐप नहीं मिला',
-    wallet_no_upi_app_msg: 'कोई UPI ऐप इंस्टॉल नहीं है। UPI ID कॉपी करके अपने ऐप में पेस्ट करें।',
-    wallet_after_payment_title: 'भुगतान के बाद',
-    wallet_after_payment_msg: 'UPI ऐप से भुगतान के बाद, UTR Submit टैब पर जाकर UTR नंबर और स्क्रीनशॉट अपलोड करें।',
-    wallet_ok: 'ठीक है',
-    wallet_withdraw_title: 'निकासी अनुरोध',
-    wallet_min_withdraw_title: 'न्यूनतम निकासी',
-    wallet_min_withdraw_msg: 'कम से कम ₹500 निकालें',
-    wallet_upi_required_title: 'UPI ID आवश्यक',
-    wallet_upi_required_msg: 'अपना UPI ID दर्ज करें',
-    wallet_bank_name_required: 'बैंक नाम आवश्यक',
-    wallet_bank_name_msg: 'बैंक का नाम दर्ज करें',
-    wallet_holder_required: 'खाताधारक नाम आवश्यक',
-    wallet_holder_msg: 'खाताधारक का नाम दर्ज करें',
-    wallet_account_required: 'खाता नंबर आवश्यक',
-    wallet_account_msg: 'बैंक खाता नंबर दर्ज करें',
-    wallet_account_mismatch: 'खाता नंबर मेल नहीं खाता',
-    wallet_account_mismatch_msg: 'दोनों खाता नंबर समान होने चाहिए',
-    wallet_ifsc_invalid: 'IFSC कोड अमान्य',
-    wallet_ifsc_msg: 'सही IFSC कोड दर्ज करें (11 अक्षर)',
-    wallet_withdraw_success_title: 'निकासी अनुरोध भेजा ✓',
-    wallet_withdraw_upi_msg: 'आपकी निकासी समीक्षा में है। स्वीकृत होने पर धनराशि आपके UPI में भेजी जाएगी।',
-    wallet_withdraw_bank_msg: 'आपकी निकासी समीक्षा में है। स्वीकृत होने पर धनराशि आपके बैंक खाते में भेजी जाएगी।',
-    wallet_error_title: 'त्रुटि',
-    wallet_amount_label: 'राशि (₹)',
-    wallet_via_upi: 'UPI द्वारा',
-    wallet_via_bank: 'बैंक द्वारा',
-    wallet_your_upi_id: 'आपका UPI ID',
-    wallet_upi_placeholder: 'yourname@upi',
-    wallet_bank_name: 'बैंक का नाम',
-    wallet_holder_name: 'खाताधारक का नाम',
-    wallet_account_number: 'खाता नंबर',
-    wallet_confirm_account: 'खाता नंबर की पुष्टि करें',
-    wallet_ifsc: 'IFSC कोड',
-    wallet_submit_withdraw: 'निकासी अनुरोध भेजें',
-    wallet_permission_title: 'अनुमति आवश्यक',
-    wallet_permission_msg: 'गैलरी एक्सेस की अनुमति दें',
-
-    // Dragon Tiger
-    game_insufficient_title: 'अपर्याप्त बैलेंस',
-    game_insufficient_message: 'यह दांव लगाने के लिए आपके वॉलेट में पर्याप्त बैलेंस नहीं है।',
-    game_available_balance: 'उपलब्ध बैलेंस',
-    game_selected_bet: 'चुना हुआ दांव',
-    game_add_balance: 'बैलेंस जोड़ें',
-    game_not_now: 'अभी नहीं',
-
-    // Notifications
-    notif_title: 'सूचनाएं',
-    notif_unread: '%s अपठित',
-    notif_mark_all: 'सभी पढ़ें',
-    notif_empty_title: 'कोई सूचना नहीं',
-    notif_empty_sub: 'यहाँ आपकी जमा, निकासी और भविष्यवाणी की सूचनाएं दिखेंगी',
-    notif_just_now: 'अभी',
-    notif_min_ago: '%sm पहले',
-    notif_hour_ago: '%sh पहले',
-
-    // Support
-    support_title: 'सहायता',
-    support_subtitle: 'हम मदद के लिए यहाँ हैं',
-    support_help_center: 'सहायता केंद्र',
-    support_my_tickets: 'मेरी टिकट',
-    support_new_ticket: 'नई टिकट',
-    support_chat_now: 'अभी चैट करें',
-    support_contact_info: 'संपर्क जानकारी',
-    support_categories: 'सहायता श्रेणियां',
-    support_faq: 'अक्सर पूछे जाने वाले प्रश्न',
-    support_no_tickets: 'अभी कोई टिकट नहीं',
-    support_create_first: 'पहली टिकट बनाएं',
-    support_create_ticket: 'सपोर्ट टिकट बनाएं',
-    support_subject: 'विषय *',
-    support_subject_ph: 'आपकी समस्या का संक्षिप्त विवरण',
-    support_category: 'श्रेणी *',
-    support_description: 'विवरण *',
-    support_desc_ph: 'अपनी समस्या का विस्तार से वर्णन करें। संबंधित ID, राशि, तारीख शामिल करें।',
-    support_screenshot: 'स्क्रीनशॉट (वैकल्पिक)',
-    support_tap_attach: 'स्क्रीनशॉट अटैच करने के लिए टैप करें',
-    support_file_size: 'PNG, JPG अधिकतम 5MB',
-    support_submit: 'टिकट सबमिट करें',
-    support_required: 'आवश्यक',
-    support_enter_subject: 'कृपया विषय दर्ज करें।',
-    support_enter_desc: 'कृपया अपनी समस्या का विवरण दें।',
-    support_ticket_ok_title: 'टिकट सबमिट हो गई ✓',
-    support_ticket_ok_msg: 'आपकी टिकट बन गई है। हमारी टीम 24 घंटे में जवाब देगी।',
-    support_view_tickets: 'टिकट देखें',
-    support_cat_deposit: 'जमा समस्या',
-    support_cat_withdraw: 'निकासी समस्या',
-    support_cat_prediction: 'भविष्यवाणी समस्या',
-    support_cat_kyc: 'KYC समस्या',
-    support_cat_account: 'खाता समस्या',
-    support_cat_technical: 'तकनीकी समस्या',
-    support_cat_other: 'अन्य',
-    support_status_open: 'खुली',
-    support_status_in_progress: 'प्रक्रिया में',
-    support_status_resolved: 'हल हुई',
-    support_status_closed: 'बंद',
-    support_faq_q1: 'जमा कैसे करें?',
-    support_faq_a1: 'वॉलेट → जमा करें पर जाएं। राशि दर्ज करें, UPI/बैंक चुनें, UPI ID कॉपी करें, भुगतान करें और UTR नंबर दर्ज करें। एडमिन अनुमोदन के 30 मिनट में जमा हो जाएगा।',
-    support_faq_q2: 'निकासी कैसे करें?',
-    support_faq_a2: 'वॉलेट → निकालें पर जाएं। राशि और UPI ID दर्ज करें। एडमिन अनुमोदन के 24 घंटे में प्रक्रिया होगी। न्यूनतम निकासी ₹100 है।',
-    support_faq_q3: 'भविष्यवाणी कैसे काम करती है?',
-    support_faq_a3: 'कोई भी लाइव या आगामी मैच खोलें, मार्केट चुनें (जैसे मैच विजेता), अपना विकल्प चुनें और कन्फर्म करें। सही होने पर परिणाम के तुरंत बाद जीत वॉलेट में आएगी।',
-    support_faq_q4: 'वॉलेट नियम',
-    support_faq_a4: 'वॉलेट बैलेंस से भविष्यवाणी लगा सकते हैं। जमा के लिए एडमिन अनुमोदन जरूरी है। निकासी केवल पंजीकृत UPI ID पर होगी। बोनस क्रेडिट सीधे नहीं निकाल सकते।',
-    support_faq_q5: 'KYC प्रक्रिया',
-    support_faq_a5: '₹10,000 से अधिक निकासी के लिए KYC जरूरी है। प्रोफाइल से आधार/पैन सबमिट करें। सत्यापन में 24-48 घंटे लगते हैं।',
-    support_faq_q6: 'रिफंड नीति',
-    support_faq_a6: 'मैच रद्द या अधूरा होने पर सभी दांव स्वचालित रूप से वापस होते हैं। विवादित लेनदेन के लिए UTR नंबर के साथ टिकट बनाएं। रिफंड 3-5 कार्य दिनों में होता है।',
-    support_hours: 'सोम-शनि, सुबह 9 – शाम 9 IST',
-    support_agent: 'सहायता एजेंट',
-
-    // Profile
-    profile_balance: 'बैलेंस',
-    profile_role: 'भूमिका',
-    profile_status: 'स्थिति',
-    profile_my_predictions: 'मेरी भविष्यवाणियां',
-    profile_wallet: 'वॉलेट',
-    profile_support: 'सहायता',
-    profile_about: 'Jazment के बारे में',
-    profile_logout: 'लॉगआउट',
-    profile_logout_title: 'लॉगआउट',
-    profile_logout_msg: 'क्या आप वाकई लॉगआउट करना चाहते हैं?',
-    profile_cancel: 'रद्द करें',
-    profile_about_msg: 'Cricket Prediction Platform v1.0',
-    profile_change_language: 'भाषा बदलें',
-    profile_kyc_pending: 'लंबित',
-    profile_kyc_verified: 'सत्यापित',
-    profile_kyc_rejected: 'अस्वीकृत',
-    profile_role_admin: 'एडमिन',
-    profile_role_user: 'यूज़र',
-    profile_status_active: 'सक्रिय',
-    profile_status_suspended: 'निलंबित',
-  },
 } as const;
 
-export type Lang = 'en' | 'hi';
+export type Lang = 'en';
 type TranslationKeys = keyof typeof translations.en;
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 interface LanguageContextValue {
   lang: Lang;
-  setLang: (l: Lang) => Promise<void>;
   t: (key: TranslationKeys, ...args: (string | number)[]) => string;
-  isFirstLaunch: boolean;
-  markLanguageSelected: () => Promise<void>;
   isReady: boolean;
 }
-
-const LANG_KEY = 'jazment_language';
-const LANG_SELECTED_KEY = 'jazment_lang_selected';
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLangState] = useState<Lang>('en');
-  const [isFirstLaunch, setIsFirstLaunch] = useState(false);
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const [stored, selected] = await Promise.all([
-          AsyncStorage.getItem(LANG_KEY),
-          AsyncStorage.getItem(LANG_SELECTED_KEY),
-        ]);
-        if (stored === 'en' || stored === 'hi') setLangState(stored);
-        if (!selected) setIsFirstLaunch(true);
-      } catch (error) {
-        console.error('Unable to restore language preference', error);
-      } finally {
-        setIsReady(true);
-      }
-    })();
-  }, []);
-
-  const setLang = useCallback(async (l: Lang) => {
-    setLangState(l);
-    await AsyncStorage.setItem(LANG_KEY, l);
-  }, []);
-
-  const markLanguageSelected = useCallback(async () => {
-    setIsFirstLaunch(false);
-    await AsyncStorage.setItem(LANG_SELECTED_KEY, '1');
-  }, []);
-
   const t = useCallback(
     (key: TranslationKeys, ...args: (string | number)[]): string => {
-      const raw = (translations[lang] as any)[key] ?? (translations.en as any)[key] ?? key;
+      const raw = (translations.en as any)[key] ?? key;
       if (!args.length) return raw as string;
       // Replace %s tokens left-to-right
       return (raw as string).replace(/%s/g, () => String(args.shift() ?? ''));
     },
-    [lang]
+    []
   );
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t, isFirstLaunch, markLanguageSelected, isReady }}>
+    <LanguageContext.Provider value={{ lang: 'en', t, isReady: true }}>
       {children}
     </LanguageContext.Provider>
   );

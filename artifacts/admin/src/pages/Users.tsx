@@ -49,7 +49,7 @@ export function Users() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white">Users</h1>
-          <p className="text-muted-foreground mt-1 text-sm uppercase tracking-wider">Manage players & wallets (उपयोगकर्ता)</p>
+          <p className="text-muted-foreground mt-1 text-sm uppercase tracking-wider">Manage players & wallets</p>
         </div>
         <Button variant="outline" size="sm" onClick={handleExport} disabled={!users.length}>
           <Download className="w-4 h-4 mr-2" /> Export CSV

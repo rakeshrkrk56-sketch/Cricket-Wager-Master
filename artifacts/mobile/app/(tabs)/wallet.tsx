@@ -28,8 +28,8 @@ type WalletTab    = 'transactions' | 'deposits' | 'withdrawals';
 
 function TxItem({ item }: { item: any }) {
   const colors  = useColors();
-  const { t, lang } = useLanguage();
-  const locale  = lang === 'hi' ? 'hi-IN' : 'en-IN';
+  const { t } = useLanguage();
+  const locale  = 'en-IN';
 
   // `loss` is a balance-neutral settlement outcome: the stake was already
   // debited by the `bet_placed` entry, so it must NOT display as a second debit.
@@ -107,8 +107,8 @@ export default function WalletScreen() {
   const colors  = useColors();
   const insets  = useSafeAreaInsets();
   const { token, user, updateUser } = useAuth();
-  const { t, lang } = useLanguage();
-  const locale  = lang === 'hi' ? 'hi-IN' : 'en-IN';
+  const { t } = useLanguage();
+  const locale  = 'en-IN';
   const queryClient = useQueryClient();
   const { open, request } = useLocalSearchParams<{ open?: string; request?: string }>();
 
@@ -440,7 +440,7 @@ export default function WalletScreen() {
                     <Text style={[s.upiHint, { color: colors.mutedForeground }]}>UPI ID not configured yet. Please use {t('wallet_utr_tab')} tab.</Text>
                   ) : (
                     <>
-                      <Text style={s.upiHint}>{lang === 'hi' ? 'किसी एक UPI पर भुगतान करें, फिर UTR Submit करें:' : 'Pay to any UPI below, then submit UTR:'}</Text>
+                       <Text style={s.upiHint}>Pay to any UPI below, then submit UTR:</Text>
                       {upiOptions.map((opt, idx) => (
                         <View key={idx} style={s.upiOptionCard}>
                           <View style={s.upiOptionHeader}>
@@ -463,7 +463,7 @@ export default function WalletScreen() {
                       ))}
                       <View style={s.infoBox}>
                         <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
-                        <Text style={s.infoText}>{lang === 'hi' ? 'भुगतान के बाद "UTR Submit" टैब पर जाकर UTR नंबर और स्क्रीनशॉट अपलोड करें।' : 'After payment, go to UTR Submit tab and upload your UTR number and screenshot.'}</Text>
+                         <Text style={s.infoText}>After payment, go to UTR Submit tab and upload your UTR number and screenshot.</Text>
                       </View>
                     </>
                   )}
@@ -475,12 +475,12 @@ export default function WalletScreen() {
                 <View style={{ marginTop: 12 }}>
                   <View style={s.infoBox}>
                     <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
-                    <Text style={s.infoText}>{lang === 'hi' ? 'नीचे दिए बैंक खाते में NEFT/IMPS करें, फिर UTR Submit टैब पर UTR नंबर डालें।' : 'Transfer via NEFT/IMPS to the bank account below, then enter your UTR in the UTR Submit tab.'}</Text>
+                         <Text style={s.infoText}>Transfer via NEFT/IMPS to the bank account below, then enter your UTR in the UTR Submit tab.</Text>
                   </View>
                   {[
-                    { label: lang === 'hi' ? 'बैंक का नाम' : 'Bank Name',    value: platformSettings?.bankName,          field: 'bankName' },
-                    { label: lang === 'hi' ? 'खाताधारक'   : 'Account Holder',value: platformSettings?.bankHolderName,    field: 'bankHolder' },
-                    { label: lang === 'hi' ? 'खाता नंबर'  : 'Account Number', value: platformSettings?.bankAccountNumber, field: 'bankAccount', mono: true },
+                    { label: 'Bank Name',              value: platformSettings?.bankName,          field: 'bankName' },
+                    { label: 'Account Holder',         value: platformSettings?.bankHolderName,    field: 'bankHolder' },
+                    { label: 'Account Number',         value: platformSettings?.bankAccountNumber, field: 'bankAccount', mono: true },
                     { label: 'IFSC',                                            value: platformSettings?.bankIfsc,          field: 'bankIfsc',    mono: true },
                   ].map(({ label, value, field, mono }) =>
                     value ? (
@@ -501,7 +501,7 @@ export default function WalletScreen() {
                 <View>
                   {platformUpiId ? (
                     <View style={s.upiIdRow}>
-                      <Text style={s.upiIdLabel}>{lang === 'hi' ? 'पहले UPI / बैंक खाते पर भुगतान करें, फिर UTR दर्ज करें:' : 'First pay via UPI / Bank, then enter your UTR below:'}</Text>
+                      <Text style={s.upiIdLabel}>First pay via UPI / Bank, then enter your UTR below:</Text>
                       <TouchableOpacity style={s.copyRow} onPress={() => copyUpiId(platformUpiId)} activeOpacity={0.8}>
                         <Text style={s.upiId}>{platformUpiId}</Text>
                         <Ionicons name={upiCopied ? 'checkmark-circle' : 'copy-outline'} size={18} color={upiCopied ? colors.success : colors.primary} />
@@ -515,12 +515,12 @@ export default function WalletScreen() {
                     {screenshotUri ? (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-                        <Text style={[s.screenshotText, { color: colors.success }]}>{lang === 'hi' ? 'स्क्रीनशॉट अपलोड हुआ' : 'Screenshot uploaded'}</Text>
+                        <Text style={[s.screenshotText, { color: colors.success }]}>Screenshot uploaded</Text>
                       </View>
                     ) : (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <Ionicons name="image-outline" size={20} color={colors.mutedForeground} />
-                        <Text style={s.screenshotText}>{lang === 'hi' ? 'गैलरी से चुनें' : 'Choose from gallery'}</Text>
+                        <Text style={s.screenshotText}>Choose from gallery</Text>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -562,13 +562,13 @@ export default function WalletScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={s.balHint}>{lang === 'hi' ? 'उपलब्ध' : 'Available'}: ₹{balance.toFixed(0)}</Text>
+              <Text style={s.balHint}>Available: ₹{balance.toFixed(0)}</Text>
 
               {wdMethod === 'upi' && (
                 <View>
                   <View style={s.infoBox}>
                     <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
-                    <Text style={s.infoText}>{lang === 'hi' ? 'स्वीकृत होने पर धनराशि आपके UPI ID पर भेजी जाएगी।' : 'On approval, amount will be sent to your UPI ID.'}</Text>
+                    <Text style={s.infoText}>On approval, amount will be sent to your UPI ID.</Text>
                   </View>
                   <Text style={[s.amountLabel, { marginTop: 12 }]}>{t('wallet_your_upi_id')} *</Text>
                   <TextInput style={s.textInput} placeholder={t('wallet_upi_placeholder')} placeholderTextColor={colors.mutedForeground} value={wdUpiId} onChangeText={setWdUpiId} autoCapitalize="none" keyboardType="email-address" />
@@ -579,18 +579,18 @@ export default function WalletScreen() {
                 <View>
                   <View style={s.infoBox}>
                     <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
-                    <Text style={s.infoText}>{lang === 'hi' ? 'स्वीकृत होने पर धनराशि आपके बैंक खाते में NEFT/IMPS द्वारा भेजी जाएगी।' : 'On approval, amount will be sent to your bank account via NEFT/IMPS.'}</Text>
+                    <Text style={s.infoText}>On approval, amount will be sent to your bank account via NEFT/IMPS.</Text>
                   </View>
                   <Text style={[s.amountLabel, { marginTop: 12 }]}>{t('wallet_bank_name')} *</Text>
-                  <TextInput style={s.textInput} placeholder={lang === 'hi' ? 'जैसे: State Bank of India' : 'e.g. State Bank of India'} placeholderTextColor={colors.mutedForeground} value={wdBankName} onChangeText={setWdBankName} autoCapitalize="words" />
+                  <TextInput style={s.textInput} placeholder="e.g. State Bank of India" placeholderTextColor={colors.mutedForeground} value={wdBankName} onChangeText={setWdBankName} autoCapitalize="words" />
                   <Text style={s.amountLabel}>{t('wallet_holder_name')} *</Text>
-                  <TextInput style={s.textInput} placeholder={lang === 'hi' ? 'जैसे: Rahul Sharma' : 'e.g. Rahul Sharma'} placeholderTextColor={colors.mutedForeground} value={wdHolderName} onChangeText={setWdHolderName} autoCapitalize="words" />
+                  <TextInput style={s.textInput} placeholder="e.g. Rahul Sharma" placeholderTextColor={colors.mutedForeground} value={wdHolderName} onChangeText={setWdHolderName} autoCapitalize="words" />
                   <Text style={s.amountLabel}>{t('wallet_account_number')} *</Text>
-                  <TextInput style={s.textInput} placeholder={lang === 'hi' ? 'बैंक खाता नंबर दर्ज करें' : 'Enter bank account number'} placeholderTextColor={colors.mutedForeground} value={wdAccountNumber} onChangeText={setWdAccountNumber} keyboardType="numeric" />
+                  <TextInput style={s.textInput} placeholder="Enter bank account number" placeholderTextColor={colors.mutedForeground} value={wdAccountNumber} onChangeText={setWdAccountNumber} keyboardType="numeric" />
                   <Text style={s.amountLabel}>{t('wallet_confirm_account')} *</Text>
                   <TextInput
                     style={[s.textInput, wdConfirmAccountNumber.length > 0 && { borderColor: wdAccountNumber === wdConfirmAccountNumber ? colors.success : colors.destructive, borderWidth: 1.5 }]}
-                    placeholder={lang === 'hi' ? 'खाता नंबर दोबारा दर्ज करें' : 'Re-enter account number'}
+                    placeholder="Re-enter account number"
                     placeholderTextColor={colors.mutedForeground}
                     value={wdConfirmAccountNumber} onChangeText={setWdConfirmAccountNumber} keyboardType="numeric"
                   />
@@ -598,11 +598,11 @@ export default function WalletScreen() {
                     <View style={s.validationMsg}><Ionicons name="close-circle" size={14} color={colors.destructive} /><Text style={[s.validationText, { color: colors.destructive }]}>{t('wallet_account_mismatch')}</Text></View>
                   )}
                   {wdConfirmAccountNumber.length > 0 && wdAccountNumber === wdConfirmAccountNumber && wdAccountNumber.length > 0 && (
-                    <View style={s.validationMsg}><Ionicons name="checkmark-circle" size={14} color={colors.success} /><Text style={[s.validationText, { color: colors.success }]}>{lang === 'hi' ? 'खाता नंबर मेल खाता है' : 'Account numbers match'}</Text></View>
+                    <View style={s.validationMsg}><Ionicons name="checkmark-circle" size={14} color={colors.success} /><Text style={[s.validationText, { color: colors.success }]}>Account numbers match</Text></View>
                   )}
                   <Text style={[s.amountLabel, { marginTop: 4 }]}>{t('wallet_ifsc')} *</Text>
-                  <TextInput style={s.textInput} placeholder={lang === 'hi' ? 'जैसे: SBIN0001234' : 'e.g. SBIN0001234'} placeholderTextColor={colors.mutedForeground} value={wdIfsc} onChangeText={(v) => setWdIfsc(v.toUpperCase())} autoCapitalize="characters" maxLength={11} />
-                  <Text style={s.ifscHint}>{lang === 'hi' ? 'IFSC कोड आपकी बैंक पासबुक या चेकबुक पर मिलता है (11 अक्षर)' : 'IFSC code is on your bank passbook or cheque (11 characters)'}</Text>
+                  <TextInput style={s.textInput} placeholder="e.g. SBIN0001234" placeholderTextColor={colors.mutedForeground} value={wdIfsc} onChangeText={(v) => setWdIfsc(v.toUpperCase())} autoCapitalize="characters" maxLength={11} />
+                  <Text style={s.ifscHint}>IFSC code is on your bank passbook or cheque (11 characters)</Text>
                 </View>
               )}
 

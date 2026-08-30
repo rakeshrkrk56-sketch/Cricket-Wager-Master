@@ -41,7 +41,7 @@ export default function ProfileScreen() {
     query: { enabled: !!token, queryKey: getGetWalletQueryKey() },
   });
   const liveBalance = Number(walletData?.balance ?? user?.walletBalance ?? 0);
-  const { t, lang, setLang } = useLanguage();
+  const { t } = useLanguage();
   const s = styles(colors, insets);
   const isGuest = user?.phone?.startsWith('guest:') ?? true;
 
@@ -50,19 +50,6 @@ export default function ProfileScreen() {
       { text: t('profile_cancel'), style: 'cancel' },
       { text: t('profile_logout'), style: 'destructive', onPress: async () => { await logout(); router.replace('/login'); } },
     ]);
-  };
-
-  const handleChangeLanguage = () => {
-    const nextLang = lang === 'en' ? 'hi' : 'en';
-    const langName = nextLang === 'hi' ? 'हिंदी' : 'English';
-    Alert.alert(
-      t('profile_change_language'),
-      lang === 'en' ? `Switch to हिंदी?` : `Switch to English?`,
-      [
-        { text: t('profile_cancel'), style: 'cancel' },
-        { text: langName, onPress: () => setLang(nextLang) },
-      ]
-    );
   };
 
   const kycLabel: Record<string, string> = {
@@ -86,8 +73,6 @@ export default function ProfileScreen() {
     hold: 'On Hold',
     suspended: t('profile_status_suspended'),
   };
-
-  const currentLangLabel = lang === 'en' ? '🇬🇧 English' : '🇮🇳 हिंदी';
 
   return (
     <ScrollView style={s.root} contentContainerStyle={s.content}>
@@ -145,12 +130,6 @@ export default function ProfileScreen() {
             onPress={() => router.push('/admin')}
           />
         )}
-        <MenuItem
-          icon="language-outline"
-          label={t('profile_change_language')}
-          sublabel={currentLangLabel}
-          onPress={handleChangeLanguage}
-        />
         <MenuItem
           icon="information-circle-outline"
           label={t('profile_about')}

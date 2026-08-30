@@ -20,12 +20,12 @@ export default function TicketDetailScreen() {
   const insets = useSafeAreaInsets();
   const [reply, setReply] = useState('');
 
-  const { t, lang } = useLanguage();
+  const { t } = useLanguage();
   const STATUS_LABEL: Record<string, string> = {
     open: t('support_status_open'), in_progress: t('support_status_in_progress'),
     resolved: t('support_status_resolved'), closed: t('support_status_closed'),
   };
-  const locale = lang === 'hi' ? 'hi-IN' : 'en-IN';
+  const locale = 'en-IN';
 
   const { data, isLoading, refetch } = useGetSupportTicket(ticketId ?? '');
   const addMessage = useAddTicketMessage();
