@@ -19,7 +19,7 @@ type Tab = 'home' | 'tickets' | 'new';
 
 type Category =
   | 'deposit_issue' | 'withdrawal_issue'
-  | 'kyc_issue' | 'account_issue' | 'technical_problem' | 'other';
+  | 'account_issue' | 'technical_problem' | 'other';
 
 function FAQItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
@@ -54,7 +54,6 @@ export default function SupportScreen() {
   const CATEGORIES: { value: Category; labelKey: string; icon: string }[] = [
     { value: 'deposit_issue',    labelKey: 'support_cat_deposit',    icon: 'arrow-down-circle-outline' },
     { value: 'withdrawal_issue', labelKey: 'support_cat_withdraw',   icon: 'arrow-up-circle-outline' },
-    { value: 'kyc_issue',        labelKey: 'support_cat_kyc',        icon: 'person-outline' },
     { value: 'account_issue',    labelKey: 'support_cat_account',    icon: 'settings-outline' },
     { value: 'technical_problem',labelKey: 'support_cat_technical',  icon: 'bug-outline' },
     { value: 'other',            labelKey: 'support_cat_other',      icon: 'help-circle-outline' },
@@ -72,7 +71,6 @@ export default function SupportScreen() {
     { q: t('support_faq_q2'), a: t('support_faq_a2') },
     { q: t('support_faq_q3'), a: t('support_faq_a3') },
     { q: t('support_faq_q4'), a: t('support_faq_a4') },
-    { q: t('support_faq_q5'), a: t('support_faq_a5') },
     { q: t('support_faq_q6'), a: t('support_faq_a6') },
   ];
 
