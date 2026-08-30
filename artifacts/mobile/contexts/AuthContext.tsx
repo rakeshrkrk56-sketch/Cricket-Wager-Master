@@ -16,6 +16,7 @@ const TOKEN_KEY = 'jazment_token';
 const USER_KEY = 'jazment_user';
 const INSTALLATION_ID_KEY = 'jazment_installation_id';
 const INSTALLATION_SECRET_KEY = 'jazment_installation_secret';
+const GUEST_SESSION_TIMEOUT_MS = 10_000;
 interface AuthContextValue {
   token: string | null;
   user: AuthUser | null;
@@ -26,6 +27,21 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+async function createGuestSessionWithTimeout(
+  installationId: string,
+  installationSecret: string,
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GUEST_SESSION_TIMEOUT_MS);
+  try {
+    return await createGuestSession({ installationId, installationSecret }, {
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
@@ -45,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await AsyncStorage.setItem(INSTALLATION_SECRET_KEY, installationSecret);
     }
 
-    const session = await createGuestSession({ installationId, installationSecret });
+    const session = await createGuestSessionWithTimeout(installationId, installationSecret);
     setAuthTokenGetter(() => session.token);
     setToken(session.token);
     setUser(session.user);

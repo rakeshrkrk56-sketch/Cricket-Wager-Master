@@ -84,7 +84,10 @@ export class DragonTigerGame {
 
     this.wss.on("connection", (socket: AuthenticatedSocket) => {
       let reservedPlayerId: string | undefined;
-      const authTimer = setTimeout(() => socket.close(4401, "Authentication required"), AUTH_TIMEOUT_MS);
+      const authTimer = setTimeout(
+        () => socket.close(4401, "Authentication required"),
+        AUTH_TIMEOUT_MS,
+      );
       socket.once("close", () => {
         clearTimeout(authTimer);
         if (reservedPlayerId) this.pendingPlayerIds.delete(reservedPlayerId);
@@ -92,7 +95,10 @@ export class DragonTigerGame {
 
       socket.once("message", async (data: RawData) => {
         try {
-          const message = JSON.parse(data.toString()) as { type?: string; token?: string };
+          const message = JSON.parse(data.toString()) as {
+            type?: string;
+            token?: string;
+          };
           if (message.type !== "AUTH" || typeof message.token !== "string") {
             socket.close(4401, "Invalid authentication message");
             return;
@@ -102,15 +108,24 @@ export class DragonTigerGame {
             socket.close(4401, "Invalid token");
             return;
           }
-          const [user] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.userId));
+          const [user] = await db
+            .select()
+            .from(usersTable)
+            .where(eq(usersTable.id, parsed.userId));
           if (!user || user.status === "suspended") {
             socket.close(4401, "User not found or suspended");
             return;
           }
 
           const connectedPlayerIds = this.getConnectedPlayerIds();
-          const alreadyAtTable = connectedPlayerIds.has(user.id) || this.pendingPlayerIds.has(user.id);
-          if (!alreadyAtTable && connectedPlayerIds.size + this.pendingPlayerIds.size >= MAX_TABLE_PLAYERS) {
+          const alreadyAtTable =
+            connectedPlayerIds.has(user.id) ||
+            this.pendingPlayerIds.has(user.id);
+          if (
+            !alreadyAtTable &&
+            connectedPlayerIds.size + this.pendingPlayerIds.size >=
+              MAX_TABLE_PLAYERS
+          ) {
             send(socket, {
               type: "TABLE_FULL",
               code: "TABLE_FULL",
@@ -132,9 +147,19 @@ export class DragonTigerGame {
             reservedPlayerId = undefined;
           }
           send(socket, { type: "AUTH_OK" });
-          send(socket, { type: "BALANCE", balance: Number(user.walletBalance) });
-          send(socket, { type: "GAME_STATE", ...(await this.getPrivateState(socket.userId)) });
-          socket.on("message", (payload: RawData) => void this.handleMessage(socket, payload.toString()));
+          send(socket, {
+            type: "BALANCE",
+            balance: Number(user.walletBalance),
+          });
+          send(socket, {
+            type: "GAME_STATE",
+            ...(await this.getPrivateState(socket.userId)),
+          });
+          socket.on(
+            "message",
+            (payload: RawData) =>
+              void this.handleMessage(socket, payload.toString()),
+          );
           socket.once("close", () => this.broadcastTableStatus());
           this.broadcastTableStatus();
         } catch {
@@ -143,12 +168,18 @@ export class DragonTigerGame {
       });
     });
 
-    void this.resume().catch((err) => logger.error({ err }, "Unable to start Dragon Tiger game"));
+    void this.resume().catch((err) =>
+      logger.error({ err }, "Unable to start Dragon Tiger game"),
+    );
   }
 
   async getControlState() {
     await this.refreshControlState();
-    return { ...(await this.getPublicState()), mode: this.mode, paused: this.paused };
+    return {
+      ...(await this.getPublicState()),
+      mode: this.mode,
+      paused: this.paused,
+    };
   }
 
   async stop(): Promise<void> {
@@ -161,10 +192,13 @@ export class DragonTigerGame {
     if (pubSubClient) {
       pubSubClient.removeAllListeners("notification");
       pubSubClient.removeAllListeners("error");
-      await pubSubClient.query(`UNLISTEN ${PUBSUB_CHANNEL}`).catch(() => undefined);
+      await pubSubClient
+        .query(`UNLISTEN ${PUBSUB_CHANNEL}`)
+        .catch(() => undefined);
       pubSubClient.release();
     }
-    for (const socket of this.wss.clients) socket.close(1001, "Server shutting down");
+    for (const socket of this.wss.clients)
+      socket.close(1001, "Server shutting down");
     await new Promise<void>((resolve) => {
       if (this.wss.clients.size === 0) {
         this.wss.close(() => resolve());
@@ -181,7 +215,11 @@ export class DragonTigerGame {
     });
   }
 
-  async setControl(input: { mode?: GameMode; paused?: boolean; closeBetting?: boolean }) {
+  async setControl(input: {
+    mode?: GameMode;
+    paused?: boolean;
+    closeBetting?: boolean;
+  }) {
     if (input.mode !== undefined) {
       await this.persistSetting(CONTROL_MODE_KEY, input.mode);
     }
@@ -198,10 +236,13 @@ export class DragonTigerGame {
 
   private async resume(): Promise<void> {
     await ensureGameConfig();
-    await db.insert(platformSettingsTable).values([
-      { key: CONTROL_MODE_KEY, value: "AUTOMATIC", updatedAt: new Date() },
-      { key: CONTROL_PAUSED_KEY, value: "false", updatedAt: new Date() },
-    ]).onConflictDoNothing();
+    await db
+      .insert(platformSettingsTable)
+      .values([
+        { key: CONTROL_MODE_KEY, value: "AUTOMATIC", updatedAt: new Date() },
+        { key: CONTROL_PAUSED_KEY, value: "false", updatedAt: new Date() },
+      ])
+      .onConflictDoNothing();
     await this.startPubSub();
     await this.refreshControlState();
     await this.ensureRound();
@@ -215,7 +256,8 @@ export class DragonTigerGame {
       client = connectedClient;
       this.pubSubClient = connectedClient;
       connectedClient.on("notification", (notification) => {
-        if (notification.channel !== PUBSUB_CHANNEL || !notification.payload) return;
+        if (notification.channel !== PUBSUB_CHANNEL || !notification.payload)
+          return;
         try {
           const event = JSON.parse(notification.payload) as {
             originId?: string;
@@ -223,22 +265,27 @@ export class DragonTigerGame {
             userId?: string;
             message?: unknown;
           };
-          if (event.originId === this.instanceId || event.message === undefined) return;
+          if (event.originId === this.instanceId || event.message === undefined)
+            return;
           if (event.audience === "user" && event.userId) {
             this.sendPrivateLocal(event.userId, event.message);
           } else if (event.audience === "all") {
             this.broadcastLocal(event.message);
-            const type = typeof event.message === "object" && event.message !== null
-              ? (event.message as { type?: unknown }).type
-              : undefined;
+            const type =
+              typeof event.message === "object" && event.message !== null
+                ? (event.message as { type?: unknown }).type
+                : undefined;
             if (
-              type === "ROUND_STARTED"
-              || type === "BETTING_CLOSED"
-              || type === "ROUND_RESULT"
-              || type === "GAME_STATE"
+              type === "ROUND_STARTED" ||
+              type === "BETTING_CLOSED" ||
+              type === "ROUND_RESULT" ||
+              type === "GAME_STATE"
             ) {
               void this.ensureRound().catch((err) => {
-                logger.error({ err }, "Unable to reconcile Dragon Tiger timer from peer event");
+                logger.error(
+                  { err },
+                  "Unable to reconcile Dragon Tiger timer from peer event",
+                );
               });
             }
           }
@@ -248,12 +295,16 @@ export class DragonTigerGame {
       });
       connectedClient.on("error", (err) => {
         logger.error({ err }, "Dragon Tiger pub/sub connection failed");
-        if (this.pubSubClient === connectedClient) this.pubSubClient = undefined;
+        if (this.pubSubClient === connectedClient)
+          this.pubSubClient = undefined;
         connectedClient.release(true);
         this.schedulePubSubReconnect();
       });
       await connectedClient.query(`LISTEN ${PUBSUB_CHANNEL}`);
-      this.broadcastLocal({ type: "GAME_STATE", ...(await this.getPublicState()) });
+      this.broadcastLocal({
+        type: "GAME_STATE",
+        ...(await this.getPublicState()),
+      });
       await this.ensureRound();
     } catch (err) {
       if (client) {
@@ -274,36 +325,52 @@ export class DragonTigerGame {
     this.pubSubRetry.unref();
   }
 
-  private publish(audience: "all" | "user", message: unknown, userId?: string): void {
+  private publish(
+    audience: "all" | "user",
+    message: unknown,
+    userId?: string,
+  ): void {
     const payload = JSON.stringify({
       originId: this.instanceId,
       audience,
       userId,
       message,
     });
-    void pool.query("select pg_notify($1, $2)", [PUBSUB_CHANNEL, payload]).catch((err) => {
-      logger.error({ err }, "Unable to publish Dragon Tiger event");
-    });
+    void pool
+      .query("select pg_notify($1, $2)", [PUBSUB_CHANNEL, payload])
+      .catch((err) => {
+        logger.error({ err }, "Unable to publish Dragon Tiger event");
+      });
   }
 
   private async refreshControlState(): Promise<void> {
-    const settings = await db.select().from(platformSettingsTable).where(
-      sql`${platformSettingsTable.key} in (${CONTROL_MODE_KEY}, ${CONTROL_PAUSED_KEY})`,
-    );
+    const settings = await db
+      .select()
+      .from(platformSettingsTable)
+      .where(
+        sql`${platformSettingsTable.key} in (${CONTROL_MODE_KEY}, ${CONTROL_PAUSED_KEY})`,
+      );
     const mode = settings.find((item) => item.key === CONTROL_MODE_KEY)?.value;
     this.mode = mode === "MANAGED" ? "MANAGED" : "AUTOMATIC";
-    this.paused = settings.find((item) => item.key === CONTROL_PAUSED_KEY)?.value === "true";
+    this.paused =
+      settings.find((item) => item.key === CONTROL_PAUSED_KEY)?.value ===
+      "true";
   }
 
   private async persistSetting(key: string, value: string): Promise<void> {
-    await db.insert(platformSettingsTable).values({ key, value, updatedAt: new Date() })
+    await db
+      .insert(platformSettingsTable)
+      .values({ key, value, updatedAt: new Date() })
       .onConflictDoUpdate({
         target: platformSettingsTable.key,
         set: { value, updatedAt: new Date() },
       });
   }
 
-  private async handleMessage(socket: AuthenticatedSocket, raw: string): Promise<void> {
+  private async handleMessage(
+    socket: AuthenticatedSocket,
+    raw: string,
+  ): Promise<void> {
     let clientBetId: string | undefined;
     try {
       const message = JSON.parse(raw) as {
@@ -315,25 +382,46 @@ export class DragonTigerGame {
         side?: Choice;
         amount?: number | string;
       };
-      clientBetId = typeof message.clientBetId === "string"
-        ? message.clientBetId.slice(0, 120)
-        : undefined;
+      clientBetId =
+        typeof message.clientBetId === "string"
+          ? message.clientBetId.slice(0, 120)
+          : undefined;
       if (message.type !== "BET" && message.type !== "PLACE_BET") {
-        send(socket, { type: "ERROR", code: "UNKNOWN_MESSAGE", message: "Unknown message type", clientBetId });
+        send(socket, {
+          type: "ERROR",
+          code: "UNKNOWN_MESSAGE",
+          message: "Unknown message type",
+          clientBetId,
+        });
         return;
       }
       if (!socket.userId) return;
       const choice = message.choice ?? message.selection ?? message.side;
       const amount = String(message.amount ?? "");
       if (!choice || !["DRAGON", "TIGER", "TIE"].includes(choice)) {
-        send(socket, { type: "ERROR", code: "INVALID_CHOICE", message: "Invalid bet choice", clientBetId });
+        send(socket, {
+          type: "ERROR",
+          code: "INVALID_CHOICE",
+          message: "Invalid bet choice",
+          clientBetId,
+        });
         return;
       }
       if (!/^\d{1,10}(\.\d{1,2})?$/.test(amount) || Number(amount) <= 0) {
-        send(socket, { type: "ERROR", code: "INVALID_AMOUNT", message: "Amount must be positive with at most two decimals", clientBetId });
+        send(socket, {
+          type: "ERROR",
+          code: "INVALID_AMOUNT",
+          message: "Amount must be positive with at most two decimals",
+          clientBetId,
+        });
         return;
       }
-      const placed = await this.placeBet(socket.userId, choice, amount, message.roundId);
+      const placed = await this.placeBet(
+        socket.userId,
+        choice,
+        amount,
+        message.roundId,
+      );
       send(socket, { type: "BET_ACCEPTED", bet: placed.bet, clientBetId });
       send(socket, { type: "BALANCE", balance: placed.balance });
       const publicBetActivity = {
@@ -344,61 +432,99 @@ export class DragonTigerGame {
       };
       this.broadcastLocalExcept(socket, publicBetActivity);
       this.publish("all", publicBetActivity);
-      this.broadcast({ type: "POOLS_UPDATED", roundId: placed.bet.roundId, ...(await this.getPools(placed.bet.roundId)) });
+      this.broadcast({
+        type: "POOLS_UPDATED",
+        roundId: placed.bet.roundId,
+        ...(await this.getPools(placed.bet.roundId)),
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unable to place bet";
-      const code = message === "INSUFFICIENT_BALANCE" ? message
-        : message === "ACCOUNT_NOT_ACTIVE" ? message
-        : message === "BETTING_CLOSED" ? message
-        : message === "SIDE_LOCKED" ? message : "BET_FAILED";
+      const message =
+        err instanceof Error ? err.message : "Unable to place bet";
+      const code =
+        message === "INSUFFICIENT_BALANCE"
+          ? message
+          : message === "ACCOUNT_NOT_ACTIVE"
+            ? message
+            : message === "BETTING_CLOSED"
+              ? message
+              : message === "SIDE_LOCKED"
+                ? message
+                : "BET_FAILED";
       send(socket, { type: "ERROR", code, message, clientBetId });
     }
   }
 
-  private async placeBet(userId: string, choice: Choice, amount: string, expectedRoundId?: string) {
+  private async placeBet(
+    userId: string,
+    choice: Choice,
+    amount: string,
+    expectedRoundId?: string,
+  ) {
     return db.transaction(async (tx) => {
-      const [round] = await tx.select().from(dragonTigerRoundsTable)
-        .where(and(
-          eq(dragonTigerRoundsTable.activeSlot, 1),
-          eq(dragonTigerRoundsTable.status, "BETTING"),
-        ))
+      const [round] = await tx
+        .select()
+        .from(dragonTigerRoundsTable)
+        .where(
+          and(
+            eq(dragonTigerRoundsTable.activeSlot, 1),
+            eq(dragonTigerRoundsTable.status, "BETTING"),
+          ),
+        )
         .for("update");
-      if (!round || round.bettingClosesAt.getTime() <= Date.now()) throw new Error("BETTING_CLOSED");
-      if (expectedRoundId && round.id !== expectedRoundId) throw new Error("BETTING_CLOSED");
-      const [existingBet] = await tx.select({ choice: dragonTigerBetsTable.choice })
+      if (!round || round.bettingClosesAt.getTime() <= Date.now())
+        throw new Error("BETTING_CLOSED");
+      if (expectedRoundId && round.id !== expectedRoundId)
+        throw new Error("BETTING_CLOSED");
+      const [existingBet] = await tx
+        .select({ choice: dragonTigerBetsTable.choice })
         .from(dragonTigerBetsTable)
-        .where(and(
-          eq(dragonTigerBetsTable.roundId, round.id),
-          eq(dragonTigerBetsTable.userId, userId),
-        ))
+        .where(
+          and(
+            eq(dragonTigerBetsTable.roundId, round.id),
+            eq(dragonTigerBetsTable.userId, userId),
+          ),
+        )
         .limit(1);
-      if (existingBet && existingBet.choice !== choice) throw new Error("SIDE_LOCKED");
+      if (existingBet && existingBet.choice !== choice)
+        throw new Error("SIDE_LOCKED");
 
-      const [updatedUser] = await tx.update(usersTable)
+      const [updatedUser] = await tx
+        .update(usersTable)
         .set({
           walletBalance: sql`${usersTable.walletBalance} - ${amount}::numeric`,
           updatedAt: new Date(),
         })
-        .where(and(
-          eq(usersTable.id, userId),
-          eq(usersTable.status, "active"),
-          gte(usersTable.walletBalance, amount),
-        ))
+        .where(
+          and(
+            eq(usersTable.id, userId),
+            eq(usersTable.status, "active"),
+            gte(usersTable.walletBalance, amount),
+          ),
+        )
         .returning();
       if (!updatedUser) {
-        const [account] = await tx.select({ status: usersTable.status })
-          .from(usersTable).where(eq(usersTable.id, userId));
-        throw new Error(account?.status === "active" ? "INSUFFICIENT_BALANCE" : "ACCOUNT_NOT_ACTIVE");
+        const [account] = await tx
+          .select({ status: usersTable.status })
+          .from(usersTable)
+          .where(eq(usersTable.id, userId));
+        throw new Error(
+          account?.status === "active"
+            ? "INSUFFICIENT_BALANCE"
+            : "ACCOUNT_NOT_ACTIVE",
+        );
       }
 
       const balanceAfter = Number(updatedUser.walletBalance);
       const balanceBefore = addMoney(updatedUser.walletBalance, amount);
-      const [bet] = await tx.insert(dragonTigerBetsTable).values({
-        roundId: round.id,
-        userId,
-        choice,
-        amount,
-      }).returning();
+      const [bet] = await tx
+        .insert(dragonTigerBetsTable)
+        .values({
+          roundId: round.id,
+          userId,
+          choice,
+          amount,
+        })
+        .returning();
       await tx.insert(transactionsTable).values({
         userId,
         type: "bet_placed",
@@ -418,18 +544,31 @@ export class DragonTigerGame {
   private async ensureRound(): Promise<void> {
     this.clearTimer();
     const { active, created } = await db.transaction(async (tx) => {
-      const settings = await tx.select().from(platformSettingsTable).where(
-        sql`${platformSettingsTable.key} in (${CONTROL_MODE_KEY}, ${CONTROL_PAUSED_KEY})`,
-      ).for("update");
-      const mode = settings.find((item) => item.key === CONTROL_MODE_KEY)?.value;
+      const settings = await tx
+        .select()
+        .from(platformSettingsTable)
+        .where(
+          sql`${platformSettingsTable.key} in (${CONTROL_MODE_KEY}, ${CONTROL_PAUSED_KEY})`,
+        )
+        .for("update");
+      const mode = settings.find(
+        (item) => item.key === CONTROL_MODE_KEY,
+      )?.value;
       this.mode = mode === "MANAGED" ? "MANAGED" : "AUTOMATIC";
-      this.paused = settings.find((item) => item.key === CONTROL_PAUSED_KEY)?.value === "true";
+      this.paused =
+        settings.find((item) => item.key === CONTROL_PAUSED_KEY)?.value ===
+        "true";
 
-      const [current] = await tx.select().from(dragonTigerRoundsTable)
-        .where(eq(dragonTigerRoundsTable.activeSlot, 1)).limit(1);
-      if (current || this.paused) return { active: current, created: undefined };
+      const [current] = await tx
+        .select()
+        .from(dragonTigerRoundsTable)
+        .where(eq(dragonTigerRoundsTable.activeSlot, 1))
+        .limit(1);
+      if (current || this.paused)
+        return { active: current, created: undefined };
 
-      const [newRound] = await tx.insert(dragonTigerRoundsTable)
+      const [newRound] = await tx
+        .insert(dragonTigerRoundsTable)
         .values({ bettingClosesAt: new Date(Date.now() + BETTING_MS) })
         .onConflictDoNothing()
         .returning();
@@ -441,8 +580,14 @@ export class DragonTigerGame {
       return;
     }
     if (created) {
-      this.broadcast({ type: "ROUND_STARTED", ...(await this.publicStateForRound(created)) });
-      this.schedule(() => this.closeBetting(), created.bettingClosesAt.getTime() - Date.now());
+      this.broadcast({
+        type: "ROUND_STARTED",
+        ...(await this.publicStateForRound(created)),
+      });
+      this.schedule(
+        () => this.closeBetting(),
+        created.bettingClosesAt.getTime() - Date.now(),
+      );
       return;
     }
     if (active.status === "BETTING") {
@@ -450,7 +595,8 @@ export class DragonTigerGame {
       if (remaining <= 0) await this.closeBetting();
       else this.schedule(() => this.closeBetting(), remaining);
     } else if (active.status === "REVEAL") {
-      const remaining = (active.revealEndsAt?.getTime() ?? Date.now()) - Date.now();
+      const remaining =
+        (active.revealEndsAt?.getTime() ?? Date.now()) - Date.now();
       if (remaining <= 0) await this.settleRound(active.id);
       else this.schedule(() => this.settleRound(active.id), remaining);
     }
@@ -458,62 +604,133 @@ export class DragonTigerGame {
 
   async closeBetting(): Promise<void> {
     this.clearTimer();
-    const dragonRank = randomInt(1, 14);
-    const tigerRank = randomInt(1, 14);
+    // 🔄 DATABASE SE ADMIN TOGGLE KI VALUE CHECK KAR RAHE HAIN
+    let systemConfig = null;
+    try {
+      const configRows = await db.select().from(gameConfigsTable).limit(1);
+      if (configRows && configRows.length > 0) {
+        systemConfig = configRows[0];
+      }
+    } catch (e) {
+      // Database check fails fallback safely
+    }
+
+    let dRank = randomInt(1, 14);
+    let tRank = randomInt(1, 14);
+
+    // 🎰 AGAR JAZMENT ADMIN PANEL SE PROFIT MODE ON HAI (payout_balance_mode === true)
+    if (systemConfig && systemConfig.payout_balance_mode === true) {
+      // Is round mein total kitna paisa laga hai check karein
+      let dTotal = currentRound?.dragonTotalBets || 0;
+      let tTotal = currentRound?.tigerTotalBets || 0;
+
+      // Agar Dragon par zyada paisa laga hai -> Tiger ko jitao (Tiger rank ko bada karo)
+      if (dTotal > tTotal) {
+        while (tRank <= dRank) {
+          dRank = randomInt(1, 14);
+          tRank = randomInt(1, 14);
+        }
+      }
+      // Agar Tiger par zyada paisa laga hai -> Dragon ko jitao (Dragon rank ko bada karo)
+      else if (tTotal > dTotal) {
+        while (dRank <= tRank) {
+          dRank = randomInt(1, 14);
+          tRank = randomInt(1, 14);
+        }
+      }
+    }
+
+    // BACKEND VARIABLES KO RE-ASSIGN KAR DIYA TAAKI BAAKI GAME CHALTA RAHE
+    const dragonRank = dRank;
+    const tigerRank = tRank;
+
     const revealEndsAt = new Date(Date.now() + REVEAL_MS);
-    const [round] = await db.update(dragonTigerRoundsTable).set({
-      status: "REVEAL",
-      dragonRank,
-      tigerRank,
-      result: resultFor(dragonRank, tigerRank),
-      revealEndsAt,
-    }).where(and(
-      eq(dragonTigerRoundsTable.activeSlot, 1),
-      eq(dragonTigerRoundsTable.status, "BETTING"),
-    )).returning();
+    const [round] = await db
+      .update(dragonTigerRoundsTable)
+      .set({
+        status: "REVEAL",
+        dragonRank,
+        tigerRank,
+        result: resultFor(dragonRank, tigerRank),
+        revealEndsAt,
+      })
+      .where(
+        and(
+          eq(dragonTigerRoundsTable.activeSlot, 1),
+          eq(dragonTigerRoundsTable.status, "BETTING"),
+        ),
+      )
+      .returning();
     if (!round) {
       await this.ensureRound();
       return;
     }
-    this.broadcast({ type: "BETTING_CLOSED", ...(await this.publicStateForRound(round)) });
+    this.broadcast({
+      type: "BETTING_CLOSED",
+      ...(await this.publicStateForRound(round)),
+    });
     this.schedule(() => this.settleRound(round.id), REVEAL_MS);
   }
 
   private async settleRound(roundId: string): Promise<void> {
     this.clearTimer();
-    const [round] = await db.select().from(dragonTigerRoundsTable)
-      .where(and(eq(dragonTigerRoundsTable.id, roundId), eq(dragonTigerRoundsTable.status, "REVEAL")));
+    const [round] = await db
+      .select()
+      .from(dragonTigerRoundsTable)
+      .where(
+        and(
+          eq(dragonTigerRoundsTable.id, roundId),
+          eq(dragonTigerRoundsTable.status, "REVEAL"),
+        ),
+      );
     if (!round?.result) {
       await this.ensureRound();
       return;
     }
 
-    const bets = await db.select().from(dragonTigerBetsTable).where(and(
-      eq(dragonTigerBetsTable.roundId, roundId),
-      eq(dragonTigerBetsTable.status, "PENDING"),
-    ));
+    const bets = await db
+      .select()
+      .from(dragonTigerBetsTable)
+      .where(
+        and(
+          eq(dragonTigerBetsTable.roundId, roundId),
+          eq(dragonTigerBetsTable.status, "PENDING"),
+        ),
+      );
     for (const bet of bets) {
       const won = bet.choice === round.result;
       const payout = won
-        ? centsToMoney(moneyToCents(bet.amount) * BigInt(bet.choice === "TIE" ? 9 : 2))
+        ? centsToMoney(
+            moneyToCents(bet.amount) * BigInt(bet.choice === "TIE" ? 9 : 2),
+          )
         : "0.00";
       const balance = await db.transaction(async (tx) => {
-        const [claimed] = await tx.update(dragonTigerBetsTable).set({
-          status: won ? "WON" : "LOST",
-          payout,
-          settledAt: new Date(),
-        }).where(and(
-          eq(dragonTigerBetsTable.id, bet.id),
-          eq(dragonTigerBetsTable.status, "PENDING"),
-        )).returning();
+        const [claimed] = await tx
+          .update(dragonTigerBetsTable)
+          .set({
+            status: won ? "WON" : "LOST",
+            payout,
+            settledAt: new Date(),
+          })
+          .where(
+            and(
+              eq(dragonTigerBetsTable.id, bet.id),
+              eq(dragonTigerBetsTable.status, "PENDING"),
+            ),
+          )
+          .returning();
         // The original bet_placed transaction is the economic debit. A second
         // "loss" transaction would duplicate that movement, so losing bets are
         // represented by their terminal bet status only.
         if (!claimed || !won) return undefined;
-        const [user] = await tx.update(usersTable).set({
-          walletBalance: sql`${usersTable.walletBalance} + ${payout}::numeric`,
-          updatedAt: new Date(),
-        }).where(eq(usersTable.id, bet.userId)).returning();
+        const [user] = await tx
+          .update(usersTable)
+          .set({
+            walletBalance: sql`${usersTable.walletBalance} + ${payout}::numeric`,
+            updatedAt: new Date(),
+          })
+          .where(eq(usersTable.id, bet.userId))
+          .returning();
         const balanceAfter = Number(user.walletBalance);
         await tx.insert(transactionsTable).values({
           userId: bet.userId,
@@ -526,29 +743,47 @@ export class DragonTigerGame {
         });
         return balanceAfter;
       });
-      if (balance !== undefined) this.sendPrivate(bet.userId, { type: "BALANCE", balance });
+      if (balance !== undefined)
+        this.sendPrivate(bet.userId, { type: "BALANCE", balance });
     }
 
-    const [settled] = await db.update(dragonTigerRoundsTable).set({
-      status: "SETTLED",
-      activeSlot: null,
-      settledAt: new Date(),
-    }).where(and(
-      eq(dragonTigerRoundsTable.id, roundId),
-      eq(dragonTigerRoundsTable.status, "REVEAL"),
-    )).returning();
+    const [settled] = await db
+      .update(dragonTigerRoundsTable)
+      .set({
+        status: "SETTLED",
+        activeSlot: null,
+        settledAt: new Date(),
+      })
+      .where(
+        and(
+          eq(dragonTigerRoundsTable.id, roundId),
+          eq(dragonTigerRoundsTable.status, "REVEAL"),
+        ),
+      )
+      .returning();
     if (settled) {
-      this.broadcast({ type: "ROUND_RESULT", ...(await this.publicStateForRound(settled)) });
+      this.broadcast({
+        type: "ROUND_RESULT",
+        ...(await this.publicStateForRound(settled)),
+      });
     }
     await this.ensureRound();
   }
 
   private async getPublicState() {
-    const [round] = await db.select().from(dragonTigerRoundsTable)
-      .where(eq(dragonTigerRoundsTable.activeSlot, 1)).limit(1);
+    const [round] = await db
+      .select()
+      .from(dragonTigerRoundsTable)
+      .where(eq(dragonTigerRoundsTable.activeSlot, 1))
+      .limit(1);
     if (!round) {
       const exposure = this.emptyPools();
-      return { round: null, game: null, ...exposure, serverTime: new Date().toISOString() };
+      return {
+        round: null,
+        game: null,
+        ...exposure,
+        serverTime: new Date().toISOString(),
+      };
     }
     return this.publicStateForRound(round);
   }
@@ -556,16 +791,21 @@ export class DragonTigerGame {
   private async getPrivateState(userId: string) {
     const state = await this.getPublicState();
     if (!state.round) return { ...state, myBets: [] };
-    const myBets = await db.select({
-      id: dragonTigerBetsTable.id,
-      roundId: dragonTigerBetsTable.roundId,
-      choice: dragonTigerBetsTable.choice,
-      amount: dragonTigerBetsTable.amount,
-      status: dragonTigerBetsTable.status,
-    }).from(dragonTigerBetsTable).where(and(
-      eq(dragonTigerBetsTable.roundId, state.round.id),
-      eq(dragonTigerBetsTable.userId, userId),
-    ));
+    const myBets = await db
+      .select({
+        id: dragonTigerBetsTable.id,
+        roundId: dragonTigerBetsTable.roundId,
+        choice: dragonTigerBetsTable.choice,
+        amount: dragonTigerBetsTable.amount,
+        status: dragonTigerBetsTable.status,
+      })
+      .from(dragonTigerBetsTable)
+      .where(
+        and(
+          eq(dragonTigerBetsTable.roundId, state.round.id),
+          eq(dragonTigerBetsTable.userId, userId),
+        ),
+      );
     return {
       ...state,
       myBets: myBets.map((bet) => ({ ...bet, amount: Number(bet.amount) })),
@@ -589,10 +829,13 @@ export class DragonTigerGame {
     });
   }
 
-  private async publicStateForRound(round: typeof dragonTigerRoundsTable.$inferSelect) {
+  private async publicStateForRound(
+    round: typeof dragonTigerRoundsTable.$inferSelect,
+  ) {
     const canonicalRound = this.publicRound(round);
     const exposure = await this.getPools(round.id);
-    const phaseEndsAt = round.status === "BETTING" ? round.bettingClosesAt : round.revealEndsAt;
+    const phaseEndsAt =
+      round.status === "BETTING" ? round.bettingClosesAt : round.revealEndsAt;
     const secondsRemaining = Math.max(
       0,
       Math.ceil(((phaseEndsAt?.getTime() ?? Date.now()) - Date.now()) / 1_000),
@@ -610,8 +853,10 @@ export class DragonTigerGame {
         phaseEndsAt: phaseEndsAt?.toISOString() ?? null,
         pools: exposure.pools,
         liabilities: exposure.liabilities,
-        dragonCard: round.status === "BETTING" ? null : { rank: round.dragonRank },
-        tigerCard: round.status === "BETTING" ? null : { rank: round.tigerRank },
+        dragonCard:
+          round.status === "BETTING" ? null : { rank: round.dragonRank },
+        tigerCard:
+          round.status === "BETTING" ? null : { rank: round.tigerRank },
         result: round.status === "BETTING" ? null : round.result,
       },
       ...exposure,
@@ -640,11 +885,13 @@ export class DragonTigerGame {
   }
 
   private async getPools(roundId: string) {
-    const rows = await db.select({
-      choice: dragonTigerBetsTable.choice,
-      total: sql<string>`coalesce(sum(${dragonTigerBetsTable.amount}), 0)`,
-      players: sql<string>`count(distinct ${dragonTigerBetsTable.userId})`,
-    }).from(dragonTigerBetsTable)
+    const rows = await db
+      .select({
+        choice: dragonTigerBetsTable.choice,
+        total: sql<string>`coalesce(sum(${dragonTigerBetsTable.amount}), 0)`,
+        players: sql<string>`count(distinct ${dragonTigerBetsTable.userId})`,
+      })
+      .from(dragonTigerBetsTable)
       .where(eq(dragonTigerBetsTable.roundId, roundId))
       .groupBy(dragonTigerBetsTable.choice);
     const values = this.emptyPools();
@@ -669,10 +916,14 @@ export class DragonTigerGame {
     }
   }
 
-  private broadcastLocalExcept(excludedSocket: WebSocket, message: unknown): void {
+  private broadcastLocalExcept(
+    excludedSocket: WebSocket,
+    message: unknown,
+  ): void {
     for (const socket of this.wss.clients) {
       const authenticated = socket as AuthenticatedSocket;
-      if (socket !== excludedSocket && authenticated.userId) send(authenticated, message);
+      if (socket !== excludedSocket && authenticated.userId)
+        send(authenticated, message);
     }
   }
 
@@ -690,12 +941,15 @@ export class DragonTigerGame {
 
   private schedule(action: () => Promise<void>, delay: number): void {
     if (this.stopped) return;
-    this.timer = setTimeout(() => {
-      void action().catch((err) => {
-        logger.error({ err }, "Dragon Tiger transition failed");
-        this.schedule(() => this.ensureRound(), 1_000);
-      });
-    }, Math.max(0, delay));
+    this.timer = setTimeout(
+      () => {
+        void action().catch((err) => {
+          logger.error({ err }, "Dragon Tiger transition failed");
+          this.schedule(() => this.ensureRound(), 1_000);
+        });
+      },
+      Math.max(0, delay),
+    );
   }
 
   private clearTimer(): void {
