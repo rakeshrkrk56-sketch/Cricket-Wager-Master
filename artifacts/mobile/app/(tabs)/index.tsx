@@ -991,9 +991,9 @@ function DragonTigerGame() {
       />
       <VersusMark roundId={game.roundId} phase={game.phase} top={layout.CARDS_Y + 35} left={width / 2 - 29} />
 
-      <BetZone title="DRAGON" odds="1:1" choice="DRAGON" layout={layout.DRAGON_ZONE} selected={choice === 'DRAGON'} pool={game.pools.DRAGON} myBet={lockedChoiceRef.current === 'DRAGON' ? stake : 0} isWinner={game.result === 'DRAGON'} onSelect={() => selectChoice('DRAGON')} disabled={!isBetting || (!!choice && choice !== 'DRAGON')} />
-      <BetZone title="TIE" odds="8:1" choice="TIE" layout={layout.TIE_ZONE} selected={choice === 'TIE'} pool={game.pools.TIE} myBet={lockedChoiceRef.current === 'TIE' ? stake : 0} isWinner={game.result === 'TIE'} onSelect={() => selectChoice('TIE')} disabled={!isBetting || (!!choice && choice !== 'TIE')} />
-      <BetZone title="TIGER" odds="1:1" choice="TIGER" layout={layout.TIGER_ZONE} selected={choice === 'TIGER'} pool={game.pools.TIGER} myBet={lockedChoiceRef.current === 'TIGER' ? stake : 0} isWinner={game.result === 'TIGER'} onSelect={() => selectChoice('TIGER')} disabled={!isBetting || (!!choice && choice !== 'TIGER')} />
+      <BetZone title="DRAGON" odds="2x" choice="DRAGON" layout={layout.DRAGON_ZONE} selected={choice === 'DRAGON'} pool={game.pools.DRAGON} myBet={lockedChoiceRef.current === 'DRAGON' ? stake : 0} isWinner={game.result === 'DRAGON'} onSelect={() => selectChoice('DRAGON')} disabled={!isBetting || (!!choice && choice !== 'DRAGON')} />
+      <BetZone title="TIE" odds="8x" choice="TIE" layout={layout.TIE_ZONE} selected={choice === 'TIE'} pool={game.pools.TIE} myBet={lockedChoiceRef.current === 'TIE' ? stake : 0} isWinner={game.result === 'TIE'} onSelect={() => selectChoice('TIE')} disabled={!isBetting || (!!choice && choice !== 'TIE')} />
+      <BetZone title="TIGER" odds="2x" choice="TIGER" layout={layout.TIGER_ZONE} selected={choice === 'TIGER'} pool={game.pools.TIGER} myBet={lockedChoiceRef.current === 'TIGER' ? stake : 0} isWinner={game.result === 'TIGER'} onSelect={() => selectChoice('TIGER')} disabled={!isBetting || (!!choice && choice !== 'TIGER')} />
 
       {chips.map(c => <FlyingChip key={c.id} chip={c} collectorX={width / 2} />)}
 
