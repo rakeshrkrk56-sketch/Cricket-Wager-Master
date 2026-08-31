@@ -175,8 +175,13 @@ export class DragonTigerGame {
 
   async getControlState() {
     await this.refreshControlState();
+    const state = await this.getPublicState();
+    const exposure = state.round
+      ? await this.getPools(state.round.id)
+      : this.emptyPools();
     return {
-      ...(await this.getPublicState()),
+      ...state,
+      ...exposure,
       mode: this.mode,
       paused: this.paused,
     };
@@ -428,14 +433,14 @@ export class DragonTigerGame {
         type: "BET_ACTIVITY",
         roundId: placed.bet.roundId,
         choice: placed.bet.choice,
-        amount: Number(placed.bet.amount),
       };
       this.broadcastLocalExcept(socket, publicBetActivity);
       this.publish("all", publicBetActivity);
+      const { activePlayers } = await this.getPools(placed.bet.roundId);
       this.broadcast({
-        type: "POOLS_UPDATED",
+        type: "PLAYERS_UPDATED",
         roundId: placed.bet.roundId,
-        ...(await this.getPools(placed.bet.roundId)),
+        activePlayers,
       });
     } catch (err) {
       const message =
@@ -740,11 +745,9 @@ export class DragonTigerGame {
       .where(eq(dragonTigerRoundsTable.activeSlot, 1))
       .limit(1);
     if (!round) {
-      const exposure = this.emptyPools();
       return {
         round: null,
         game: null,
-        ...exposure,
         serverTime: new Date().toISOString(),
       };
     }
@@ -796,7 +799,6 @@ export class DragonTigerGame {
     round: typeof dragonTigerRoundsTable.$inferSelect,
   ) {
     const canonicalRound = this.publicRound(round);
-    const exposure = await this.getPools(round.id);
     const phaseEndsAt =
       round.status === "BETTING" ? round.bettingClosesAt : round.revealEndsAt;
     const secondsRemaining = Math.max(
@@ -814,15 +816,12 @@ export class DragonTigerGame {
         remainingSeconds: secondsRemaining,
         timer: secondsRemaining,
         phaseEndsAt: phaseEndsAt?.toISOString() ?? null,
-        pools: exposure.pools,
-        liabilities: exposure.liabilities,
         dragonCard:
           round.status === "BETTING" ? null : { rank: round.dragonRank },
         tigerCard:
           round.status === "BETTING" ? null : { rank: round.tigerRank },
         result: round.status === "BETTING" ? null : round.result,
       },
-      ...exposure,
       serverTime: new Date().toISOString(),
     };
   }

@@ -355,7 +355,7 @@ function DragonTigerGame() {
   const betSequenceRef = useRef(0);
   const resultTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const chipAnimationsRef = useRef(new Map<string, Animated.CompositeAnimation>());
-  const spawnRemoteChipRef = useRef<((amount: number, choice: Choice) => void) | null>(null);
+  const spawnRemoteChipRef = useRef<((choice: Choice) => void) | null>(null);
   const previousPhaseRef = useRef<Phase>('WAITING');
   const countdownSoundRef = useRef('');
   
@@ -462,15 +462,19 @@ function DragonTigerGame() {
           }
           if (type === 'BET_ACTIVITY') {
             const activityChoice = String(payload.choice ?? '').toUpperCase() as Choice;
-            const activityAmount = numberFrom(payload.amount);
             const activityRoundId = String(payload.roundId ?? '');
             if (
               activityRoundId === activeRoundRef.current
               && ['DRAGON', 'TIGER', 'TIE'].includes(activityChoice)
-              && activityAmount > 0
             ) {
-              spawnRemoteChipRef.current?.(activityAmount, activityChoice);
+              spawnRemoteChipRef.current?.(activityChoice);
             }
+          }
+          if (type === 'PLAYERS_UPDATED') {
+            setGame((current) => ({
+              ...current,
+              activePlayers: numberFrom(payload.activePlayers, current.activePlayers),
+            }));
           }
           if (type === 'BET_ACCEPTED' || type === 'BET_PLACED') {
             const acceptedBet = clientBetId ? pendingBetsRef.current.get(clientBetId) : undefined;
@@ -744,8 +748,10 @@ function DragonTigerGame() {
     return id;
   }, [game.roundId, width, height, layout, stopChipAnimations]);
 
-  spawnRemoteChipRef.current = (amount, targetChoice) => {
-    spawnChip(amount, targetChoice, false);
+  spawnRemoteChipRef.current = (targetChoice) => {
+    // Remote chips intentionally use a neutral visual denomination. Their
+    // actual wager amount is never sent to or rendered for other players.
+    spawnChip(100, targetChoice, false);
   };
 
   useEffect(() => {
@@ -1010,9 +1016,9 @@ function DragonTigerGame() {
       />
       <VersusMark roundId={game.roundId} phase={game.phase} top={layout.CARDS_Y + 35} left={width / 2 - 29} />
 
-      <BetZone title="DRAGON" odds="2x" choice="DRAGON" layout={layout.DRAGON_ZONE} selected={choice === 'DRAGON'} pool={game.pools.DRAGON} myBet={lockedChoiceRef.current === 'DRAGON' ? stake : 0} isWinner={game.result === 'DRAGON'} onSelect={() => selectChoice('DRAGON')} disabled={!isBetting || (!!choice && choice !== 'DRAGON')} />
-      <BetZone title="TIE" odds="8x" choice="TIE" layout={layout.TIE_ZONE} selected={choice === 'TIE'} pool={game.pools.TIE} myBet={lockedChoiceRef.current === 'TIE' ? stake : 0} isWinner={game.result === 'TIE'} onSelect={() => selectChoice('TIE')} disabled={!isBetting || (!!choice && choice !== 'TIE')} />
-      <BetZone title="TIGER" odds="2x" choice="TIGER" layout={layout.TIGER_ZONE} selected={choice === 'TIGER'} pool={game.pools.TIGER} myBet={lockedChoiceRef.current === 'TIGER' ? stake : 0} isWinner={game.result === 'TIGER'} onSelect={() => selectChoice('TIGER')} disabled={!isBetting || (!!choice && choice !== 'TIGER')} />
+      <BetZone title="DRAGON" odds="2x" choice="DRAGON" layout={layout.DRAGON_ZONE} selected={choice === 'DRAGON'} myBet={lockedChoiceRef.current === 'DRAGON' ? stake : 0} isWinner={game.result === 'DRAGON'} onSelect={() => selectChoice('DRAGON')} disabled={!isBetting || (!!choice && choice !== 'DRAGON')} />
+      <BetZone title="TIE" odds="8x" choice="TIE" layout={layout.TIE_ZONE} selected={choice === 'TIE'} myBet={lockedChoiceRef.current === 'TIE' ? stake : 0} isWinner={game.result === 'TIE'} onSelect={() => selectChoice('TIE')} disabled={!isBetting || (!!choice && choice !== 'TIE')} />
+      <BetZone title="TIGER" odds="2x" choice="TIGER" layout={layout.TIGER_ZONE} selected={choice === 'TIGER'} myBet={lockedChoiceRef.current === 'TIGER' ? stake : 0} isWinner={game.result === 'TIGER'} onSelect={() => selectChoice('TIGER')} disabled={!isBetting || (!!choice && choice !== 'TIGER')} />
 
       {chips.map(c => <FlyingChip key={c.id} chip={c} collectorX={width / 2} />)}
 
@@ -1241,9 +1247,9 @@ function PlayingCard({
 }
 
 function BetZone({ 
-  title, odds, choice, layout, selected, pool, myBet, isWinner, onSelect, disabled 
+  title, odds, choice, layout, selected, myBet, isWinner, onSelect, disabled 
 }: { 
-  title: string, odds: string, choice: Choice, layout: {x: number, y: number, w: number, h: number}, selected: boolean, pool: number, myBet: number, isWinner: boolean, onSelect: () => void, disabled: boolean 
+  title: string, odds: string, choice: Choice, layout: {x: number, y: number, w: number, h: number}, selected: boolean, myBet: number, isWinner: boolean, onSelect: () => void, disabled: boolean 
 }) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -1288,9 +1294,6 @@ function BetZone({
         >
           <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', letterSpacing: 2 }}>{title}</Text>
           <Text style={{ color: '#FBBF24', fontSize: 14, marginTop: 4, fontWeight: 'bold' }}>{odds}</Text>
-          <View style={{ marginTop: 8, backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
-            <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>₹{pool}</Text>
-          </View>
           {myBet > 0 && (
             <View style={{ position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.8)', padding: 6, borderRadius: 12, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#F59E0B' }}>
               <Text style={{ color: '#F59E0B', fontWeight: 'bold', fontSize: 10 }}>MY BET: ₹{myBet}</Text>
@@ -1302,7 +1305,7 @@ function BetZone({
   );
 }
 
-function Chip({ amount, selected = false }: { amount: number, selected?: boolean }) {
+function Chip({ amount, selected = false, showAmount = true }: { amount: number, selected?: boolean, showAmount?: boolean }) {
   const isHigh = amount >= 100;
   return (
     <View style={{
@@ -1315,7 +1318,11 @@ function Chip({ amount, selected = false }: { amount: number, selected?: boolean
         width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: isHigh ? '#F59E0B' : '#3B82F6',
         alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed'
       }}>
-        <Text style={{ color: isHigh ? '#F59E0B' : '#1E293B', fontWeight: 'bold', fontSize: 14 }}>{amount}</Text>
+        {showAmount ? (
+          <Text style={{ color: isHigh ? '#F59E0B' : '#1E293B', fontWeight: 'bold', fontSize: 14 }}>{amount}</Text>
+        ) : (
+          <DiamondIcon size={16} color="#F59E0B" />
+        )}
       </View>
     </View>
   );
@@ -1328,7 +1335,7 @@ function FlyingChip({ chip, collectorX }: { chip: RenderChip, collectorX: number
   const opacity = chip.anim.interpolate({ inputRange: [0, 0.08, 1, 1.85, 2], outputRange: [0, 1, 1, 1, 0] });
   return (
     <Animated.View style={{ position: 'absolute', opacity, transform: [{ translateX }, { translateY }, { scale }], zIndex: chip.isMine ? 50 : 20 }}>
-      <Chip amount={chip.amount} />
+      <Chip amount={chip.amount} showAmount={chip.isMine} />
     </Animated.View>
   );
 }
