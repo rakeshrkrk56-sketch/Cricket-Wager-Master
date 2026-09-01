@@ -501,9 +501,9 @@ export default function WalletScreen() {
                           </TouchableOpacity>
                         </View>
                       ))}
-                      <View style={s.infoBox}>
+                      <View style={[s.infoBox, s.paymentInfoBox]}>
                         <InfoIcon size={16} color={colors.warning} />
-                         <Text style={s.infoText}>After payment, go to UTR Submit tab and upload your UTR number and screenshot.</Text>
+                         <Text style={[s.infoText, s.paymentInfoText]}>After payment, go to UTR Submit tab and upload your UTR number and screenshot.</Text>
                       </View>
                     </>
                   )}
@@ -696,7 +696,7 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   depTabActive: { backgroundColor: colors.card },
   depTabText: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' },
   amountLabel: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 8 },
-  amountInput: { backgroundColor: colors.muted, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 14, fontSize: 22, color: colors.foreground, fontFamily: 'Inter_600SemiBold', borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
+  amountInput: { backgroundColor: colors.muted, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, minHeight: 48, fontSize: 20, color: colors.foreground, fontFamily: 'Inter_600SemiBold', borderWidth: 1, borderColor: colors.border, marginBottom: 10 },
   bonusCard: { backgroundColor: colors.success + '12', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.success + '45', marginBottom: 12, gap: 8 },
   bonusHeader: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   bonusTitle: { fontSize: 14, color: colors.success, fontFamily: 'Inter_700Bold' },
@@ -712,21 +712,23 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   balHint: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 16 },
   upiSection: { gap: 12 },
   upiHint: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-  upiOptionCard: { backgroundColor: colors.muted, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: colors.border, gap: 10 },
+  upiOptionCard: { backgroundColor: colors.muted, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: colors.border, gap: 12 },
   upiOptionHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
   upiOptionBadge: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.primary + '25', alignItems: 'center' as const, justifyContent: 'center' as const },
   upiOptionBadgeText: { fontSize: 11, fontFamily: 'Inter_700Bold', color: colors.primary },
   upiOptionLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: colors.foreground, flex: 1 },
-  upiOptionIdRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: colors.background, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: colors.primary + '30' },
-  upiOptionId: { flex: 1, fontSize: 14, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
+  upiOptionIdRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: colors.background, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 15, minHeight: 54, borderWidth: 1, borderColor: colors.primary + '45' },
+  upiOptionId: { flex: 1, fontSize: 15, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
   upiPayBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 10 },
   upiPayBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#fff' },
-  upiIdRow: { gap: 8 },
+  upiIdRow: { gap: 10 },
   upiIdLabel: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
-  copyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.muted, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: colors.primary + '40' },
-  upiId: { flex: 1, fontSize: 15, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
+  copyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.muted, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 16, minHeight: 58, borderWidth: 1, borderColor: colors.primary + '45' },
+  upiId: { flex: 1, fontSize: 16, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
   infoBox: { flexDirection: 'row', gap: 8, backgroundColor: colors.warning + '15', borderRadius: 10, padding: 12, alignItems: 'flex-start' },
   infoText: { flex: 1, fontSize: 12, color: colors.warning, fontFamily: 'Inter_400Regular', lineHeight: 17 },
+  paymentInfoBox: { gap: 10, borderRadius: 12, padding: 15, marginTop: 2 },
+  paymentInfoText: { fontSize: 13, lineHeight: 20 },
   screenshotBtn: { backgroundColor: colors.muted, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed', marginBottom: 20, alignItems: 'center' },
   screenshotText: { fontSize: 14, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' },
   confirmBtn: { backgroundColor: colors.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center', shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
