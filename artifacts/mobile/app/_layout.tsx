@@ -38,8 +38,14 @@ queryClient.setQueryDefaults(getGetWalletQueryKey(), {
 function RootLayoutNav() {
   const { isLoading: authLoading } = useAuth();
   const { isReady: langReady } = useLanguage();
+  const [authStartupTimedOut, setAuthStartupTimedOut] = React.useState(false);
 
-  if (authLoading || !langReady) {
+  useEffect(() => {
+    const timeout = setTimeout(() => setAuthStartupTimedOut(true), 12_000);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  if ((authLoading && !authStartupTimedOut) || !langReady) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8f9fb' }}>
         <ActivityIndicator color="#ff7a00" size="large" />

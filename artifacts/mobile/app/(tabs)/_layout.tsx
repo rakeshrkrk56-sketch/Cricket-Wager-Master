@@ -3,7 +3,6 @@ import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { BlurView } from 'expo-blur';
 import { Tabs, useGlobalSearchParams } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { BellIcon, HeadsetIcon, HomeIcon, WalletIcon } from '@/components/AppIcons';
 
@@ -80,7 +79,5 @@ function ClassicTabLayout() {
   );
 }
 export default function TabLayout() {
-  const { isLoading } = useAuth();
-  if (isLoading) return null;
   return <ClassicTabLayout />;
 }

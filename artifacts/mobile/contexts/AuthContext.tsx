@@ -17,6 +17,7 @@ const USER_KEY = 'jazment_user';
 const INSTALLATION_ID_KEY = 'jazment_installation_id';
 const INSTALLATION_SECRET_KEY = 'jazment_installation_secret';
 const GUEST_SESSION_TIMEOUT_MS = 10_000;
+const AUTH_RESTORE_TIMEOUT_MS = 12_000;
 interface AuthContextValue {
   token: string | null;
   user: AuthUser | null;
@@ -72,10 +73,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+    let restoreTimedOut = false;
+    const restoreTimeout = setTimeout(() => {
+      restoreTimedOut = true;
+      if (mounted) {
+        setAuthTokenGetter(() => null);
+        setIsLoading(false);
+        console.warn('Auth restore timed out; continuing without a blocking startup screen');
+      }
+    }, AUTH_RESTORE_TIMEOUT_MS);
+
     (async () => {
       try {
         const storedToken = await AsyncStorage.getItem(TOKEN_KEY);
         const storedUser = await AsyncStorage.getItem(USER_KEY);
+        if (restoreTimedOut) return;
         if (storedToken && storedUser) {
           const parsedUser = JSON.parse(storedUser) as AuthUser;
           setAuthTokenGetter(() => storedToken);
@@ -88,9 +101,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Unable to restore auth session', error);
         setAuthTokenGetter(() => null);
       } finally {
-        setIsLoading(false);
+        clearTimeout(restoreTimeout);
+        if (mounted && !restoreTimedOut) setIsLoading(false);
       }
     })();
+
+    return () => {
+      mounted = false;
+      clearTimeout(restoreTimeout);
+    };
   }, [startGuestSession]);
 
   // Register token getter so all API calls include Authorization header
