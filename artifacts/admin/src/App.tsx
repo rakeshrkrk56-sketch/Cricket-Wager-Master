@@ -17,6 +17,7 @@ import { GameControl } from '@/pages/GameControl';
 import { Settings } from '@/pages/Settings';
 import { Login } from '@/pages/Login';
 import { PendingRequestAlertsProvider } from '@/components/PendingRequestAlerts';
+import { LandingPage } from '@/pages/LandingPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,7 +49,7 @@ function Router() {
       </Route>
       
       <Route path="/">
-        <ProtectedRoute component={Dashboard} />
+        {isAuthenticated ? <ProtectedRoute component={Dashboard} /> : <LandingPage />}
       </Route>
       <Route path="/users">
         <ProtectedRoute component={Users} />
