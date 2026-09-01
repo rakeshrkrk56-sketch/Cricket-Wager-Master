@@ -13,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import {
   CheckCircleIcon,
   CopyIcon,
@@ -475,12 +476,20 @@ export default function WalletScreen() {
 
       {/* ── Deposit Modal ── */}
       <Modal visible={showDeposit} transparent animationType="slide">
-        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowDeposit(false)}>
-          <TouchableOpacity activeOpacity={1} style={s.sheet} onPress={() => {}}>
+        <View style={s.overlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={() => setShowDeposit(false)} />
+          <View style={s.sheet}>
             <View style={s.sheetHandle} />
             <Text style={s.sheetTitle}>{t('wallet_deposit_btn')}</Text>
 
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <KeyboardAwareScrollViewCompat
+              style={s.sheetScroll}
+              contentContainerStyle={s.sheetScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              bottomOffset={20}
+            >
               <View style={s.depositSection}>
                 <View style={s.sectionHeader}>
                   <View style={s.stepBadge}><Text style={s.stepBadgeText}>1</Text></View>
@@ -598,15 +607,16 @@ export default function WalletScreen() {
                   {createDeposit.isPending ? <ActivityIndicator color={colors.primaryForeground} /> : <Text style={s.confirmText}>{t('wallet_submit_deposit')}</Text>}
                 </TouchableOpacity>
               </View>
-            </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
+            </KeyboardAwareScrollViewCompat>
+          </View>
+        </View>
       </Modal>
 
       {/* ── Withdrawal Modal ── */}
       <Modal visible={showWithdraw} transparent animationType="slide">
-        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowWithdraw(false)}>
-          <TouchableOpacity activeOpacity={1} style={s.sheet} onPress={() => {}}>
+        <View style={s.overlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={() => setShowWithdraw(false)} />
+          <View style={s.sheet}>
             <View style={s.sheetHandle} />
             <Text style={s.sheetTitle}>{t('wallet_withdraw_btn')}</Text>
 
@@ -621,7 +631,14 @@ export default function WalletScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <KeyboardAwareScrollViewCompat
+              style={s.sheetScroll}
+              contentContainerStyle={s.sheetScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              bottomOffset={20}
+            >
               <Text style={s.amountLabel}>{t('wallet_amount_label')} (min ₹500)</Text>
               <TextInput style={s.amountInput} placeholder="₹500" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" value={wdAmount} onChangeText={setWdAmount} />
               <View style={s.quickAmounts}>
@@ -678,9 +695,9 @@ export default function WalletScreen() {
               <TouchableOpacity style={[s.confirmBtn, createWithdrawal.isPending && s.btnDisabled, { marginTop: 20, marginBottom: 8 }]} onPress={handleWithdrawal} disabled={createWithdrawal.isPending} activeOpacity={0.85}>
                 {createWithdrawal.isPending ? <ActivityIndicator color={colors.primaryForeground} /> : <Text style={s.confirmText}>{t('wallet_submit_withdraw')}</Text>}
               </TouchableOpacity>
-            </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
+            </KeyboardAwareScrollViewCompat>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -720,7 +737,9 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   depMethod: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 2 },
   depTime: { fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: 2 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: insets.bottom + 20, maxHeight: '86%' },
+  sheet: { backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: insets.bottom + 20, height: '86%', maxHeight: '86%', flexShrink: 1 },
+  sheetScroll: { flexShrink: 1 },
+  sheetScrollContent: { paddingBottom: 4 },
   sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 14 },
   sheetTitle: { fontSize: 20, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 14 },
   depTabs: { flexDirection: 'row', backgroundColor: colors.muted, borderRadius: 10, padding: 4, marginBottom: 14 },
