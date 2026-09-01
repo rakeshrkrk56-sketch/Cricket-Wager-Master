@@ -245,7 +245,7 @@ export const verifyOtpBodyOtpMax = 4;
 
 
 export const VerifyOtpBody = zod.object({
-  "name": zod.string().min(1).max(verifyOtpBodyNameMax),
+  "name": zod.string().min(1).max(verifyOtpBodyNameMax).optional().describe('Display name required only when this verified mobile number creates a new account.'),
   "phone": zod.string(),
   "otp": zod.string().min(verifyOtpBodyOtpMin).max(verifyOtpBodyOtpMax)
 })
@@ -291,7 +291,7 @@ export const verifyOtpAliasBodyOtpMax = 4;
 
 
 export const VerifyOtpAliasBody = zod.object({
-  "name": zod.string().min(1).max(verifyOtpAliasBodyNameMax),
+  "name": zod.string().min(1).max(verifyOtpAliasBodyNameMax).optional().describe('Display name required only when this verified mobile number creates a new account.'),
   "phone": zod.string(),
   "otp": zod.string().min(verifyOtpAliasBodyOtpMin).max(verifyOtpAliasBodyOtpMax)
 })

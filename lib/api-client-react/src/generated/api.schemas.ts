@@ -167,10 +167,11 @@ export interface SendOtpResponse {
 
 export interface VerifyOtpRequest {
   /**
+     * Display name required only when this verified mobile number creates a new account.
      * @minLength 1
      * @maxLength 32
      */
-  name: string;
+  name?: string;
   phone: string;
   /**
      * @minLength 4

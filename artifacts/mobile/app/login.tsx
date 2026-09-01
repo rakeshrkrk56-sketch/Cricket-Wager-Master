@@ -27,6 +27,7 @@ export default function LoginScreen() {
   }, [token, openedFromProfile]);
 
   const [name, setName] = useState('');
+  const [needsName, setNeedsName] = useState(false);
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
@@ -35,7 +36,6 @@ export default function LoginScreen() {
   const verifyOtp = useVerifyOtp();
 
   const handleSendOtp = () => {
-    if (!name.trim()) { Alert.alert('User Name Required', 'Enter the display name you want to use.'); return; }
     const cleaned = phone.trim();
     if (!cleaned) { Alert.alert(t('login_empty_number_title'), t('login_empty_number_msg')); return; }
     const full = cleaned.startsWith('+') ? cleaned : `+91${cleaned}`;
@@ -52,7 +52,7 @@ export default function LoginScreen() {
     if (!otp.trim()) { Alert.alert(t('login_empty_otp_title'), t('login_empty_otp_msg')); return; }
     const cleaned = phone.trim();
     const full = cleaned.startsWith('+') ? cleaned : `+91${cleaned}`;
-    verifyOtp.mutate({ data: { name: name.trim(), phone: full, otp: otp.trim() } }, {
+    verifyOtp.mutate({ data: { ...(needsName ? { name: name.trim() } : {}), phone: full, otp: otp.trim() } }, {
       onSuccess: (data) => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         login(data.token, {
@@ -65,7 +65,11 @@ export default function LoginScreen() {
           role: data.user.role,
         }).then(() => router.replace('/(tabs)'));
       },
-      onError: () => {
+      onError: (error: any) => {
+        if (error?.status === 400 && error?.data?.code === 'NAME_REQUIRED') {
+          setNeedsName(true);
+          return;
+        }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert(t('login_wrong_otp_title'), t('login_wrong_otp_msg'));
       },
@@ -92,27 +96,18 @@ export default function LoginScreen() {
 
         <View style={s.card}>
           <Text style={s.cardTitle}>
-            {step === 'phone' ? t('login_enter_mobile') : t('login_enter_otp')}
+              {step === 'phone' ? t('login_enter_mobile') : t('login_enter_otp')}
           </Text>
           <Text style={s.cardSubtitle}>
-            {step === 'phone'
-              ? 'A 4-digit verification code will be sent to your WhatsApp.'
-              : t('login_otp_sent_to', phone)}
+              {step === 'phone'
+                ? 'A 4-digit verification code will be sent to your WhatsApp.'
+                : needsName
+                  ? 'This mobile number is new. Choose a username to finish creating your account.'
+                  : t('login_otp_sent_to', phone)}
           </Text>
 
           {step === 'phone' ? (
             <>
-              <TextInput
-                style={s.input}
-                placeholder="User Name"
-                placeholderTextColor={colors.mutedForeground}
-                value={name}
-                onChangeText={setName}
-                maxLength={32}
-                autoCapitalize="words"
-                returnKeyType="next"
-                accessibilityLabel="User Name"
-              />
               <View style={s.inputRow}>
                 <View style={s.prefix}><Text style={s.prefixText}>+91</Text></View>
                 <TextInput
@@ -130,19 +125,35 @@ export default function LoginScreen() {
               </View>
             </>
           ) : (
-            <TextInput
-              style={[s.input, s.otpInput]}
-              placeholder={t('login_enter_otp')}
-              placeholderTextColor={colors.mutedForeground}
-              keyboardType="number-pad"
-              maxLength={4}
-              value={otp}
-              onChangeText={setOtp}
-              returnKeyType="done"
-              autoFocus
-              onSubmitEditing={handleVerifyOtp}
-              accessibilityLabel="WhatsApp OTP"
-            />
+            <>
+              <TextInput
+                style={[s.input, s.otpInput]}
+                placeholder={t('login_enter_otp')}
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="number-pad"
+                maxLength={4}
+                value={otp}
+                onChangeText={setOtp}
+                returnKeyType={needsName ? 'next' : 'done'}
+                autoFocus
+                onSubmitEditing={needsName ? undefined : handleVerifyOtp}
+                accessibilityLabel="WhatsApp OTP"
+              />
+              {needsName && (
+                <TextInput
+                  style={s.input}
+                  placeholder="Choose a username"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={name}
+                  onChangeText={setName}
+                  maxLength={32}
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                  onSubmitEditing={handleVerifyOtp}
+                  accessibilityLabel="Choose a username"
+                />
+              )}
+            </>
           )}
 
           <TouchableOpacity
@@ -161,7 +172,15 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           {step === 'otp' && (
-            <TouchableOpacity onPress={() => setStep('phone')} style={s.backBtn}>
+            <TouchableOpacity
+              onPress={() => {
+                setStep('phone');
+                setOtp('');
+                setName('');
+                setNeedsName(false);
+              }}
+              style={s.backBtn}
+            >
               <Text style={s.backText}>{t('login_change_number')}</Text>
             </TouchableOpacity>
           )}

@@ -226,11 +226,7 @@ const verifyOtpHandler = async (req: Request, res: Response): Promise<void> => {
     return;
   }
   const { otp } = parsed.data;
-  const displayName = parsed.data.name.trim();
-  if (!displayName) {
-    res.status(400).json({ error: "User name is required" });
-    return;
-  }
+  const displayName = parsed.data.name?.trim() ?? "";
   const phone = normalizePhone(parsed.data.phone);
   const mobile = toFast2smsMobile(phone);
   if (!mobile) {
@@ -263,6 +259,23 @@ const verifyOtpHandler = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
+  // A phone number identifies the account. Look it up before consuming the
+  // challenge so a new user can supply a name in a retry without requesting a
+  // second OTP. Existing users never have their saved name overwritten by a
+  // value from a later login.
+  let [existingUser] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.phone, phone))
+    .limit(1);
+  if (!existingUser && !displayName) {
+    res.status(400).json({
+      error: "Choose a username to finish creating your account",
+      code: "NAME_REQUIRED",
+    });
+    return;
+  }
+
   const [consumed] = await db.update(otpChallengesTable)
     .set({ consumedAt: new Date() })
     .where(and(eq(otpChallengesTable.id, challenge.id), isNull(otpChallengesTable.consumedAt)))
@@ -274,7 +287,7 @@ const verifyOtpHandler = async (req: Request, res: Response): Promise<void> => {
 
   // Get or create user — race-safe: if two logins hit at once, the unique
   // constraint on phone ensures only one row is created; the loser re-selects.
-  let [user] = await db.select().from(usersTable).where(eq(usersTable.phone, phone));
+  let user = existingUser;
   if (!user) {
     const inserted = await db
       .insert(usersTable)
@@ -293,11 +306,9 @@ const verifyOtpHandler = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  [user] = await db
-    .update(usersTable)
-    .set({ name: displayName, updatedAt: new Date() })
-    .where(eq(usersTable.id, user.id))
-    .returning();
+  // Do not replace an existing user's profile name during phone login.
+  // This prevents the same mobile number from appearing under a different
+  // username on the next login.
 
   // Record login history (non-blocking)
   const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.socket.remoteAddress ?? undefined;

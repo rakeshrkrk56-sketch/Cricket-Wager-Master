@@ -1380,6 +1380,7 @@ components:
       properties:
         name:
           type: string
+          description: Display name required only when this verified mobile number creates a new account.
           minLength: 1
           maxLength: 32
         phone:
@@ -1389,7 +1390,6 @@ components:
           minLength: 4
           maxLength: 4
       required:
-        - name
         - phone
         - otp
 
