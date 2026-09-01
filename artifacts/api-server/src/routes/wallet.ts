@@ -1,71 +1,40 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, transactionsTable, depositsTable } from "@workspace/db";
 import { eq, desc, count, and } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, requireNotHold } from "../middlewares/auth";
+import { getWalletAccounting } from "../lib/walletAccounting";
 import {
   DepositWalletBody,
   WithdrawWalletBody,
   GetWalletResponse,
-  DepositWalletResponse,
-  WithdrawWalletResponse,
   GetTransactionsQueryParams,
   GetTransactionsResponse,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-function walletResponse(user: any) {
-  return {
-    userId: user.id,
-    balance: Number(user.walletBalance),
-    depositTotal: 0,
-    withdrawTotal: 0,
-    winTotal: 0,
-    bonusTotal: 0,
-    firstDepositBonusAvailable: true,
+async function getWalletResponse(userId: string, balance: number) {
+  const accounting = await getWalletAccounting(db, userId, balance);
+  const [approvedDeposit] = await db
+    .select({ id: depositsTable.id })
+    .from(depositsTable)
+    .where(and(eq(depositsTable.userId, userId), eq(depositsTable.status, "approved")))
+    .limit(1);
+
+  return GetWalletResponse.parse({
+    userId,
+    balance,
+    ...accounting,
+    firstDepositBonusAvailable: !approvedDeposit,
     depositBonusPercent: 30,
     depositBonusThreshold: 100,
-  };
+  });
 }
 
 router.get("/wallet", requireAuth, async (req, res): Promise<void> => {
   const user = (req as any).user;
 
-  // Compute totals from transactions
-  const txs = await db
-    .select()
-    .from(transactionsTable)
-    .where(eq(transactionsTable.userId, user.id));
-
-  let depositTotal = 0, withdrawTotal = 0, winTotal = 0, bonusTotal = 0;
-  for (const tx of txs) {
-    const amt = Number(tx.amount);
-    if (tx.type === "deposit") depositTotal += amt;
-    else if (tx.type === "withdraw") withdrawTotal += amt;
-    else if (tx.type === "win") winTotal += amt;
-    else if (tx.type === "bonus") bonusTotal += amt;
-    // bet_placed and loss are prediction stakes/outcomes, not withdrawals — excluded from totals
-  }
-
-  const [approvedDeposit] = await db
-    .select({ id: depositsTable.id })
-    .from(depositsTable)
-    .where(and(eq(depositsTable.userId, user.id), eq(depositsTable.status, "approved")))
-    .limit(1);
-
-  res.json(
-    GetWalletResponse.parse({
-      userId: user.id,
-      balance: Number(user.walletBalance),
-      depositTotal,
-      withdrawTotal,
-      winTotal,
-      bonusTotal,
-      firstDepositBonusAvailable: !approvedDeposit,
-      depositBonusPercent: 30,
-      depositBonusThreshold: 100,
-    })
-  );
+  res.json(await getWalletResponse(user.id, Number(user.walletBalance)));
 });
 
 router.post("/wallet/deposit", requireAuth, async (req, res): Promise<void> => {
@@ -89,22 +58,10 @@ router.post("/wallet/deposit", requireAuth, async (req, res): Promise<void> => {
     note: parsed.data.note,
   });
 
-  res.json(
-    DepositWalletResponse.parse({
-      userId: user.id,
-      balance: newBalance,
-      depositTotal: 0,
-      withdrawTotal: 0,
-      winTotal: 0,
-      bonusTotal: 0,
-      firstDepositBonusAvailable: false,
-      depositBonusPercent: 30,
-      depositBonusThreshold: 100,
-    })
-  );
+  res.json(await getWalletResponse(user.id, newBalance));
 });
 
-router.post("/wallet/withdraw", requireAuth, async (req, res): Promise<void> => {
+router.post("/wallet/withdraw", requireAuth, requireNotHold, async (req, res): Promise<void> => {
   const parsed = WithdrawWalletBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -112,37 +69,59 @@ router.post("/wallet/withdraw", requireAuth, async (req, res): Promise<void> => 
   }
   const user = (req as any).user;
   const amount = parsed.data.amount;
-  const currentBalance = Number(user.walletBalance);
-
-  if (currentBalance < amount) {
-    res.status(400).json({ error: "Insufficient balance" });
+  if (amount < 500) {
+    res.status(400).json({ error: "Minimum withdrawal amount is ₹500" });
     return;
   }
-  const newBalance = currentBalance - amount;
+  let newBalance = 0;
 
-  await db.update(usersTable).set({ walletBalance: String(newBalance) }).where(eq(usersTable.id, user.id));
-  await db.insert(transactionsTable).values({
-    userId: user.id,
-    type: "withdraw",
-    amount: String(amount),
-    balanceBefore: String(currentBalance),
-    balanceAfter: String(newBalance),
-    note: parsed.data.note,
-  });
+  try {
+    await db.transaction(async (tx) => {
+      const [lockedUser] = await tx
+        .select({ id: usersTable.id, walletBalance: usersTable.walletBalance })
+        .from(usersTable)
+        .where(eq(usersTable.id, user.id))
+        .for("update");
 
-  res.json(
-    WithdrawWalletResponse.parse({
-      userId: user.id,
-      balance: newBalance,
-      depositTotal: 0,
-      withdrawTotal: 0,
-      winTotal: 0,
-      bonusTotal: 0,
-      firstDepositBonusAvailable: true,
-      depositBonusPercent: 30,
-      depositBonusThreshold: 100,
-    })
-  );
+      if (!lockedUser) {
+        throw Object.assign(new Error("User not found"), { userMissing: true });
+      }
+
+      const currentBalance = Number(lockedUser.walletBalance);
+      const accounting = await getWalletAccounting(tx, lockedUser.id, currentBalance);
+      if (accounting.withdrawableWinnings < amount) {
+        throw Object.assign(
+          new Error(`Only winnings can be withdrawn. Withdrawable winnings: ₹${accounting.withdrawableWinnings.toFixed(0)}`),
+          { insufficientWinnings: true },
+        );
+      }
+
+      newBalance = currentBalance - amount;
+      await tx.update(usersTable)
+        .set({ walletBalance: String(newBalance), updatedAt: new Date() })
+        .where(eq(usersTable.id, lockedUser.id));
+      await tx.insert(transactionsTable).values({
+        userId: lockedUser.id,
+        type: "withdraw",
+        amount: String(amount),
+        balanceBefore: String(currentBalance),
+        balanceAfter: String(newBalance),
+        note: parsed.data.note,
+      });
+    });
+  } catch (err: any) {
+    if (err.insufficientWinnings) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    if (err.userMissing) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    throw err;
+  }
+
+  res.json(await getWalletResponse(user.id, newBalance));
 });
 
 router.get("/wallet/transactions", requireAuth, async (req, res): Promise<void> => {

@@ -296,10 +296,22 @@ export interface AdminWalletAdjustResponse {
 export interface Wallet {
   userId: string;
   balance: number;
+  /** Total approved deposit funds credited to the wallet. These funds are playable but not withdrawable. */
   depositTotal: number;
+  /** Remaining deposited funds available for play. These funds are not withdrawable. */
+  depositBalance: number;
+  /** Total withdrawal amount already approved and processed. */
   withdrawTotal: number;
+  /** Total winnings credited from settled games and predictions. */
   winTotal: number;
+  /** Total bonus funds credited to the wallet. Bonus funds are playable but not withdrawable. */
   bonusTotal: number;
+  /** Remaining bonus funds available for play. These funds are not withdrawable. */
+  bonusBalance: number;
+  /** Withdrawal requests awaiting admin approval. */
+  pendingWithdrawalTotal: number;
+  /** Current winnings available to withdraw after approved and pending withdrawals, capped by the wallet balance. */
+  withdrawableWinnings: number;
   firstDepositBonusAvailable: boolean;
   depositBonusPercent: number;
   depositBonusThreshold: number;

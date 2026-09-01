@@ -1535,12 +1535,28 @@ components:
           type: number
         depositTotal:
           type: number
+          description: Total approved deposit funds credited to the wallet. These funds are playable but not withdrawable.
+        depositBalance:
+          type: number
+          description: Remaining deposited funds available for play. These funds are not withdrawable.
         withdrawTotal:
           type: number
+          description: Total withdrawal amount already approved and processed.
         winTotal:
           type: number
+          description: Total winnings credited from settled games and predictions.
         bonusTotal:
           type: number
+          description: Total bonus funds credited to the wallet. Bonus funds are playable but not withdrawable.
+        bonusBalance:
+          type: number
+          description: Remaining bonus funds available for play. These funds are not withdrawable.
+        pendingWithdrawalTotal:
+          type: number
+          description: Withdrawal requests awaiting admin approval.
+        withdrawableWinnings:
+          type: number
+          description: Current winnings available to withdraw after approved and pending withdrawals, capped by the wallet balance.
         firstDepositBonusAvailable:
           type: boolean
         depositBonusPercent:
@@ -1551,9 +1567,13 @@ components:
         - userId
         - balance
         - depositTotal
+        - depositBalance
         - withdrawTotal
         - winTotal
         - bonusTotal
+        - bonusBalance
+        - pendingWithdrawalTotal
+        - withdrawableWinnings
         - firstDepositBonusAvailable
         - depositBonusPercent
         - depositBonusThreshold

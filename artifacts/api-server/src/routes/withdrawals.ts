@@ -3,6 +3,7 @@ import { db, withdrawalsTable, usersTable, transactionsTable } from "@workspace/
 import { eq, and, desc, count, like, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin, requireNotHold } from "../middlewares/auth";
 import { createNotification } from "../lib/createNotification";
+import { getWalletAccounting } from "../lib/walletAccounting";
 
 const router: IRouter = Router();
 
@@ -21,30 +22,50 @@ router.post("/withdrawals", requireAuth, requireNotHold, async (req, res): Promi
     return;
   }
 
-  // Calculate available balance (wallet - pending withdrawals)
-  const [pendingResult] = await db
-    .select({ total: sql<string>`coalesce(sum(amount::numeric), 0)` })
-    .from(withdrawalsTable)
-    .where(and(eq(withdrawalsTable.userId, user.id), eq(withdrawalsTable.status, "pending")));
-
-  const pendingTotal = Number(pendingResult?.total ?? 0);
-  const availableBalance = Number(user.walletBalance) - pendingTotal;
   const amt = Number(amount);
+  let withdrawal: any;
+  let withdrawableWinnings = 0;
 
-  if (availableBalance < amt) {
-    res.status(400).json({
-      error: `Insufficient available balance. Available: ₹${availableBalance.toFixed(0)} (wallet: ₹${Number(user.walletBalance).toFixed(0)}, pending withdrawals: ₹${pendingTotal.toFixed(0)})`,
+  try {
+    await db.transaction(async (tx) => {
+      const [lockedUser] = await tx
+        .select({ id: usersTable.id, walletBalance: usersTable.walletBalance })
+        .from(usersTable)
+        .where(eq(usersTable.id, user.id))
+        .for("update");
+
+      if (!lockedUser) {
+        throw Object.assign(new Error("User not found"), { userMissing: true });
+      }
+
+      const accounting = await getWalletAccounting(tx, lockedUser.id, Number(lockedUser.walletBalance));
+      withdrawableWinnings = accounting.withdrawableWinnings;
+      if (withdrawableWinnings < amt) {
+        throw Object.assign(
+          new Error(`Only winnings can be withdrawn. Withdrawable winnings: ₹${withdrawableWinnings.toFixed(0)}`),
+          { insufficientWinnings: true },
+        );
+      }
+
+      [withdrawal] = await tx.insert(withdrawalsTable).values({
+        userId: lockedUser.id,
+        amount: String(amt),
+        upiId: upiId ?? null,
+        bankAccount: bankAccount ?? null,
+        status: "pending",
+      }).returning();
     });
-    return;
+  } catch (err: any) {
+    if (err.insufficientWinnings) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    if (err.userMissing) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    throw err;
   }
-
-  const [withdrawal] = await db.insert(withdrawalsTable).values({
-    userId: user.id,
-    amount: String(amt),
-    upiId: upiId ?? null,
-    bankAccount: bankAccount ?? null,
-    status: "pending",
-  }).returning();
 
   await createNotification(user.id, "withdrawal_submitted",
     "Withdrawal Request Submitted",
@@ -132,13 +153,19 @@ router.post("/admin/withdrawals/:withdrawalId/approve", requireAdmin, async (req
     .from(withdrawalsTable).where(eq(withdrawalsTable.id, withdrawalId));
   if (!withdrawalCheck) { res.status(404).json({ error: "Withdrawal not found" }); return; }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, withdrawalCheck.userId));
-  if (!user) { res.status(404).json({ error: "User not found" }); return; }
-
   let balanceAfter: number | null = null;
 
   try {
     await db.transaction(async (tx) => {
+      const [lockedUser] = await tx
+        .select({ id: usersTable.id, walletBalance: usersTable.walletBalance })
+        .from(usersTable)
+        .where(eq(usersTable.id, withdrawalCheck.userId))
+        .for("update");
+      if (!lockedUser) {
+        throw Object.assign(new Error("User not found"), { userMissing: true });
+      }
+
       // Atomic conditional update: only succeeds if status is still "pending".
       // This eliminates the TOCTOU race — concurrent approvals cannot both win.
       const [approved] = await tx
@@ -152,7 +179,7 @@ router.post("/admin/withdrawals/:withdrawalId/approve", requireAdmin, async (req
       }
 
       const amount = Number(approved.amount);
-      const balanceBefore = Number(user.walletBalance);
+      const balanceBefore = Number(lockedUser.walletBalance);
 
       // Re-validate balance inside the transaction (prevents overdraft under concurrent load)
       if (balanceBefore < amount) {
@@ -162,14 +189,22 @@ router.post("/admin/withdrawals/:withdrawalId/approve", requireAdmin, async (req
         );
       }
 
+      const accounting = await getWalletAccounting(tx, lockedUser.id, balanceBefore);
+      if (accounting.withdrawableWinnings < amount) {
+        throw Object.assign(
+          new Error(`User has insufficient withdrawable winnings. Available: ₹${accounting.withdrawableWinnings.toFixed(0)}`),
+          { insufficientWinnings: true },
+        );
+      }
+
       balanceAfter = balanceBefore - amount;
 
       await tx.update(usersTable)
         .set({ walletBalance: String(balanceAfter), updatedAt: new Date() })
-        .where(eq(usersTable.id, user.id));
+        .where(eq(usersTable.id, lockedUser.id));
 
       await tx.insert(transactionsTable).values({
-        userId: user.id,
+        userId: lockedUser.id,
         type: "withdraw",
         amount: String(amount),
         balanceBefore: String(balanceBefore),
@@ -187,10 +222,18 @@ router.post("/admin/withdrawals/:withdrawalId/approve", requireAdmin, async (req
       res.status(400).json({ error: "User has insufficient balance at approval time" });
       return;
     }
+    if (err.insufficientWinnings) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    if (err.userMissing) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
     throw err;
   }
 
-  await createNotification(user.id, "withdrawal_approved",
+  await createNotification(withdrawalCheck.userId, "withdrawal_approved",
     "Withdrawal Approved ✓",
     `Your withdrawal has been approved and processed.`
   );

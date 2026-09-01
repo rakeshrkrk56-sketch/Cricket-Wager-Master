@@ -19,6 +19,7 @@ import {
   CopyIcon,
   DepositIcon,
   DocumentIcon,
+  GiftIcon,
   ImageIcon,
   InfoIcon,
   WithdrawIcon,
@@ -160,6 +161,9 @@ export default function WalletScreen() {
   const createWithdrawal = useCreateWithdrawal();
 
   const balance = wallet?.balance ?? user?.walletBalance ?? 0;
+  const withdrawableWinnings = wallet?.withdrawableWinnings ?? 0;
+  const withdrawalDisabled = walletLoading || withdrawableWinnings < 500;
+  const [showBalanceBreakdown, setShowBalanceBreakdown] = useState(false);
   // Keep AuthContext in sync so the home-screen wallet badge reflects the latest balance
   useEffect(() => {
     if (wallet && user && wallet.balance !== user.walletBalance) {
@@ -228,6 +232,10 @@ export default function WalletScreen() {
   const handleWithdrawal = () => {
     const amt = parseFloat(wdAmount);
     if (!amt || amt < 500) { Alert.alert(t('wallet_min_withdraw_title'), t('wallet_min_withdraw_msg')); return; }
+    if (withdrawableWinnings < amt) {
+      Alert.alert(t('wallet_withdraw_unavailable_title'), `Only winnings can be withdrawn. Available: ₹${withdrawableWinnings.toFixed(0)}`);
+      return;
+    }
     let payload: any;
     if (wdMethod === 'upi') {
       if (!wdUpiId.trim()) { Alert.alert(t('wallet_upi_required_title'), t('wallet_upi_required_msg')); return; }
@@ -294,28 +302,78 @@ export default function WalletScreen() {
             <Text style={s.cardBtnText}>{t('wallet_deposit_btn')}</Text>
           </TouchableOpacity>
           <View style={s.divider} />
-          <TouchableOpacity style={s.cardBtn} onPress={() => setShowWithdraw(true)} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={[s.cardBtn, withdrawalDisabled && s.cardBtnDisabled]}
+            onPress={() => setShowWithdraw(true)}
+            disabled={withdrawalDisabled}
+            activeOpacity={0.85}
+          >
             <WithdrawIcon size={18} color={colors.primaryForeground} />
             <Text style={s.cardBtnText}>{t('wallet_withdraw_btn')}</Text>
           </TouchableOpacity>
         </View>
-      </View>
-
-      {/* Stats */}
-      {wallet && (
-        <View style={s.statsRow}>
-          {[
-            { labelKey: 'wallet_stat_deposit',  value: wallet.depositTotal },
-            { labelKey: 'wallet_stat_withdraw', value: wallet.withdrawTotal },
-            { labelKey: 'wallet_stat_win',      value: wallet.winTotal },
-          ].map((stat) => (
-            <View key={stat.labelKey} style={s.stat}>
-              <Text style={s.statVal}>₹{stat.value.toFixed(0)}</Text>
-              <Text style={s.statLabel}>{t(stat.labelKey as any)}</Text>
+        <TouchableOpacity
+          style={s.breakdownToggle}
+          onPress={() => setShowBalanceBreakdown((visible) => !visible)}
+          disabled={!wallet}
+          activeOpacity={0.8}
+        >
+          <DocumentIcon size={16} color={colors.primaryForeground} />
+          <Text style={s.breakdownToggleText}>
+            {showBalanceBreakdown ? t('wallet_hide_breakdown') : t('wallet_view_breakdown')}
+          </Text>
+          <Ionicons
+            name={showBalanceBreakdown ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color={colors.primaryForeground}
+          />
+        </TouchableOpacity>
+        {showBalanceBreakdown && wallet && (
+          <View style={s.breakdown}>
+            <Text style={s.breakdownTitle}>{t('wallet_breakdown_title')}</Text>
+            <Text style={s.breakdownNote}>{t('wallet_breakdown_note')}</Text>
+            <View style={s.breakdownRow}>
+              <View style={s.breakdownLabelRow}>
+                <DepositIcon size={15} color={colors.primaryForeground} />
+                <Text style={s.breakdownLabel}>{t('wallet_breakdown_deposit')}</Text>
+              </View>
+              <Text style={s.breakdownValue}>₹{wallet.depositBalance.toFixed(2)}</Text>
             </View>
-          ))}
-        </View>
-      )}
+            <View style={s.breakdownRow}>
+              <View style={s.breakdownLabelRow}>
+                <GiftIcon size={15} color={colors.primaryForeground} />
+                <Text style={s.breakdownLabel}>{t('wallet_breakdown_bonus')}</Text>
+              </View>
+              <Text style={s.breakdownValue}>₹{wallet.bonusBalance.toFixed(2)}</Text>
+            </View>
+            <View style={[s.breakdownRow, s.breakdownHighlight]}>
+              <View style={s.breakdownLabelRow}>
+                <WithdrawIcon size={15} color={colors.primaryForeground} />
+                <Text style={s.breakdownLabel}>{t('wallet_breakdown_winnings')}</Text>
+              </View>
+              <Text style={s.breakdownValue}>₹{withdrawableWinnings.toFixed(2)}</Text>
+            </View>
+            {wallet.withdrawTotal > 0 && (
+              <View style={s.breakdownRow}>
+                <View style={s.breakdownLabelRow}>
+                  <WithdrawIcon size={15} color={colors.primaryForeground} />
+                  <Text style={s.breakdownLabel}>{t('wallet_breakdown_withdrawn')}</Text>
+                </View>
+                <Text style={s.breakdownValue}>₹{wallet.withdrawTotal.toFixed(2)}</Text>
+              </View>
+            )}
+            {wallet.pendingWithdrawalTotal > 0 && (
+              <View style={s.breakdownRow}>
+                <View style={s.breakdownLabelRow}>
+                  <WithdrawIcon size={15} color={colors.primaryForeground} />
+                  <Text style={s.breakdownLabel}>{t('wallet_breakdown_pending')}</Text>
+                </View>
+                <Text style={s.breakdownValue}>₹{wallet.pendingWithdrawalTotal.toFixed(2)}</Text>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
 
       {/* Ledger Tabs */}
       <View style={s.tabs}>
@@ -564,15 +622,22 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   title: { fontSize: 24, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold' },
   balanceCard: { marginHorizontal: 20, borderRadius: 16, padding: 24, backgroundColor: colors.primary, shadowColor: colors.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 8, marginBottom: 16 },
   balanceLabel: { fontSize: 13, color: colors.primaryForeground + 'AA', fontFamily: 'Inter_500Medium', marginBottom: 4 },
-  balance: { fontSize: 38, fontWeight: '700' as const, color: colors.primaryForeground, fontFamily: 'Inter_700Bold', marginBottom: 20 },
+  balance: { fontSize: 38, fontWeight: '700' as const, color: colors.primaryForeground, fontFamily: 'Inter_700Bold', marginBottom: 16 },
   cardActions: { flexDirection: 'row', alignItems: 'center' },
   cardBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10 },
+  cardBtnDisabled: { opacity: 0.45 },
   cardBtnText: { fontSize: 14, fontWeight: '600' as const, color: colors.primaryForeground, fontFamily: 'Inter_600SemiBold' },
   divider: { width: 1, height: 36, backgroundColor: 'rgba(255,255,255,0.3)', marginHorizontal: 8 },
-  statsRow: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 16, gap: 8 },
-  stat: { flex: 1, backgroundColor: colors.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.border },
-  statVal: { fontSize: 14, fontWeight: '700' as const, color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 2 },
-  statLabel: { fontSize: 10, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' },
+  breakdownToggle: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.22)' },
+  breakdownToggleText: { flex: 1, fontSize: 12, color: colors.primaryForeground, fontFamily: 'Inter_600SemiBold' },
+  breakdown: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: colors.primaryForeground + '16', gap: 8 },
+  breakdownTitle: { fontSize: 13, color: colors.primaryForeground, fontFamily: 'Inter_700Bold' },
+  breakdownNote: { fontSize: 11, color: colors.primaryForeground + 'CC', fontFamily: 'Inter_400Regular', lineHeight: 15, marginBottom: 2 },
+  breakdownRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 28 },
+  breakdownHighlight: { paddingHorizontal: 8, borderRadius: 8, backgroundColor: colors.success + '35', borderWidth: 1, borderColor: colors.success + '60' },
+  breakdownLabelRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  breakdownLabel: { fontSize: 12, color: colors.primaryForeground, fontFamily: 'Inter_500Medium' },
+  breakdownValue: { fontSize: 13, color: colors.primaryForeground, fontFamily: 'Inter_700Bold' },
   tabs: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 8, backgroundColor: colors.muted, borderRadius: 10, padding: 4 },
   tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
   tabActive: { backgroundColor: colors.card },
