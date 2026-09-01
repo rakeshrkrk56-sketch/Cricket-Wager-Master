@@ -1175,6 +1175,7 @@ components:
           maxLength: 2000
         screenshotBase64:
           type: string
+          description: Payment screenshot encoded as base64; required when method is manual.
           maxLength: 7000000
       required:
         - subject

@@ -232,9 +232,12 @@ export default function WalletScreen() {
   const handleManualDeposit = () => {
     const amt = parseFloat(depAmount);
     if (!amt || amt < 200) { Alert.alert(t('wallet_min_deposit_title'), t('wallet_min_deposit_msg')); return; }
-    if (!utrNumber.trim()) { Alert.alert(t('wallet_utr_required_title'), t('wallet_utr_required_msg')); return; }
+    if (!screenshotBase64) {
+      Alert.alert(t('wallet_screenshot_required_title'), t('wallet_screenshot_required_msg'));
+      return;
+    }
     createDeposit.mutate(
-      { data: { amount: amt, method: 'manual', utrNumber: utrNumber.trim(), screenshotBase64: screenshotBase64 ?? undefined } },
+      { data: { amount: amt, method: 'manual', utrNumber: utrNumber.trim() || undefined, screenshotBase64 } },
       {
         onSuccess: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

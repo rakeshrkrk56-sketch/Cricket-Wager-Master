@@ -57,7 +57,10 @@ export interface CreateSupportTicketRequest {
   category: string;
   /** @maxLength 2000 */
   description: string;
-  /** @maxLength 7000000 */
+  /**
+     * Payment screenshot encoded as base64; required when method is manual.
+     * @maxLength 7000000
+     */
   screenshotBase64?: string;
 }
 

@@ -29,18 +29,20 @@ router.post("/deposits", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   if (method === "manual") {
-    if (!utrNumber) {
-      res.status(400).json({ error: "UTR number is required for manual deposits" });
+    if (!screenshotBase64) {
+      res.status(400).json({ error: "Payment screenshot is required for manual deposits" });
       return;
     }
-    // Check duplicate UTR for this user
-    const existing = await db
-      .select()
-      .from(depositsTable)
-      .where(and(eq(depositsTable.userId, user.id), eq(depositsTable.utrNumber, utrNumber)));
-    if (existing.length > 0) {
-      res.status(409).json({ error: "This UTR number has already been submitted" });
-      return;
+    if (utrNumber) {
+      // Check duplicate UTR for this user when a reference was provided.
+      const existing = await db
+        .select()
+        .from(depositsTable)
+        .where(and(eq(depositsTable.userId, user.id), eq(depositsTable.utrNumber, utrNumber)));
+      if (existing.length > 0) {
+        res.status(409).json({ error: "This payment reference has already been submitted" });
+        return;
+      }
     }
   }
 

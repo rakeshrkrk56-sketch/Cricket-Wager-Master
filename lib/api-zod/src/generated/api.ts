@@ -1024,7 +1024,7 @@ export const CreateSupportTicketBody = zod.object({
   "subject": zod.string(),
   "category": zod.string(),
   "description": zod.string().max(createSupportTicketBodyDescriptionMax),
-  "screenshotBase64": zod.string().max(createSupportTicketBodyScreenshotBase64Max).optional()
+  "screenshotBase64": zod.string().max(createSupportTicketBodyScreenshotBase64Max).optional().describe('Payment screenshot encoded as base64; required when method is manual.')
 })
 
 export const CreateSupportTicketResponse = zod.object({
