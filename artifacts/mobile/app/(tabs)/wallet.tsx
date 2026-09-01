@@ -14,6 +14,17 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import {
+  BankIcon,
+  CheckCircleIcon,
+  CopyIcon,
+  DocumentIcon,
+  FlashIcon,
+  GiftIcon,
+  ImageIcon,
+  InfoIcon,
+  PhoneIcon,
+} from '@/components/AppIcons';
+import {
   useGetWallet, getGetWalletQueryKey,
   useGetTransactions, getGetTransactionsQueryKey,
   useGetMyDeposits, getGetMyDepositsQueryKey,
@@ -162,7 +173,9 @@ export default function WalletScreen() {
 
   const balance = wallet?.balance ?? user?.walletBalance ?? 0;
   const parsedDepositAmount = Number(depAmount);
-  const firstDepositBonusAvailable = wallet?.firstDepositBonusAvailable ?? false;
+  // Show the offer while the wallet request is loading; the server remains the
+  // source of truth and hides it once an approved deposit already exists.
+  const firstDepositBonusAvailable = wallet?.firstDepositBonusAvailable !== false;
   const depositBonusPercent = wallet?.depositBonusPercent ?? 30;
   const depositBonusThreshold = wallet?.depositBonusThreshold ?? 100;
   const previewBonus = firstDepositBonusAvailable && parsedDepositAmount > depositBonusThreshold
@@ -414,17 +427,17 @@ export default function WalletScreen() {
 
             <View style={s.depTabs}>
               <TouchableOpacity style={[s.depTab, depositTab === 'upi' && s.depTabActive]} onPress={() => setDepositTab('upi')}>
-                <Ionicons name="phone-portrait-outline" size={14} color={depositTab === 'upi' ? colors.primary : colors.mutedForeground} />
+                <PhoneIcon size={14} color={depositTab === 'upi' ? colors.primary : colors.mutedForeground} />
                 <Text style={[s.depTabText, depositTab === 'upi' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>UPI</Text>
               </TouchableOpacity>
               {!!(platformSettings?.bankName && platformSettings?.bankAccountNumber) && (
                 <TouchableOpacity style={[s.depTab, depositTab === 'bank' && s.depTabActive]} onPress={() => setDepositTab('bank')}>
-                  <Ionicons name="business-outline" size={14} color={depositTab === 'bank' ? colors.primary : colors.mutedForeground} />
+                  <BankIcon size={14} color={depositTab === 'bank' ? colors.primary : colors.mutedForeground} />
                   <Text style={[s.depTabText, depositTab === 'bank' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Bank</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={[s.depTab, depositTab === 'manual' && s.depTabActive]} onPress={() => setDepositTab('manual')}>
-                <Ionicons name="document-text-outline" size={14} color={depositTab === 'manual' ? colors.primary : colors.mutedForeground} />
+                <DocumentIcon size={14} color={depositTab === 'manual' ? colors.primary : colors.mutedForeground} />
                 <Text style={[s.depTabText, depositTab === 'manual' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{t('wallet_utr_tab')}</Text>
               </TouchableOpacity>
             </View>
@@ -435,7 +448,7 @@ export default function WalletScreen() {
               {firstDepositBonusAvailable && (
                 <View style={s.bonusCard}>
                   <View style={s.bonusHeader}>
-                    <Ionicons name="gift" size={19} color={colors.success} />
+                    <GiftIcon size={19} color={colors.success} />
                     <Text style={s.bonusTitle}>30% First Deposit Bonus</Text>
                   </View>
                   {previewBonus > 0 ? (
@@ -478,16 +491,18 @@ export default function WalletScreen() {
                             activeOpacity={0.7}
                           >
                             <Text style={s.upiOptionId} numberOfLines={1}>{opt.id}</Text>
-                            <Ionicons name={bankFieldCopied === `upi_${idx}` ? 'checkmark-circle' : 'copy-outline'} size={16} color={bankFieldCopied === `upi_${idx}` ? colors.success : colors.primary} />
+                            {bankFieldCopied === `upi_${idx}`
+                              ? <CheckCircleIcon size={16} color={colors.success} />
+                              : <CopyIcon size={16} color={colors.primary} />}
                           </TouchableOpacity>
                           <TouchableOpacity style={s.upiPayBtn} onPress={() => openUpiDeepLink(opt.id, opt.name)} activeOpacity={0.8}>
-                            <Ionicons name="flash" size={15} color="#fff" />
+                            <FlashIcon size={15} color="#fff" />
                             <Text style={s.upiPayBtnText}>{t('wallet_pay_now')}</Text>
                           </TouchableOpacity>
                         </View>
                       ))}
                       <View style={s.infoBox}>
-                        <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
+                        <InfoIcon size={16} color={colors.warning} />
                          <Text style={s.infoText}>After payment, go to UTR Submit tab and upload your UTR number and screenshot.</Text>
                       </View>
                     </>
@@ -499,7 +514,7 @@ export default function WalletScreen() {
               {depositTab === 'bank' && (
                 <View style={{ marginTop: 12 }}>
                   <View style={s.infoBox}>
-                    <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
+                    <InfoIcon size={16} color={colors.warning} />
                          <Text style={s.infoText}>Transfer via NEFT/IMPS to the bank account below, then enter your UTR in the UTR Submit tab.</Text>
                   </View>
                   {[
@@ -513,7 +528,9 @@ export default function WalletScreen() {
                         <Text style={s.bankLabel}>{label}</Text>
                         <TouchableOpacity style={s.bankValueRow} onPress={() => { Clipboard.setString(value); setBankFieldCopied(field); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTimeout(() => setBankFieldCopied(null), 2000); }} activeOpacity={0.7}>
                           <Text style={[s.bankValue, mono && { fontFamily: 'Inter_600SemiBold', letterSpacing: 0.5 }]}>{value}</Text>
-                          <Ionicons name={bankFieldCopied === field ? 'checkmark-circle' : 'copy-outline'} size={16} color={bankFieldCopied === field ? colors.success : colors.primary} />
+                          {bankFieldCopied === field
+                            ? <CheckCircleIcon size={16} color={colors.success} />
+                            : <CopyIcon size={16} color={colors.primary} />}
                         </TouchableOpacity>
                       </View>
                     ) : null
@@ -529,7 +546,9 @@ export default function WalletScreen() {
                       <Text style={s.upiIdLabel}>First pay via UPI / Bank, then enter your UTR below:</Text>
                       <TouchableOpacity style={s.copyRow} onPress={() => copyUpiId(platformUpiId)} activeOpacity={0.8}>
                         <Text style={s.upiId}>{platformUpiId}</Text>
-                        <Ionicons name={upiCopied ? 'checkmark-circle' : 'copy-outline'} size={18} color={upiCopied ? colors.success : colors.primary} />
+                        {upiCopied
+                          ? <CheckCircleIcon size={18} color={colors.success} />
+                          : <CopyIcon size={18} color={colors.primary} />}
                       </TouchableOpacity>
                     </View>
                   ) : null}
@@ -539,12 +558,12 @@ export default function WalletScreen() {
                   <TouchableOpacity style={s.screenshotBtn} onPress={pickScreenshot} activeOpacity={0.8}>
                     {screenshotUri ? (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                        <CheckCircleIcon size={20} color={colors.success} />
                         <Text style={[s.screenshotText, { color: colors.success }]}>Screenshot uploaded</Text>
                       </View>
                     ) : (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Ionicons name="image-outline" size={20} color={colors.mutedForeground} />
+                        <ImageIcon size={20} color={colors.mutedForeground} />
                         <Text style={s.screenshotText}>Choose from gallery</Text>
                       </View>
                     )}

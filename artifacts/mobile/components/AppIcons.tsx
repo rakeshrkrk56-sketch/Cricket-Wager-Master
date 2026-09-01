@@ -211,3 +211,68 @@ export function WithdrawIcon(props: AppIconProps) {
     </IconCanvas>
   );
 }
+
+export function GiftIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Rect x="4" y="9" width="16" height="11" rx="1.5" />
+      <Path d="M3 9h18v4H3zM12 9v11" />
+      <Path d="M12 9H8.5A2.5 2.5 0 1 1 11 6.5V9ZM12 9h3.5A2.5 2.5 0 1 0 13 6.5V9Z" />
+    </IconCanvas>
+  );
+}
+
+export function CopyIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Rect x="8" y="4" width="12" height="14" rx="1.5" />
+      <Path d="M16 4V3H6a2 2 0 0 0-2 2v12h2" />
+    </IconCanvas>
+  );
+}
+
+export function PhoneIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Rect x="6" y="3" width="12" height="18" rx="2" />
+      <Path d="M10 6h4M11 18h2" />
+    </IconCanvas>
+  );
+}
+
+export function BankIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Path d="m3 9 9-5 9 5H3Z" />
+      <Path d="M5 10v7M9 10v7M15 10v7M19 10v7M3 20h18M4 17h16" />
+    </IconCanvas>
+  );
+}
+
+export function DocumentIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Path d="M6 3h8l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+      <Path d="M14 3v5h4M8 12h8M8 16h6" />
+    </IconCanvas>
+  );
+}
+
+export function InfoIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Circle cx="12" cy="12" r="9" />
+      <Path d="M12 11v5M12 8h.01" />
+    </IconCanvas>
+  );
+}
+
+export function ImageIcon(props: AppIconProps) {
+  return (
+    <IconCanvas {...props}>
+      <Rect x="3" y="5" width="18" height="14" rx="2" />
+      <Circle cx="8" cy="10" r="1.2" />
+      <Path d="m4 17 5-5 3 3 2-2 6 5" />
+    </IconCanvas>
+  );
+}
