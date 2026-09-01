@@ -11,7 +11,7 @@ interface UserAvatarProps {
 export function UserAvatar({ choice, size }: UserAvatarProps) {
   if (choice === 'female') {
     return (
-      <Svg width={size} height={size} viewBox="0 0 100 100" accessibilityElementsHidden>
+      <Svg width={size} height={size} viewBox="0 0 100 100">
         <Circle cx="50" cy="50" r="50" fill="#4B0B18" />
         <Circle cx="50" cy="43" r="26" fill="#2A1115" />
         <Path d="M18 100c2-24 14-36 32-36s30 12 32 36H18Z" fill="#D99B22" />
@@ -27,7 +27,7 @@ export function UserAvatar({ choice, size }: UserAvatarProps) {
   }
 
   return (
-    <Svg width={size} height={size} viewBox="0 0 100 100" accessibilityElementsHidden>
+    <Svg width={size} height={size} viewBox="0 0 100 100">
       <Circle cx="50" cy="50" r="50" fill="#4B0B18" />
       <Path d="M16 100c3-24 15-36 34-36s31 12 34 36H16Z" fill="#B97816" />
       <Ellipse cx="50" cy="42" rx="19" ry="22" fill="#C9825D" />

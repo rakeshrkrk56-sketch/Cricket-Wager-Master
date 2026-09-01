@@ -5,3 +5,4 @@
 - [WhatsApp Web Chromium](whatsapp-web-chromium.md) — Replit WhatsApp Web sessions require a direct Puppeteer dependency and an absolute system Chromium path
 - [PostgreSQL pool restarts](postgres-pool-restarts.md) — idle-client pool errors must be handled so transient database restarts do not terminate the API
 - [Dragon Tiger fairness](dragon-tiger-fairness.md) — outcomes stay independent of wager totals and user tiers; risk controls happen before bet acceptance
+- [React Native SVG web props](react-native-svg-web-props.md) — avoid accessibility boolean props on SVG wrappers because Expo web forwards them as invalid DOM attributes

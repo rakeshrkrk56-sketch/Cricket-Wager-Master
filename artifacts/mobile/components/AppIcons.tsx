@@ -7,7 +7,7 @@ type AppIconProps = {
   strokeWidth?: number;
 };
 
-function IconCanvas({ size = 24, color = 'currentColor', strokeWidth = 1.8, children }: AppIconProps & { children: ReactNode }) {
+function IconCanvas({ size = 24, color = 'black', strokeWidth = 1.8, children }: AppIconProps & { children: ReactNode }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" accessibilityRole="image">
       {React.Children.map(children, (child) =>
