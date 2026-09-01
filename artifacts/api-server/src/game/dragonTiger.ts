@@ -34,6 +34,26 @@ function resultFor(dragonRank: number, tigerRank: number): Choice {
   return "TIE";
 }
 
+/**
+ * Draw the two round cards from a fresh standard deck.
+ *
+ * The database stores ranks only, so suits are represented by the four
+ * occurrences of each rank. Using crypto.randomInt for both draws keeps the
+ * result independent of wagers, player identity, previous results, and
+ * client timing while preventing the same physical card from being drawn
+ * twice in one round.
+ */
+function drawRoundRanks(): [dragonRank: number, tigerRank: number] {
+  const deck = Array.from({ length: 52 }, (_, index) =>
+    Math.floor(index / 4) + 1,
+  );
+  const dragonIndex = randomInt(0, deck.length);
+  const dragonRank = deck.splice(dragonIndex, 1)[0];
+  const tigerIndex = randomInt(0, deck.length);
+  const tigerRank = deck[tigerIndex];
+  return [dragonRank, tigerRank];
+}
+
 function moneyToCents(value: string): bigint {
   const [whole, fraction = ""] = value.split(".");
   return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0").slice(0, 2));
@@ -609,8 +629,7 @@ export class DragonTigerGame {
 
   async closeBetting(): Promise<void> {
     this.clearTimer();
-    const dragonRank = randomInt(1, 14);
-    const tigerRank = randomInt(1, 14);
+    const [dragonRank, tigerRank] = drawRoundRanks();
 
     const revealEndsAt = new Date(Date.now() + REVEAL_MS);
     const [round] = await db
