@@ -22,7 +22,7 @@ import { AvatarProvider } from '@/contexts/AvatarContext';
 
 setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 
-SplashScreen.preventAutoHideAsync();
+void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -73,6 +73,7 @@ export default function RootLayout() {
     ...Feather.font,
   });
   const [startupTimedOut, setStartupTimedOut] = React.useState(false);
+  const splashHidden = React.useRef(false);
 
   useEffect(() => {
     const timeout = setTimeout(() => setStartupTimedOut(true), 3_000);
@@ -80,7 +81,10 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (fontsLoaded || fontError || startupTimedOut) SplashScreen.hideAsync();
+    if ((fontsLoaded || fontError || startupTimedOut) && !splashHidden.current) {
+      splashHidden.current = true;
+      void SplashScreen.hideAsync().catch(() => undefined);
+    }
   }, [fontsLoaded, fontError, startupTimedOut]);
 
   useEffect(() => {

@@ -478,7 +478,7 @@ export default function WalletScreen() {
                     <Text style={[s.upiHint, { color: colors.mutedForeground }]}>UPI ID not configured yet. Please use {t('wallet_utr_tab')} tab.</Text>
                   ) : (
                     <>
-                       <Text style={s.upiHint}>Pay to any UPI below, then submit UTR:</Text>
+                       <Text style={s.upiHint}>Pay to any UPI below, then open Payment Proof:</Text>
                       {upiOptions.map((opt, idx) => (
                         <View key={idx} style={s.upiOptionCard}>
                           <View style={s.upiOptionHeader}>
@@ -503,7 +503,7 @@ export default function WalletScreen() {
                       ))}
                       <View style={[s.infoBox, s.paymentInfoBox]}>
                         <InfoIcon size={16} color={colors.warning} />
-                         <Text style={[s.infoText, s.paymentInfoText]}>After payment, go to UTR Submit tab and upload your UTR number and screenshot.</Text>
+                         <Text style={[s.infoText, s.paymentInfoText]}>{t('wallet_after_payment_msg')}</Text>
                       </View>
                     </>
                   )}
@@ -515,7 +515,7 @@ export default function WalletScreen() {
                 <View style={{ marginTop: 12 }}>
                   <View style={s.infoBox}>
                     <InfoIcon size={16} color={colors.warning} />
-                         <Text style={s.infoText}>Transfer via NEFT/IMPS to the bank account below, then enter your UTR in the UTR Submit tab.</Text>
+                         <Text style={s.infoText}>Transfer via NEFT/IMPS to the bank account below, then open Payment Proof.</Text>
                   </View>
                   {[
                     { label: 'Bank Name',              value: platformSettings?.bankName,          field: 'bankName' },
@@ -538,12 +538,12 @@ export default function WalletScreen() {
                 </View>
               )}
 
-              {/* UTR Submit tab */}
+              {/* Payment Proof tab */}
               {depositTab === 'manual' && (
                 <View>
                   {platformUpiId ? (
                     <View style={s.upiIdRow}>
-                      <Text style={s.upiIdLabel}>First pay via UPI / Bank, then enter your UTR below:</Text>
+                      <Text style={s.upiIdLabel}>First pay via UPI / Bank, then enter your payment reference number below:</Text>
                       <TouchableOpacity style={s.copyRow} onPress={() => copyUpiId(platformUpiId)} activeOpacity={0.8}>
                         <Text style={s.upiId}>{platformUpiId}</Text>
                         {upiCopied
