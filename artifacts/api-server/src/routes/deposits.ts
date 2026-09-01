@@ -172,9 +172,33 @@ router.post("/admin/deposits/:depositId/approve", requireAdmin, async (req, res)
   if (!depositCheck) { res.status(404).json({ error: "Deposit not found" }); return; }
 
   let balanceAfter: number | null = null;
+  let bonusAmount = 0;
+  let totalCredited = 0;
 
   try {
     await db.transaction(async (tx) => {
+      // Serialize deposit approvals per user. A second concurrent approval waits
+      // here, then sees the first approved deposit and cannot grant another
+      // first-deposit bonus.
+      const [lockedUser] = await tx
+        .select({ id: usersTable.id, walletBalance: usersTable.walletBalance })
+        .from(usersTable)
+        .where(eq(usersTable.id, depositCheck.userId))
+        .for("update");
+
+      if (!lockedUser) {
+        throw Object.assign(new Error("User not found"), { userMissing: true });
+      }
+
+      const [previousApprovedDeposit] = await tx
+        .select({ id: depositsTable.id })
+        .from(depositsTable)
+        .where(and(
+          eq(depositsTable.userId, depositCheck.userId),
+          eq(depositsTable.status, "approved"),
+        ))
+        .limit(1);
+
       // Atomic conditional update: only succeeds if status is still "pending".
       // This eliminates the TOCTOU race — concurrent approvals cannot both win.
       const [approved] = await tx
@@ -189,9 +213,14 @@ router.post("/admin/deposits/:depositId/approve", requireAdmin, async (req, res)
       }
 
       const amount = Number(approved.amount);
+      bonusAmount = amount > 100 && !previousApprovedDeposit
+        ? Math.round(amount * 0.3 * 100) / 100
+        : 0;
+      totalCredited = amount + bonusAmount;
+
       const [creditedUser] = await tx.update(usersTable)
         .set({
-          walletBalance: sql`${usersTable.walletBalance} + ${String(amount)}::numeric`,
+          walletBalance: sql`${usersTable.walletBalance} + ${String(totalCredited)}::numeric`,
           updatedAt: new Date(),
         })
         .where(eq(usersTable.id, approved.userId))
@@ -201,17 +230,30 @@ router.post("/admin/deposits/:depositId/approve", requireAdmin, async (req, res)
       }
 
       balanceAfter = Number(creditedUser.walletBalance);
-      const balanceBefore = balanceAfter - amount;
+      const balanceBefore = Number(lockedUser.walletBalance);
+      const balanceAfterDeposit = balanceBefore + amount;
 
       await tx.insert(transactionsTable).values({
         userId: approved.userId,
         type: "deposit",
         amount: String(amount),
         balanceBefore: String(balanceBefore),
-        balanceAfter: String(balanceAfter),
+        balanceAfter: String(balanceAfterDeposit),
         referenceId: depositId,
         note: `Deposit approved (UTR: ${approved.utrNumber ?? "N/A"})`,
       });
+
+      if (bonusAmount > 0) {
+        await tx.insert(transactionsTable).values({
+          userId: approved.userId,
+          type: "bonus",
+          amount: String(bonusAmount),
+          balanceBefore: String(balanceAfterDeposit),
+          balanceAfter: String(balanceAfter),
+          referenceId: depositId,
+          note: "30% first deposit bonus",
+        });
+      }
     });
   } catch (err: any) {
     if (err.alreadyProcessed) {
@@ -226,15 +268,17 @@ router.post("/admin/deposits/:depositId/approve", requireAdmin, async (req, res)
   }
 
   await createNotification(depositCheck.userId, "deposit_approved",
-    "Deposit Approved ✓",
-    `Your deposit has been approved. Wallet credited.`
+    bonusAmount > 0 ? "Deposit + 30% Bonus Approved ✓" : "Deposit Approved ✓",
+    bonusAmount > 0
+      ? `Your first deposit was approved. ₹${bonusAmount.toFixed(2)} bonus added. Total credited: ₹${totalCredited.toFixed(2)}.`
+      : "Your deposit has been approved. Wallet credited."
   );
   await createNotification(depositCheck.userId, "wallet_credited",
     "Wallet Credited",
     `Wallet updated. New balance: ₹${Number(balanceAfter).toFixed(0)}.`
   );
 
-  res.json({ success: true, balanceAfter });
+  res.json({ success: true, balanceAfter, bonusAmount, totalCredited });
 });
 
 router.post("/admin/deposits/:depositId/reject", requireAdmin, async (req, res): Promise<void> => {

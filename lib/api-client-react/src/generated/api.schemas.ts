@@ -297,6 +297,9 @@ export interface Wallet {
   withdrawTotal: number;
   winTotal: number;
   bonusTotal: number;
+  firstDepositBonusAvailable: boolean;
+  depositBonusPercent: number;
+  depositBonusThreshold: number;
 }
 
 export interface WalletTransactionRequest {
@@ -666,6 +669,13 @@ export interface ApproveRejectRequest {
 export interface SuccessResponse {
   success: boolean;
   balanceAfter?: number;
+}
+
+export interface ApproveDepositResponse {
+  success: boolean;
+  balanceAfter: number;
+  bonusAmount: number;
+  totalCredited: number;
 }
 
 export type ListUsersParams = {

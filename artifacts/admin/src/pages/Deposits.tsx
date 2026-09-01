@@ -117,8 +117,13 @@ export function Deposits() {
     approve.mutate(
       { depositId: id, data: { remarks: remarksMap[id] } },
       {
-        onSuccess: () => {
-          toast({ title: 'Deposit approved', description: 'Wallet credited.' });
+        onSuccess: (result: any) => {
+          toast({
+            title: result.bonusAmount > 0 ? 'Deposit + first bonus approved' : 'Deposit approved',
+            description: result.bonusAmount > 0
+              ? `Wallet credited ₹${Number(result.totalCredited).toFixed(2)} including ₹${Number(result.bonusAmount).toFixed(2)} bonus.`
+              : 'Wallet credited.',
+          });
           queryClient.invalidateQueries({ queryKey: getAdminListDepositsQueryKey() });
           refetch();
         },
@@ -268,6 +273,11 @@ export function Deposits() {
                       <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${STATUS_BADGE[dep.status]}`}>
                         {STATUS_LABEL[dep.status]}
                       </span>
+                      {dep.status === 'pending' && Number(dep.amount) > 100 && (
+                        <span className="text-xs px-2 py-0.5 rounded-full border border-success/30 bg-success/10 text-success">
+                          30% bonus if first approved deposit
+                        </span>
+                      )}
                       <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                         {dep.method === 'manual' ? 'Manual' : 'UPI App'}
                       </span>
@@ -362,7 +372,7 @@ export function Deposits() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingAction?.action === 'approve'
-                ? 'This will credit the user wallet. Please check the amount, UTR, and screenshot before continuing.'
+                ? 'This will credit the user wallet. If this is their first approved deposit, the system will automatically add a one-time 30% bonus. Please check the amount, UTR, and screenshot before continuing.'
                 : 'This will reject the deposit request. Please make sure the rejection remarks are correct.'}
               {' '}
               This action cannot be undone.

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, transactionsTable } from "@workspace/db";
-import { eq, desc, count, sql } from "drizzle-orm";
+import { db, usersTable, transactionsTable, depositsTable } from "@workspace/db";
+import { eq, desc, count, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import {
   DepositWalletBody,
@@ -22,6 +22,9 @@ function walletResponse(user: any) {
     withdrawTotal: 0,
     winTotal: 0,
     bonusTotal: 0,
+    firstDepositBonusAvailable: true,
+    depositBonusPercent: 30,
+    depositBonusThreshold: 100,
   };
 }
 
@@ -44,6 +47,12 @@ router.get("/wallet", requireAuth, async (req, res): Promise<void> => {
     // bet_placed and loss are prediction stakes/outcomes, not withdrawals — excluded from totals
   }
 
+  const [approvedDeposit] = await db
+    .select({ id: depositsTable.id })
+    .from(depositsTable)
+    .where(and(eq(depositsTable.userId, user.id), eq(depositsTable.status, "approved")))
+    .limit(1);
+
   res.json(
     GetWalletResponse.parse({
       userId: user.id,
@@ -52,6 +61,9 @@ router.get("/wallet", requireAuth, async (req, res): Promise<void> => {
       withdrawTotal,
       winTotal,
       bonusTotal,
+      firstDepositBonusAvailable: !approvedDeposit,
+      depositBonusPercent: 30,
+      depositBonusThreshold: 100,
     })
   );
 });
@@ -85,6 +97,9 @@ router.post("/wallet/deposit", requireAuth, async (req, res): Promise<void> => {
       withdrawTotal: 0,
       winTotal: 0,
       bonusTotal: 0,
+      firstDepositBonusAvailable: false,
+      depositBonusPercent: 30,
+      depositBonusThreshold: 100,
     })
   );
 });
@@ -123,6 +138,9 @@ router.post("/wallet/withdraw", requireAuth, async (req, res): Promise<void> => 
       withdrawTotal: 0,
       winTotal: 0,
       bonusTotal: 0,
+      firstDepositBonusAvailable: true,
+      depositBonusPercent: 30,
+      depositBonusThreshold: 100,
     })
   );
 });

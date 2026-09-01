@@ -35,6 +35,7 @@ import type {
   AdminWalletAdjustRequest,
   AdminWalletAdjustResponse,
   AdminWithdrawalListResponse,
+  ApproveDepositResponse,
   ApproveRejectRequest,
   AuthResponse,
   CreateDepositRequest,
@@ -2254,9 +2255,9 @@ export const getApproveDepositUrl = (depositId: string,) => {
  * @summary Approve a deposit and credit wallet (admin)
  */
 export const approveDeposit = async (depositId: string,
-    approveRejectRequest?: ApproveRejectRequest, options?: RequestInit): Promise<SuccessResponse> => {
+    approveRejectRequest?: ApproveRejectRequest, options?: RequestInit): Promise<ApproveDepositResponse> => {
 
-  return customFetch<SuccessResponse>(getApproveDepositUrl(depositId),
+  return customFetch<ApproveDepositResponse>(getApproveDepositUrl(depositId),
   {
     ...options,
     method: 'POST',

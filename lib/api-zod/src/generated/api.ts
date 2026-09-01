@@ -535,7 +535,10 @@ export const GetWalletResponse = zod.object({
   "depositTotal": zod.number(),
   "withdrawTotal": zod.number(),
   "winTotal": zod.number(),
-  "bonusTotal": zod.number()
+  "bonusTotal": zod.number(),
+  "firstDepositBonusAvailable": zod.boolean(),
+  "depositBonusPercent": zod.number(),
+  "depositBonusThreshold": zod.number()
 })
 
 
@@ -556,7 +559,10 @@ export const DepositWalletResponse = zod.object({
   "depositTotal": zod.number(),
   "withdrawTotal": zod.number(),
   "winTotal": zod.number(),
-  "bonusTotal": zod.number()
+  "bonusTotal": zod.number(),
+  "firstDepositBonusAvailable": zod.boolean(),
+  "depositBonusPercent": zod.number(),
+  "depositBonusThreshold": zod.number()
 })
 
 
@@ -577,7 +583,10 @@ export const WithdrawWalletResponse = zod.object({
   "depositTotal": zod.number(),
   "withdrawTotal": zod.number(),
   "winTotal": zod.number(),
-  "bonusTotal": zod.number()
+  "bonusTotal": zod.number(),
+  "firstDepositBonusAvailable": zod.boolean(),
+  "depositBonusPercent": zod.number(),
+  "depositBonusThreshold": zod.number()
 })
 
 
@@ -775,7 +784,9 @@ export const ApproveDepositBody = zod.object({
 
 export const ApproveDepositResponse = zod.object({
   "success": zod.boolean(),
-  "balanceAfter": zod.number().optional()
+  "balanceAfter": zod.number(),
+  "bonusAmount": zod.number(),
+  "totalCredited": zod.number()
 })
 
 

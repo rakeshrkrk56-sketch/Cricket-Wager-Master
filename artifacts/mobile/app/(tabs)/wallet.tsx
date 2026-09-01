@@ -161,6 +161,13 @@ export default function WalletScreen() {
   const createWithdrawal = useCreateWithdrawal();
 
   const balance = wallet?.balance ?? user?.walletBalance ?? 0;
+  const parsedDepositAmount = Number(depAmount);
+  const firstDepositBonusAvailable = wallet?.firstDepositBonusAvailable ?? false;
+  const depositBonusPercent = wallet?.depositBonusPercent ?? 30;
+  const depositBonusThreshold = wallet?.depositBonusThreshold ?? 100;
+  const previewBonus = firstDepositBonusAvailable && parsedDepositAmount > depositBonusThreshold
+    ? Math.round(parsedDepositAmount * (depositBonusPercent / 100) * 100) / 100
+    : 0;
 
   // Keep AuthContext in sync so the home-screen wallet badge reflects the latest balance
   useEffect(() => {
@@ -425,6 +432,24 @@ export default function WalletScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={s.amountLabel}>{t('wallet_amount_label')} (min ₹200)</Text>
               <TextInput style={s.amountInput} placeholder="₹200" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" value={depAmount} onChangeText={setDepAmount} />
+              {firstDepositBonusAvailable && (
+                <View style={s.bonusCard}>
+                  <View style={s.bonusHeader}>
+                    <Ionicons name="gift" size={19} color={colors.success} />
+                    <Text style={s.bonusTitle}>30% First Deposit Bonus</Text>
+                  </View>
+                  {previewBonus > 0 ? (
+                    <View style={s.bonusCombo}>
+                      <Text style={s.bonusComboText}>Deposit ₹{parsedDepositAmount.toFixed(2)}</Text>
+                      <Text style={s.bonusPlus}>+</Text>
+                      <Text style={s.bonusComboText}>Bonus ₹{previewBonus.toFixed(2)}</Text>
+                      <Text style={s.bonusEquals}>= ₹{(parsedDepositAmount + previewBonus).toFixed(2)}</Text>
+                    </View>
+                  ) : (
+                    <Text style={s.bonusNote}>Deposit more than ₹100 and get 30% extra after approval. Available once only.</Text>
+                  )}
+                </View>
+              )}
               <View style={s.quickAmounts}>
                 {[200, 500, 1000, 2000].map((a) => (
                   <TouchableOpacity key={a} style={s.quickBtn} onPress={() => setDepAmount(String(a))}>
@@ -653,6 +678,14 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   depTabText: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium' },
   amountLabel: { fontSize: 13, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', marginBottom: 8 },
   amountInput: { backgroundColor: colors.muted, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 14, fontSize: 22, color: colors.foreground, fontFamily: 'Inter_600SemiBold', borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
+  bonusCard: { backgroundColor: colors.success + '12', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.success + '45', marginBottom: 12, gap: 8 },
+  bonusHeader: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  bonusTitle: { fontSize: 14, color: colors.success, fontFamily: 'Inter_700Bold' },
+  bonusNote: { fontSize: 12, color: colors.foreground, fontFamily: 'Inter_400Regular', lineHeight: 17 },
+  bonusCombo: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 },
+  bonusComboText: { fontSize: 12, color: colors.foreground, fontFamily: 'Inter_600SemiBold' },
+  bonusPlus: { fontSize: 13, color: colors.success, fontFamily: 'Inter_700Bold' },
+  bonusEquals: { fontSize: 13, color: colors.success, fontFamily: 'Inter_700Bold' },
   textInput: { backgroundColor: colors.muted, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: colors.foreground, fontFamily: 'Inter_500Medium', borderWidth: 1, borderColor: colors.border, marginBottom: 16 },
   quickAmounts: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   quickBtn: { flex: 1, backgroundColor: colors.muted, borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.border },

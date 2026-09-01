@@ -650,7 +650,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessResponse"
+                $ref: "#/components/schemas/ApproveDepositResponse"
 
   /admin/deposits/{depositId}/reject:
     post:
@@ -1540,6 +1540,12 @@ components:
           type: number
         bonusTotal:
           type: number
+        firstDepositBonusAvailable:
+          type: boolean
+        depositBonusPercent:
+          type: number
+        depositBonusThreshold:
+          type: number
       required:
         - userId
         - balance
@@ -1547,6 +1553,9 @@ components:
         - withdrawTotal
         - winTotal
         - bonusTotal
+        - firstDepositBonusAvailable
+        - depositBonusPercent
+        - depositBonusThreshold
 
     WalletTransactionRequest:
       type: object
@@ -2152,3 +2161,20 @@ components:
           type: number
       required:
         - success
+
+    ApproveDepositResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        balanceAfter:
+          type: number
+        bonusAmount:
+          type: number
+        totalCredited:
+          type: number
+      required:
+        - success
+        - balanceAfter
+        - bonusAmount
+        - totalCredited
