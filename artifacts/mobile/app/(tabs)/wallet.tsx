@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, Modal, TextInput, Alert, ScrollView,
-  Platform, Clipboard, RefreshControl,
+  Platform, Clipboard, Linking, RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,7 +14,6 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import {
-  BankIcon,
   CheckCircleIcon,
   CopyIcon,
   DepositIcon,
@@ -33,7 +32,6 @@ import {
   useGetSettings,
 } from '@workspace/api-client-react';
 
-type DepositTab   = 'bank' | 'manual';
 type WithdrawMethod = 'upi' | 'bank';
 type WalletTab    = 'transactions' | 'deposits' | 'withdrawals';
 
@@ -126,7 +124,6 @@ export default function WalletScreen() {
   const [walletTab,     setWalletTab]     = useState<WalletTab>('transactions');
   const [showDeposit,   setShowDeposit]   = useState(false);
   const [showWithdraw,  setShowWithdraw]  = useState(false);
-  const [depositTab,    setDepositTab]    = useState<DepositTab>('manual');
 
   useEffect(() => {
     if (open === 'deposit') setShowDeposit(true);
@@ -138,7 +135,7 @@ export default function WalletScreen() {
   const [utrNumber,        setUtrNumber]        = useState('');
   const [screenshotUri,    setScreenshotUri]    = useState<string | null>(null);
   const [screenshotBase64, setScreenshotBase64] = useState<string | null>(null);
-  const [bankFieldCopied,  setBankFieldCopied]  = useState<string | null>(null);
+  const [copiedUpiId,      setCopiedUpiId]      = useState<string | null>(null);
 
   // Withdrawal form
   const [wdAmount,             setWdAmount]             = useState('');
@@ -195,6 +192,41 @@ export default function WalletScreen() {
     }
   };
 
+  const upiAccounts: Array<{ id: string; name?: string }> = [
+    { id: platformSettings?.platformUpiId, name: platformSettings?.platformUpiName },
+    { id: platformSettings?.platformUpiId2, name: platformSettings?.platformUpiName2 },
+    { id: platformSettings?.platformUpiId3, name: platformSettings?.platformUpiName3 },
+  ].flatMap((account) => account.id?.trim() ? [{ id: account.id.trim(), name: account.name }] : []);
+
+  const copyUpiId = (upiId: string) => {
+    Clipboard.setString(upiId);
+    setCopiedUpiId(upiId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTimeout(() => setCopiedUpiId(null), 2000);
+  };
+
+  const openUpiPayment = async (upiId: string) => {
+    const amt = parseFloat(depAmount);
+    if (!amt || amt < 200) {
+      Alert.alert(t('wallet_min_deposit_title'), t('wallet_min_deposit_msg'));
+      return;
+    }
+
+    const payeeName = platformSettings?.platformUpiName || platformSettings?.platformName || 'Jazment';
+    const upiUrl = [
+      `pa=${encodeURIComponent(upiId)}`,
+      `pn=${encodeURIComponent(payeeName)}`,
+      `am=${amt.toFixed(2)}`,
+      'cu=INR',
+    ].join('&');
+
+    try {
+      await Linking.openURL(`upi://pay?${upiUrl}`);
+    } catch {
+      Alert.alert(t('wallet_no_upi_app_title'), t('wallet_no_upi_app_msg'));
+    }
+  };
+
   const handleManualDeposit = () => {
     const amt = parseFloat(depAmount);
     if (!amt || amt < 200) { Alert.alert(t('wallet_min_deposit_title'), t('wallet_min_deposit_msg')); return; }
@@ -203,7 +235,7 @@ export default function WalletScreen() {
       return;
     }
     createDeposit.mutate(
-      { data: { amount: amt, method: 'manual', utrNumber: utrNumber.trim() || undefined, screenshotBase64 } },
+        { data: { amount: amt, method: 'upi_deeplink', utrNumber: utrNumber.trim() || undefined, screenshotBase64 } },
       {
         onSuccess: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -448,86 +480,124 @@ export default function WalletScreen() {
             <View style={s.sheetHandle} />
             <Text style={s.sheetTitle}>{t('wallet_deposit_btn')}</Text>
 
-            {!!(platformSettings?.bankName && platformSettings?.bankAccountNumber) && (
-              <View style={s.depTabs}>
-                <TouchableOpacity style={[s.depTab, depositTab === 'bank' && s.depTabActive]} onPress={() => setDepositTab('bank')}>
-                  <BankIcon size={14} color={depositTab === 'bank' ? colors.primary : colors.mutedForeground} />
-                  <Text style={[s.depTabText, depositTab === 'bank' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Bank</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[s.depTab, depositTab === 'manual' && s.depTabActive]} onPress={() => setDepositTab('manual')}>
-                  <DocumentIcon size={14} color={depositTab === 'manual' ? colors.primary : colors.mutedForeground} />
-                  <Text style={[s.depTabText, depositTab === 'manual' && { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{t('wallet_utr_tab')}</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <Text style={s.amountLabel}>{t('wallet_amount_label')} (min ₹200)</Text>
-              <TextInput style={s.amountInput} placeholder="₹200" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" value={depAmount} onChangeText={setDepAmount} />
-              <View style={s.quickAmounts}>
-                {[200, 500, 1000, 2000].map((a) => (
-                  <TouchableOpacity key={a} style={s.quickBtn} onPress={() => setDepAmount(String(a))}>
-                    <Text style={s.quickText}>₹{a}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <View style={s.depositSection}>
+                <View style={s.sectionHeader}>
+                  <View style={s.stepBadge}><Text style={s.stepBadgeText}>1</Text></View>
+                  <View style={s.sectionHeaderText}>
+                    <Text style={s.sectionTitle}>{t('wallet_pay_section_title')}</Text>
+                    <Text style={s.sectionSubtitle}>{t('wallet_pay_section_subtitle')}</Text>
+                  </View>
+                </View>
 
-              {/* Bank Transfer tab */}
-              {depositTab === 'bank' && (
-                <View style={{ marginTop: 12 }}>
+                <Text style={s.amountLabel}>{t('wallet_amount_label')} (min ₹200)</Text>
+                <TextInput
+                  style={s.amountInput}
+                  placeholder="₹200"
+                  placeholderTextColor={colors.mutedForeground}
+                  keyboardType="numeric"
+                  value={depAmount}
+                  onChangeText={setDepAmount}
+                  testID="deposit-amount"
+                />
+                <View style={s.quickAmounts}>
+                  {[200, 500, 1000, 2000].map((a) => (
+                    <TouchableOpacity key={a} style={s.quickBtn} onPress={() => setDepAmount(String(a))} activeOpacity={0.75}>
+                      <Text style={s.quickText}>₹{a}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {upiAccounts.length > 0 ? upiAccounts.map((account, index) => (
+                  <View key={account.id} style={s.upiCard}>
+                    <View style={s.upiCardHeading}>
+                      <View style={s.upiIconCircle}>
+                        <Ionicons name="phone-portrait-outline" size={17} color={colors.primary} />
+                      </View>
+                      <View style={s.upiCardHeadingText}>
+                        <Text style={s.upiCardLabel}>{account.name || `${t('wallet_upi_account')} ${index + 1}`}</Text>
+                        <Text style={s.upiId} selectable>{account.id}</Text>
+                      </View>
+                    </View>
+                    <View style={s.upiActions}>
+                      <TouchableOpacity
+                        style={s.copyUpiButton}
+                        onPress={() => copyUpiId(account.id)}
+                        activeOpacity={0.75}
+                        testID={`deposit-copy-upi-${index + 1}`}
+                      >
+                        {copiedUpiId === account.id
+                          ? <CheckCircleIcon size={16} color={colors.success} />
+                          : <CopyIcon size={16} color={colors.primary} />}
+                        <Text style={[s.copyUpiText, copiedUpiId === account.id && { color: colors.success }]}>
+                          {copiedUpiId === account.id ? t('wallet_copied') : t('wallet_copy_id')}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={s.payNowButton}
+                        onPress={() => openUpiPayment(account.id)}
+                        activeOpacity={0.8}
+                        testID={`deposit-pay-upi-${index + 1}`}
+                      >
+                        <Ionicons name="arrow-forward-circle-outline" size={17} color={colors.primaryForeground} />
+                        <Text style={s.payNowText}>{t('wallet_pay_now')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )) : (
                   <View style={s.infoBox}>
                     <InfoIcon size={16} color={colors.warning} />
-                         <Text style={s.infoText}>Transfer via NEFT/IMPS to the bank account below, then open Payment Proof.</Text>
+                    <Text style={s.infoText}>{t('wallet_upi_not_configured')}</Text>
                   </View>
-                  {[
-                    { label: 'Bank Name',              value: platformSettings?.bankName,          field: 'bankName' },
-                    { label: 'Account Holder',         value: platformSettings?.bankHolderName,    field: 'bankHolder' },
-                    { label: 'Account Number',         value: platformSettings?.bankAccountNumber, field: 'bankAccount', mono: true },
-                    { label: 'IFSC',                                            value: platformSettings?.bankIfsc,          field: 'bankIfsc',    mono: true },
-                  ].map(({ label, value, field, mono }) =>
-                    value ? (
-                      <View key={field} style={s.bankRow}>
-                        <Text style={s.bankLabel}>{label}</Text>
-                        <TouchableOpacity style={s.bankValueRow} onPress={() => { Clipboard.setString(value); setBankFieldCopied(field); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTimeout(() => setBankFieldCopied(null), 2000); }} activeOpacity={0.7}>
-                          <Text style={[s.bankValue, mono && { fontFamily: 'Inter_600SemiBold', letterSpacing: 0.5 }]}>{value}</Text>
-                          {bankFieldCopied === field
-                            ? <CheckCircleIcon size={16} color={colors.success} />
-                            : <CopyIcon size={16} color={colors.primary} />}
-                        </TouchableOpacity>
-                      </View>
-                    ) : null
-                  )}
-                </View>
-              )}
+                )}
+              </View>
 
-              {/* Payment Proof tab */}
-              {depositTab === 'manual' && (
-                <View>
-                  <View style={s.proofHint}>
-                    <DocumentIcon size={17} color={colors.primary} />
-                    <Text style={s.proofHintText}>Upload your payment screenshot to submit. Reference number is optional.</Text>
+              <View style={s.depositSection}>
+                <View style={s.sectionHeader}>
+                  <View style={s.stepBadge}><Text style={s.stepBadgeText}>2</Text></View>
+                  <View style={s.sectionHeaderText}>
+                    <Text style={s.sectionTitle}>{t('wallet_payment_proof_title')}</Text>
+                    <Text style={s.sectionSubtitle}>{t('wallet_payment_proof_subtitle')}</Text>
                   </View>
-                  <Text style={s.amountLabel}>{t('wallet_utr_label')}</Text>
-                  <TextInput style={s.textInput} placeholder={t('wallet_utr_placeholder')} placeholderTextColor={colors.mutedForeground} value={utrNumber} onChangeText={setUtrNumber} keyboardType="numeric" />
-                  <Text style={s.amountLabel}>{t('wallet_screenshot_label')}</Text>
-                  <TouchableOpacity style={s.screenshotBtn} onPress={pickScreenshot} activeOpacity={0.8}>
-                    {screenshotUri ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <CheckCircleIcon size={20} color={colors.success} />
-                        <Text style={[s.screenshotText, { color: colors.success }]}>Screenshot uploaded</Text>
-                      </View>
-                    ) : (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <ImageIcon size={20} color={colors.mutedForeground} />
-                        <Text style={s.screenshotText}>Choose from gallery</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[s.confirmBtn, createDeposit.isPending && s.btnDisabled]} onPress={handleManualDeposit} disabled={createDeposit.isPending} activeOpacity={0.85}>
-                    {createDeposit.isPending ? <ActivityIndicator color={colors.primaryForeground} /> : <Text style={s.confirmText}>{t('wallet_submit_deposit')}</Text>}
-                  </TouchableOpacity>
                 </View>
-              )}
+                <View style={s.proofHint}>
+                  <DocumentIcon size={17} color={colors.primary} />
+                  <Text style={s.proofHintText}>{t('wallet_after_payment_msg')}</Text>
+                </View>
+                <Text style={s.amountLabel}>{t('wallet_utr_label')}</Text>
+                <TextInput
+                  style={s.textInput}
+                  placeholder={t('wallet_utr_placeholder')}
+                  placeholderTextColor={colors.mutedForeground}
+                  value={utrNumber}
+                  onChangeText={setUtrNumber}
+                  keyboardType="numeric"
+                  testID="deposit-utr"
+                />
+                <Text style={s.amountLabel}>{t('wallet_screenshot_label')}</Text>
+                <TouchableOpacity style={s.screenshotBtn} onPress={pickScreenshot} activeOpacity={0.8} testID="deposit-screenshot">
+                  {screenshotUri ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <CheckCircleIcon size={20} color={colors.success} />
+                      <Text style={[s.screenshotText, { color: colors.success }]}>Screenshot uploaded</Text>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <ImageIcon size={20} color={colors.mutedForeground} />
+                      <Text style={s.screenshotText}>Choose from gallery</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.confirmBtn, createDeposit.isPending && s.btnDisabled]}
+                  onPress={handleManualDeposit}
+                  disabled={createDeposit.isPending}
+                  activeOpacity={0.85}
+                  testID="deposit-submit-proof"
+                >
+                  {createDeposit.isPending ? <ActivityIndicator color={colors.primaryForeground} /> : <Text style={s.confirmText}>{t('wallet_submit_deposit')}</Text>}
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -666,6 +736,24 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   balHint: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginBottom: 16 },
   proofHint: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14, paddingVertical: 2 },
   proofHintText: { flex: 1, fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', lineHeight: 17 },
+  depositSection: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 14, marginBottom: 14 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14 },
+  stepBadge: { width: 25, height: 25, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary },
+  stepBadgeText: { color: colors.primaryForeground, fontSize: 13, fontFamily: 'Inter_700Bold' },
+  sectionHeaderText: { flex: 1 },
+  sectionTitle: { fontSize: 16, color: colors.foreground, fontFamily: 'Inter_700Bold' },
+  sectionSubtitle: { fontSize: 12, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', lineHeight: 17, marginTop: 2 },
+  upiCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, marginTop: 2, marginBottom: 10 },
+  upiCardHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  upiIconCircle: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primary + '18', alignItems: 'center', justifyContent: 'center' },
+  upiCardHeadingText: { flex: 1 },
+  upiCardLabel: { fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_500Medium', textTransform: 'uppercase', letterSpacing: 0.7 },
+  upiId: { fontSize: 15, color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginTop: 3 },
+  upiActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  copyUpiButton: { flex: 1, minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 9, backgroundColor: colors.muted },
+  copyUpiText: { fontSize: 13, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
+  payNowButton: { flex: 1, minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 9, backgroundColor: colors.primary },
+  payNowText: { fontSize: 13, color: colors.primaryForeground, fontFamily: 'Inter_700Bold' },
   infoBox: { flexDirection: 'row', gap: 8, backgroundColor: colors.warning + '15', borderRadius: 10, padding: 12, alignItems: 'flex-start' },
   infoText: { flex: 1, fontSize: 12, color: colors.warning, fontFamily: 'Inter_400Regular', lineHeight: 17 },
   screenshotBtn: { backgroundColor: colors.muted, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, minHeight: 52, borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed', marginBottom: 14, alignItems: 'center', justifyContent: 'center' },
@@ -676,8 +764,4 @@ const styles = (colors: ReturnType<typeof useColors>, insets: any) => StyleSheet
   validationMsg: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: -10, marginBottom: 12 },
   validationText: { fontSize: 12, fontFamily: 'Inter_400Regular' },
   ifscHint: { fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', marginTop: -10, marginBottom: 16 },
-  bankRow: { marginBottom: 14 },
-  bankLabel: { fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 },
-  bankValueRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, backgroundColor: colors.muted, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
-  bankValue: { fontSize: 15, color: colors.foreground, fontFamily: 'Inter_400Regular', flex: 1, marginRight: 8 },
 });
