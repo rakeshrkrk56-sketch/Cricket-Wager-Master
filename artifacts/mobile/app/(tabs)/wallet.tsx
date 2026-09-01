@@ -17,9 +17,11 @@ import {
   BankIcon,
   CheckCircleIcon,
   CopyIcon,
+  DepositIcon,
   DocumentIcon,
   ImageIcon,
   InfoIcon,
+  WithdrawIcon,
 } from '@/components/AppIcons';
 import {
   useGetWallet, getGetWalletQueryKey,
@@ -288,12 +290,12 @@ export default function WalletScreen() {
         }
         <View style={s.cardActions}>
           <TouchableOpacity style={s.cardBtn} onPress={() => setShowDeposit(true)} activeOpacity={0.85}>
-            <Ionicons name="arrow-down-circle" size={18} color={colors.primaryForeground} />
+            <DepositIcon size={18} color={colors.primaryForeground} />
             <Text style={s.cardBtnText}>{t('wallet_deposit_btn')}</Text>
           </TouchableOpacity>
           <View style={s.divider} />
           <TouchableOpacity style={s.cardBtn} onPress={() => setShowWithdraw(true)} activeOpacity={0.85}>
-            <Ionicons name="arrow-up-circle" size={18} color={colors.primaryForeground} />
+            <WithdrawIcon size={18} color={colors.primaryForeground} />
             <Text style={s.cardBtnText}>{t('wallet_withdraw_btn')}</Text>
           </TouchableOpacity>
         </View>
