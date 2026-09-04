@@ -1,6 +1,9 @@
 {
   "build": {
     "preview": {
+      "node": "20.19.4",
+      "corepack": true,
+      "pnpm": "10.26.1",
       "channel": "preview",
       "env": {
         "EXPO_PUBLIC_DOMAIN": "jazment.online"
