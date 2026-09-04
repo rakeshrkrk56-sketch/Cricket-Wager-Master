@@ -9,6 +9,7 @@
         "EXPO_PUBLIC_DOMAIN": "jazment.online"
       },
       "android": {
+        "image": "sdk-54",
         "buildType": "apk"
       }
     }
