@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   BackHandler,
+  Clipboard,
   Linking,
   Platform,
   StyleSheet,
@@ -64,7 +65,7 @@ export default function AddCashPaymentScreen() {
 
     setIsOpening(true);
     try {
-      const deeplink = `upi://pay?pa=${encodeURIComponent(upiId.trim())}&am=${encodeURIComponent(amountValue.toFixed(2))}&cu=INR`;
+      const deeplink = `upi://pay?pa=${encodeURIComponent(upiId.trim())}&cu=INR`;
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await Linking.openURL(deeplink);
       setPaymentAppOpened(true);
@@ -73,6 +74,12 @@ export default function AddCashPaymentScreen() {
     } finally {
       setIsOpening(false);
     }
+  };
+
+  const copyUpiId = () => {
+    if (!upiId?.trim()) return;
+    Clipboard.setString(upiId.trim());
+    Alert.alert('UPI ID copied', `${upiId.trim()}\n\nEnter ₹${amountValue.toFixed(2)} in your UPI app.`);
   };
 
   return (
@@ -95,17 +102,35 @@ export default function AddCashPaymentScreen() {
           <Ionicons name="shield-checkmark" size={34} color={colors.primary} />
         </View>
         <Text style={s.title}>Complete your payment</Text>
-        <Text style={s.subtitle}>Confirm the amount, then continue to your installed UPI app.</Text>
+        <Text style={s.subtitle}>Open your UPI app, then enter the exact amount shown below.</Text>
 
         <View style={s.amountCard}>
           <Text style={s.amountLabel}>AMOUNT TO PAY</Text>
           <Text style={s.amount}>₹{hasValidPayment ? amountValue.toFixed(2) : '—'}</Text>
+          {upiId?.trim() ? (
+            <View style={s.upiRow}>
+              <View style={s.upiDetails}>
+                <Text style={s.upiLabel}>PAY TO UPI ID</Text>
+                <Text style={s.upiValue}>{upiId.trim()}</Text>
+              </View>
+              <TouchableOpacity
+                style={s.copyButton}
+                onPress={copyUpiId}
+                activeOpacity={0.75}
+                accessibilityLabel="Copy UPI ID"
+                testID="add-cash-copy-upi"
+              >
+                <Ionicons name="copy-outline" size={17} color={colors.primary} />
+                <Text style={s.copyButtonText}>Copy</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
 
         <View style={s.notice}>
           <Ionicons name="information-circle-outline" size={20} color={colors.primary} />
           <Text style={s.noticeText}>
-            Payment is not credited automatically. After paying, return to Add Cash and upload the payment screenshot for admin verification.
+            Enter ₹{hasValidPayment ? amountValue.toFixed(2) : '—'} inside your UPI app. Payment is not credited automatically; return and upload the screenshot for admin verification.
           </Text>
         </View>
 
@@ -121,7 +146,7 @@ export default function AddCashPaymentScreen() {
           ) : (
             <>
               <Ionicons name="arrow-forward-circle" size={22} color={colors.primaryForeground} />
-              <Text style={s.payButtonText}>Click to Pay</Text>
+              <Text style={s.payButtonText}>Open UPI App</Text>
             </>
           )}
         </TouchableOpacity>
@@ -230,6 +255,48 @@ const styles = (colors: ReturnType<typeof useColors>, insets: ReturnType<typeof 
     fontSize: 40,
     color: colors.foreground,
     fontFamily: 'Inter_700Bold',
+  },
+  upiRow: {
+    alignSelf: 'stretch',
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  upiDetails: {
+    flex: 1,
+  },
+  upiLabel: {
+    fontSize: 10,
+    letterSpacing: 1,
+    color: colors.mutedForeground,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  upiValue: {
+    marginTop: 4,
+    fontSize: 14,
+    color: colors.foreground,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  copyButton: {
+    minHeight: 38,
+    paddingHorizontal: 13,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  copyButtonText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontFamily: 'Inter_600SemiBold',
   },
   notice: {
     alignSelf: 'stretch',
