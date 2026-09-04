@@ -1,0 +1,105 @@
+IMPORTANT: We are preparing the FINAL Android APK for direct distribution.
+
+DO NOT make any changes yet.
+
+Before the final APK build, perform a complete pre-build audit of the Jazment mobile app.
+
+Work ONLY inside:
+~/workspace/artifacts/mobile
+
+The goal is to identify anything that MUST be embedded/configured in the APK at build time and therefore cannot reliably be fixed later through an OTA update.
+
+Check and report:
+
+1. Expo/EAS configuration
+- app.json
+- eas.json
+- package name
+- version
+- runtimeVersion
+- EAS Project ID
+- expo.updates.url
+- preview channel
+- Android build profile
+
+2. Native Android configuration
+- Android permissions
+- INTERNET permission
+- network/security configuration
+- app scheme/deep links
+- package name
+- app icon
+- splash screen
+- orientation
+- any native Android configuration required by the app
+
+3. Native dependencies
+Identify every dependency used by the mobile app that requires a native Android rebuild.
+Do not change or remove anything.
+
+4. Environment/configuration
+Verify which environment variables are required at BUILD TIME and which are available to OTA updates.
+
+Specifically verify:
+- EXPO_PUBLIC_DOMAIN
+- jazment.online
+- API base URL
+- WebSocket URL
+- UPI/payment configuration
+- KYC configuration
+- support-ticket API configuration
+
+5. EAS Update
+Verify that the final APK will be correctly configured to receive OTA updates from:
+Project ID:
+07a6464b-9cef-4602-beb8-72916cb03fe2
+
+Channel:
+preview
+
+Runtime:
+1.0.0
+
+6. Production connectivity
+Verify that the final APK will use:
+https://jazment.online
+
+Verify:
+- API health
+- API base URL
+- Dragon Tiger WebSocket
+- UPI/payment API
+- Support API
+
+7. Direct APK distribution
+Verify that the APK generated from this exact folder can be installed independently on another Android phone and has all required runtime configuration.
+
+8. OTA limitations
+Create a clear list with two sections:
+
+MUST BE FIXED BEFORE APK BUILD
+- Anything requiring a native rebuild
+- Anything that must be embedded into the APK
+- Anything that cannot reliably be fixed by EAS Update
+
+CAN BE FIXED LATER THROUGH OTA
+- JavaScript/UI changes
+- API/runtime logic
+- game logic
+- compatible configuration changes
+
+IMPORTANT:
+- Do NOT build an APK.
+- Do NOT publish an OTA update.
+- Do NOT change the UI.
+- Do NOT add/remove features.
+- Do NOT modify the EAS Project ID.
+- Do NOT modify the Android package name.
+- Do NOT create root-level app.json/eas.json.
+- Do NOT make any changes until the audit is complete.
+
+At the end, give me:
+A) "READY FOR FINAL APK BUILD" if everything required is correct, OR
+B) an exact list of things that must be fixed before building.
+
+Do not claim READY unless you have actually verified the configuration.

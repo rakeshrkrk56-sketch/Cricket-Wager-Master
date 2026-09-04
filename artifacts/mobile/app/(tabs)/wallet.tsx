@@ -2,11 +2,11 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, Modal, TextInput, Alert, ScrollView,
-  Platform, Clipboard, Linking, RefreshControl,
+  Platform, Clipboard, RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
@@ -30,7 +30,7 @@ import {
   useGetMyDeposits, getGetMyDepositsQueryKey,
   useGetMyWithdrawals, getGetMyWithdrawalsQueryKey,
   useCreateDeposit, useCreateWithdrawal,
-  useGetSettings,
+  useGetSettings, getGetSettingsQueryKey,
 } from '@workspace/api-client-react';
 
 type WithdrawMethod = 'upi' | 'bank';
@@ -148,7 +148,14 @@ export default function WalletScreen() {
   const [wdConfirmAccountNumber,setWdConfirmAccountNumber] = useState('');
   const [wdIfsc,               setWdIfsc]               = useState('');
 
-  const { data: platformSettings } = useGetSettings();
+  const { data: platformSettings } = useGetSettings({
+    query: {
+      queryKey: getGetSettingsQueryKey(),
+      staleTime: 0,
+      refetchOnMount: 'always',
+      refetchOnReconnect: true,
+    },
+  });
 
   const { data: wallet,         isLoading: walletLoading }      = useGetWallet({ query: { enabled: !!token, queryKey: getGetWalletQueryKey() } });
   const { data: txData,         isLoading: txLoading }          = useGetTransactions({}, { query: { enabled: !!token && walletTab === 'transactions', queryKey: getGetTransactionsQueryKey({}) } });
@@ -175,6 +182,7 @@ export default function WalletScreen() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([
+      queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() }),
       queryClient.invalidateQueries({ queryKey: getGetWalletQueryKey() }),
       queryClient.invalidateQueries({ queryKey: getGetTransactionsQueryKey({}) }),
       queryClient.invalidateQueries({ queryKey: getGetMyDepositsQueryKey({}) }),
@@ -206,26 +214,21 @@ export default function WalletScreen() {
     setTimeout(() => setCopiedUpiId(null), 2000);
   };
 
-  const openUpiPayment = async (upiId: string) => {
+  const openUpiPayment = (upiId: string) => {
     const amt = parseFloat(depAmount);
     if (!amt || amt < 200) {
       Alert.alert(t('wallet_min_deposit_title'), t('wallet_min_deposit_msg'));
       return;
     }
 
-    const payeeName = platformSettings?.platformUpiName || platformSettings?.platformName || 'Jazment';
-    const upiUrl = [
-      `pa=${encodeURIComponent(upiId)}`,
-      `pn=${encodeURIComponent(payeeName)}`,
-      `am=${amt.toFixed(2)}`,
-      'cu=INR',
-    ].join('&');
-
-    try {
-      await Linking.openURL(`upi://pay?${upiUrl}`);
-    } catch {
-      Alert.alert(t('wallet_no_upi_app_title'), t('wallet_no_upi_app_msg'));
-    }
+    setShowDeposit(false);
+    router.push({
+      pathname: '/add-cash-payment',
+      params: {
+        amount: amt.toFixed(2),
+        upiId,
+      },
+    });
   };
 
   const handleManualDeposit = () => {

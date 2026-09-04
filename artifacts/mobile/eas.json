@@ -1,0 +1,13 @@
+{
+  "build": {
+    "preview": {
+      "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "jazment.online"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    }
+  }
+}

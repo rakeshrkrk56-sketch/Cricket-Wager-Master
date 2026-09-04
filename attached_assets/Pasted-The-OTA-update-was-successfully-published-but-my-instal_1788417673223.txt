@@ -1,0 +1,67 @@
+The OTA update was successfully published, but my installed Android APK still behaves exactly like the old APK. Do NOT make any changes yet.
+
+I need a definitive diagnosis of why the installed APK is not loading the published update.
+
+Work ONLY in ~/workspace/artifacts/mobile.
+
+DO NOT:
+- build a new APK
+- change UI
+- change features
+- change Project ID
+- change runtimeVersion
+- change channel
+- create root app.json/eas.json
+- publish another update yet
+
+Verify the INSTALLED APK compatibility against the published OTA update.
+
+Run/inspect whatever is possible and report:
+
+1. Current app.json:
+   - expo.updates.url
+   - expo.runtimeVersion
+   - expo.version
+   - expo.updates.enabled
+   - expo.updates.requestHeaders if present
+
+2. Current eas.json:
+   - preview channel
+   - preview environment
+   - runtime-related configuration
+
+3. Published update:
+   - Update Group ID: 39d443b4-75ab-4b87-aa11-9af3bb872c6f
+   - channel
+   - branch
+   - platform
+   - runtimeVersion
+   - update ID
+   - whether the update actually contains the fixed bundle
+
+4. Verify whether the installed APK was built BEFORE the expo-updates configuration/project linking was completed.
+   If yes, explicitly state whether that means the installed APK cannot receive OTA updates.
+
+5. Determine whether the installed APK actually contains:
+   - EXPO_UPDATE_URL
+   - expo-channel-name = preview
+   - EXPO_RUNTIME_VERSION = 1.0.0
+
+6. Check whether the published update endpoint returns a compatible manifest for:
+   project ID 07a6464b-9cef-4602-beb8-72916cb03fe2
+   channel preview
+   platform android
+   runtime 1.0.0
+
+7. Check whether the OTA update is being downloaded but failing to apply/rolling back.
+
+8. Check whether EXPO_PUBLIC_DOMAIN=jazment.online is actually included in the published OTA bundle/environment.
+
+IMPORTANT:
+Do not claim the installed APK can receive OTA updates unless you verify that expo-updates, the update URL, channel, and runtime were embedded into that APK at build time.
+
+At the end give ONE definitive conclusion:
+A) Existing APK can receive this OTA and why it isn't applying, OR
+B) Existing APK was built without the required EAS Update configuration and therefore MUST be rebuilt once.
+
+Do not change anything until this diagnosis is complete.

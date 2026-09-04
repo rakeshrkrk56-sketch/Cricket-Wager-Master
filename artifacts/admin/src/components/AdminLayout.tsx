@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { ReactNode, useState, useEffect } from "react";
-import { LayoutDashboard, Users, LogOut, Activity, ArrowDownCircle, ArrowUpCircle, MessageSquare, Building2, Menu, X, Shield, Gamepad2, Bell, BellOff, Settings2 } from "lucide-react";
+import { LayoutDashboard, Users, LogOut, Activity, ArrowDownCircle, ArrowUpCircle, MessageSquare, Building2, Menu, X, Shield, Gamepad2, Bell, BellOff, Settings2, UploadCloud } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -8,7 +8,7 @@ import { usePendingRequestAlerts } from "@/components/PendingRequestAlerts";
 import { useAdminListDeposits, useAdminListWithdrawals, useAdminListSupportTickets } from "@workspace/api-client-react";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/users", label: "Users", icon: Users },
   { href: "/deposits", label: "Deposits", icon: ArrowDownCircle },
   { href: "/withdrawals", label: "Withdrawals", icon: ArrowUpCircle },
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { href: "/audit-logs", label: "Audit Logs", icon: Shield },
   { href: "/game-control", label: "Game Control", icon: Gamepad2 },
   { href: "/settings", label: "Platform Settings", icon: Settings2 },
+  { href: "/app-distribution", label: "App Distribution", icon: UploadCloud },
 ];
 
 export function AdminLayout({ children }: { children: ReactNode }) {

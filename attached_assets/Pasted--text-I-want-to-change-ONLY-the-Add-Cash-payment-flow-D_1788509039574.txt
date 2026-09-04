@@ -1,0 +1,36 @@
+```text
+I want to change ONLY the Add Cash payment flow. Do not change any other UI, wallet logic, game logic, authentication, profile, navigation, OTA configuration, APK configuration, or unrelated features.
+
+Current implementation uses a direct UPI deeplink (upi://pay). I do NOT want the Add Cash flow to directly launch PhonePe/Google Pay anymore.
+
+Create a proper dedicated payment page/checkout flow for Add Cash.
+
+Required flow:
+
+1. User selects an Add Cash amount.
+2. Open a dedicated payment page.
+3. The payment page should show the selected amount clearly.
+4. Provide a clear "Click to Pay" / "Pay" button.
+5. The payment page must NOT display:
+   - Game account name
+   - Phone number
+   - Guest ID
+   - Any unnecessary account details
+6. Internally, the backend must correctly associate the payment with the current Jazment account:
+   - Verified user → use the verified account/mobile association internally.
+   - Guest user → use the Guest ID internally.
+7. These identifiers must remain internal and must never be displayed on the payment page.
+8. Generate a unique payment/order/transaction ID for every payment attempt.
+9. Payment success must be verified server-side before adding money to the Jazment wallet.
+10. Never credit the wallet based only on a client-side success response.
+11. Do not fake payment success or payment verification.
+12. Do not use the current direct upi://pay deeplink as the primary Add Cash payment flow.
+
+Before changing code, inspect the existing Jazment wallet deposit backend and determine what payment/UPI infrastructure is currently available.
+
+I want to know whether this can be implemented using our own authorized UPI merchant/payment setup without Razorpay, Easebuzz, Cashfree, or similar payment providers.
+
+If an authorized payment processor/acquirer or UPI merchant integration is technically required for reliable server-side payment verification, do NOT invent a workaround or fake implementation. Explain exactly what integration is required first.
+
+Do not modify anything unrelated to the Add Cash payment flow.
+```

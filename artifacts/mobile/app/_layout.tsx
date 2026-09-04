@@ -19,8 +19,9 @@ import { getGetWalletQueryKey, setBaseUrl } from '@workspace/api-client-react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { LanguageProvider, useLanguage } from '@/contexts/LanguageContext';
 import { AvatarProvider } from '@/contexts/AvatarContext';
+import { apiBaseUrl } from '@/constants/runtime';
 
-setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+setBaseUrl(apiBaseUrl);
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -58,6 +59,7 @@ function RootLayoutNav() {
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="admin" options={{ headerShown: false, presentation: 'card' }} />
+      <Stack.Screen name="add-cash-payment" options={{ headerShown: false, presentation: 'card', gestureEnabled: false }} />
       <Stack.Screen name="support/ticket/[ticketId]" options={{ headerShown: false, presentation: 'card' }} />
     </Stack>
   );

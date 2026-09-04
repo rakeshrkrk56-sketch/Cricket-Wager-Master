@@ -10,6 +10,7 @@ import { router } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { apiBaseUrl } from '@/constants/runtime';
 
 const DOC_TYPES = [
   { id: 'govt_id', label: 'Government ID', sublabel: 'Aadhaar, PAN, Voter ID, Passport', required: true },
@@ -35,7 +36,7 @@ export default function KycScreen() {
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
   const [uploading, setUploading] = useState<string | null>(null);
-  const apiBase = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+  const apiBase = apiBaseUrl;
 
   const s = styles(colors, insets);
 

@@ -1,0 +1,66 @@
+Haan, ab clear hai. Tumhare app mein **manual admin verification system already hai**, isliye API/webhook ki zarurat nahi hai.
+
+Current flow screenshot ke according already:
+
+**Amount select → UPI ID par Pay Now → payment karo → screenshot upload karo → optional payment reference/UTR → Submit Deposit Request → Admin Panel → Admin screenshot/payment details check kare → Approve → wallet balance credit**
+
+Toh humein **automatic payment verification banani hi nahi hai**.
+
+Tumhara actual requirement sirf itna hai ki **Pay Now** ko current problematic direct `upi://pay` deeplink ke bajay ek better payment page/checkout flow se handle kiya jaye, while keeping your existing **Payment Proof + Admin Approval** system.
+
+Replit AI ko ye exact prompt do:
+
+```text
+Do NOT add any payment API, payment gateway, webhook, automatic payment verification, Razorpay, Easebuzz, Cashfree, or any other payment provider.
+
+Our app ALREADY has a manual payment verification system through the Admin Panel.
+
+The existing flow is:
+
+Select deposit amount
+→ Pay Now
+→ User makes the UPI payment
+→ User uploads payment screenshot
+→ Payment reference/UTR is optional
+→ Submit Deposit Request
+→ Admin checks the payment proof in Admin Panel
+→ Admin manually approves/rejects the deposit
+→ Wallet is credited only after Admin approval.
+
+KEEP THIS EXISTING MANUAL ADMIN VERIFICATION SYSTEM EXACTLY AS IT IS.
+
+The ONLY problem we are trying to solve is the current Pay Now UPI deeplink/payment experience.
+
+I want Pay Now to open a proper payment page/checkout experience instead of directly launching the current problematic upi://pay deeplink.
+
+The payment page only needs to show the selected payment amount and a clear "Click to Pay" / "Pay" button.
+
+Do NOT display:
+- User's game name
+- Phone number
+- Guest ID
+- Internal account ID
+
+Guest and verified users must continue using the existing account/session system internally so that the submitted deposit request goes to the correct account.
+
+After the user completes payment, they must still return to the existing Deposit screen and submit the payment screenshot through the existing Payment Proof section.
+
+IMPORTANT:
+- Do not remove the Payment Proof section.
+- Do not remove screenshot upload.
+- Do not remove optional payment reference/UTR.
+- Do not remove Admin approval.
+- Do not add automatic wallet credit.
+- Do not add automatic payment verification.
+- Do not change the Admin Panel.
+- Do not change wallet logic except where absolutely required to preserve the existing flow.
+- Do not change any unrelated UI or features.
+
+First inspect the existing Add Cash/Deposit and Admin approval implementation.
+
+Then implement ONLY the Pay Now/payment-page improvement described above.
+
+If a proper payment page cannot be created without a payment provider/API, do NOT add one and do NOT invent a fake payment system. In that case, explain what is technically possible with our existing merchant UPI ID before changing anything.
+```
+
+**Ab API lene ki zarurat nahi hai** for the system you already have. Admin manually proof verify kar raha hai, so that part is already covered.

@@ -9,8 +9,14 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "updates": {
-      "enabled": false,
+      "enabled": true,
+      "url": "https://u.expo.dev/07a6464b-9cef-4602-beb8-72916cb03fe2",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
       "useEmbeddedUpdate": true
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     },
     "splash": {
       "image": "./assets/images/dragon-tiger-casino-wide.png",
@@ -20,7 +26,13 @@
     "ios": {
       "supportsTablet": false
     },
-    "android": {},
+    "android": {
+      "package": "com.jazment.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
+    },
     "web": {
       "favicon": "./assets/images/dragon-tiger-casino-wide.png"
     },
@@ -45,6 +57,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "apiDomain": "jazment.online",
+      "eas": {
+        "projectId": "07a6464b-9cef-4602-beb8-72916cb03fe2"
+      }
+    },
+    "owner": "oldmonk699"
   }
 }

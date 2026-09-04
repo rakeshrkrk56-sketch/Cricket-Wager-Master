@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
   Animated,
+  BackHandler,
   Easing,
   Image,
   ImageBackground,
@@ -20,6 +21,7 @@ import * as Haptics from 'expo-haptics';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGameAudio } from '@/hooks/useGameAudio';
+import { apiDomain } from '@/constants/runtime';
 import { useGetWallet, getGetWalletQueryKey } from '@workspace/api-client-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAvatar } from '@/contexts/AvatarContext';
@@ -104,10 +106,23 @@ function GameLobby() {
   const { user, token } = useAuth();
   const { avatar } = useAvatar();
   const isPortrait = height > width;
+  const [exitPromptVisible, setExitPromptVisible] = useState(false);
   const { data: walletData } = useGetWallet({
     query: { enabled: !!token, queryKey: getGetWalletQueryKey() },
   });
   const balance = Number(walletData?.balance ?? user?.walletBalance ?? 0);
+
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS !== 'android') return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setExitPromptVisible((visible) => {
+        if (visible) return false;
+        return true;
+      });
+      return true;
+    });
+    return () => subscription.remove();
+  }, []));
 
   useFocusEffect(useCallback(() => {
     if (Platform.OS !== 'web') {
@@ -251,6 +266,18 @@ function GameLobby() {
           </View>
         </View>
       </View>
+       <ExitPromptModal
+         visible={exitPromptVisible}
+         title="Exit Jazment?"
+         message="Do you want to close the app?"
+         cancelLabel="Stay in Lobby"
+         confirmLabel="Exit App"
+         onCancel={() => setExitPromptVisible(false)}
+         onConfirm={() => {
+           setExitPromptVisible(false);
+           BackHandler.exitApp();
+         }}
+       />
     </LinearGradient>
   );
 }
@@ -340,6 +367,7 @@ function DragonTigerGame() {
   const [presentedResult, setPresentedResult] = useState<Choice | null>(null);
   const [recoveredBets, setRecoveredBets] = useState<RecoveredBet[] | null>(null);
   const [insufficientFunds, setInsufficientFunds] = useState<{ amount: number; balance: number } | null>(null);
+  const [exitPromptVisible, setExitPromptVisible] = useState(false);
   
   const [chips, setChips] = useState<RenderChip[]>([]);
   
@@ -389,16 +417,31 @@ function DragonTigerGame() {
     };
   }, []));
 
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS !== 'android') return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (insufficientFunds !== null) {
+        setInsufficientFunds(null);
+        return true;
+      }
+      setExitPromptVisible((visible) => {
+        if (visible) return false;
+        return true;
+      });
+      return true;
+    });
+    return () => subscription.remove();
+  }, [insufficientFunds]));
+
   useEffect(() => {
     if (!token) return;
     let disposed = false;
     const connect = () => {
-      const domain = process.env.EXPO_PUBLIC_DOMAIN;
-      if (!domain) {
+      if (!apiDomain) {
         setMessage('Game connection is not configured.');
         return;
       }
-      const socket = new WebSocket(`wss://${domain}/ws/game`);
+      const socket = new WebSocket(`wss://${apiDomain}/ws/game`);
       socketRef.current = socket;
       socket.onopen = () => {
         if (disposed) return;
@@ -1091,6 +1134,20 @@ function DragonTigerGame() {
         </View>
       </Modal>
 
+       <ExitPromptModal
+         visible={exitPromptVisible}
+         title="Exit to Lobby?"
+         message="The live game is still running. Leave the table and return to the lobby?"
+         cancelLabel="Stay in Game"
+         confirmLabel="Exit to Lobby"
+         onCancel={() => setExitPromptVisible(false)}
+         onConfirm={() => {
+           setExitPromptVisible(false);
+           void playSound('chipSelect');
+           router.replace('/(tabs)');
+         }}
+       />
+
       <View style={{ position: 'absolute', bottom: Math.max(insets.bottom, 16), left: Math.max(insets.left, 16), backgroundColor: 'rgba(0,0,0,0.6)', padding: 6, borderRadius: 8, flexDirection: 'row', maxWidth: width * 0.3, flexWrap: 'wrap', zIndex: 5 }}>
         {history.length === 0 && <Text style={{ color: '#aaa', fontSize: 12 }}>Awaiting results...</Text>}
         {history.slice(-14).map((h, i) => (
@@ -1100,6 +1157,61 @@ function DragonTigerGame() {
         ))}
       </View>
     </View>
+  );
+}
+
+function ExitPromptModal({
+  visible,
+  title,
+  message,
+  cancelLabel,
+  confirmLabel,
+  onCancel,
+  onConfirm,
+}: {
+  visible: boolean;
+  title: string;
+  message: string;
+  cancelLabel: string;
+  confirmLabel: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
+    >
+      <View style={gameModalStyles.backdrop}>
+        <View style={gameModalStyles.card}>
+          <View style={gameModalStyles.iconCircle}>
+            <GameControllerIcon size={28} color="#FBBF24" />
+          </View>
+          <Text style={gameModalStyles.title}>{title}</Text>
+          <Text style={gameModalStyles.message}>{message}</Text>
+          <TouchableOpacity
+            style={gameModalStyles.addButton}
+            onPress={onConfirm}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={confirmLabel}
+          >
+            <Text style={gameModalStyles.addButtonText}>{confirmLabel}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={gameModalStyles.dismissButton}
+            onPress={onCancel}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={cancelLabel}
+          >
+            <Text style={gameModalStyles.dismissText}>{cancelLabel}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
   );
 }
 

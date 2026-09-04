@@ -1,0 +1,43 @@
+Sahi pakde. **Pichli baar bhi tumne Project Editor mein manually EAS Update nahi kiya tha.** Humne Replit/Expo workflow ke through OTA publish karwaya tha. Isliye ab Replit ka “aapko Project Editor mein EAS Update select karna hai” wala jawab likely **current Replit workflow ki limitation** bata raha hai, koi guaranteed menu location nahi.
+
+Aur main tumhe aisa option dhoondhne ko nahi bolunga jo tumhare UI mein ho hi na. Human interfaces already enough suffering provide karte hain.
+
+### Abhi Replit ko ye prompt do
+
+```text
+Do not ask me to manually find an EAS Update option in the Project Editor.
+
+Previously, the Jazment preview APK OTA update was successfully published from the Replit workflow without me manually navigating to an EAS Update menu.
+
+Please use the SAME supported Replit/Expo workflow that was used previously to publish an OTA update.
+
+First inspect the current project/workflow configuration and determine the supported way to publish an EAS Update from this environment.
+
+The ONLY update to publish is the already completed UPI Pay Now deeplink fix in:
+
+artifacts/mobile/app/(tabs)/wallet.tsx
+
+Target:
+- EAS project ID: 07a6464b-9cef-4602-beb8-72916cb03fe2
+- Channel: preview
+- Runtime: 1.0.0
+- Platform: Android
+- Message: Fix UPI Pay Now deeplink
+
+Do NOT:
+- change source code
+- change configuration
+- build a new APK
+- replace the website APK
+- modify UI
+- modify wallet/deposit logic
+- modify any unrelated feature
+
+If this environment genuinely cannot publish the OTA automatically, clearly tell me the exact supported action available in the current Replit workflow and where it appears. Do not invent a menu or command.
+
+Do not make any changes until the supported OTA publication method is confirmed.
+```
+
+**Pichli baar successful OTA ka important clue:** humne `preview` channel, runtime `1.0.0`, same EAS project par update publish kiya tha. Isliye pehle Replit se **same workflow identify karwao**, manually random option hunt mat karo.
+
+Agar Replit iska response de, **exact response yahan paste kar dena**. Uske basis par next step bataunga.

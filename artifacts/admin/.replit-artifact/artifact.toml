@@ -1,5 +1,5 @@
 kind = "web"
-previewPath = "/"
+previewPath = "/admin/"
 title = "Jazment Admin Panel"
 version = "1.0.0"
 id = "artifacts/admin"
@@ -7,7 +7,7 @@ router = "path"
 
 [[services]]
 name = "web"
-paths = [ "/" ]
+paths = [ "/", "/admin" ]
 localPort = 23744
 
 [services.development]

@@ -1,0 +1,16 @@
+name: Publish Android Preview OTA
+
+"on":
+  workflow_dispatch: {}
+
+jobs:
+  publish_android_preview:
+    name: Publish Android preview update
+    type: update
+    environment: preview
+    env:
+      EXPO_PUBLIC_DOMAIN: jazment.online
+    params:
+      message: Fix UPI Pay Now deeplink
+      platform: android
+      channel: preview

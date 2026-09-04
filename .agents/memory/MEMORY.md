@@ -4,5 +4,10 @@
 - [Admin session failures](admin-session-failures.md) — unauthorized list requests must trigger login, never appear as valid empty admin data
 - [WhatsApp Web Chromium](whatsapp-web-chromium.md) — Replit WhatsApp Web sessions require a direct Puppeteer dependency and an absolute system Chromium path
 - [PostgreSQL pool restarts](postgres-pool-restarts.md) — idle-client pool errors must be handled so transient database restarts do not terminate the API
+- [Workspace build port isolation](workspace-build-port-isolation.md) — production Expo bundling must not reuse ports held by other artifact dev servers
 - [Dragon Tiger fairness](dragon-tiger-fairness.md) — outcomes stay independent of wager totals and user tiers; risk controls happen before bet acceptance
 - [React Native SVG web props](react-native-svg-web-props.md) — avoid accessibility boolean props on SVG wrappers because Expo web forwards them as invalid DOM attributes
+- [APK release verification](apk-release-verification.md) — never publish an uploaded Android binary until its embedded app identity has been verified
+- [UPI deeplink safety](upi-deeplink.md) — use only pa, am, and cu for direct payment intents unless a trusted provider requires more
+- [EAS mobile project root](eas-mobile-project-root.md) — initialize and build EAS only from the mobile artifact; workspace-root config can silently target the wrong app
+- [Expo OTA publishing](expo-ota-publishing.md) — verify a real managed OTA action exists; never invent a UI location or substitute forbidden EAS CLI
