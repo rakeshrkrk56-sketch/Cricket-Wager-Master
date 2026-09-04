@@ -2,6 +2,7 @@ name: Publish Android Preview OTA
 
 defaults:
   tools:
+    node: '20'
     pnpm: '10.26.1'
 
 "on":
