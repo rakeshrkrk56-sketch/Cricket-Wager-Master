@@ -11,3 +11,5 @@
 - [UPI deeplink safety](upi-deeplink.md) — use only pa, am, and cu for direct payment intents unless a trusted provider requires more
 - [EAS mobile project root](eas-mobile-project-root.md) — initialize and build EAS only from the mobile artifact; workspace-root config can silently target the wrong app
 - [Expo OTA publishing](expo-ota-publishing.md) — verify a real managed OTA action exists; never invent a UI location or substitute forbidden EAS CLI
+- [Expo shared subpath preview](expo-shared-subpath-preview.md) — Metro assets need explicit proxy routes, and Expo Router strips baseUrl only from production bundles
+- [Expo Android signed preview](expo-android-anonymous-preview.md) — authenticate Metro with the project owner for physical Expo Go; offline mode is simulator-only

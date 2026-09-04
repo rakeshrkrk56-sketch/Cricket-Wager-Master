@@ -7,6 +7,7 @@ let client: Client | null = null;
 let initialization: Promise<Client> | null = null;
 let latestQr: string | null = null;
 let status: "starting" | "waiting_for_qr" | "ready" | "disconnected" | "error" = "starting";
+const CHROMIUM_LAUNCH_TIMEOUT_MS = 120_000;
 
 function createClient(): Client {
   const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH
@@ -16,7 +17,14 @@ function createClient(): Client {
     puppeteer: {
       headless: true,
       executablePath,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      timeout: CHROMIUM_LAUNCH_TIMEOUT_MS,
+      protocolTimeout: CHROMIUM_LAUNCH_TIMEOUT_MS,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--no-first-run",
+      ],
     },
   });
 
@@ -61,10 +69,13 @@ export function startWhatsAppClient(): Promise<Client> {
     .then(() => {
       return nextClient;
     })
-    .catch((error) => {
+    .catch(async (error) => {
       status = "error";
-      if (client === nextClient) client = null;
       initialization = null;
+      await nextClient.destroy().catch((destroyError) => {
+        logger.warn({ err: destroyError }, "Unable to clean up failed WhatsApp browser launch");
+      });
+      if (client === nextClient) client = null;
       throw error;
     });
   return initialization;

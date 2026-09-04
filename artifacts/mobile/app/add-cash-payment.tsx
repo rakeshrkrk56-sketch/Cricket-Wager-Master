@@ -54,6 +54,14 @@ export default function AddCashPaymentScreen() {
       return;
     }
 
+    if (Platform.OS === 'web') {
+      Alert.alert(
+        'Open Jazment on your phone',
+        `UPI apps cannot open from the web preview. Continue this payment in the Jazment Android app.\n\nAmount: ₹${amountValue.toFixed(2)}\nUPI ID: ${upiId.trim()}`,
+      );
+      return;
+    }
+
     setIsOpening(true);
     try {
       const deeplink = `upi://pay?pa=${encodeURIComponent(upiId.trim())}&am=${encodeURIComponent(amountValue.toFixed(2))}&cu=INR`;
