@@ -1,11 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   BackHandler,
   Clipboard,
-  Linking,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -18,16 +17,23 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useLanguage } from '@/contexts/LanguageContext';
 
+// Payments are completed manually inside the user's own UPI app.
+// Intent-based payments (upi://pay links) to a personal UPI ID are rejected by
+// banks/NPCI with "bank limit exceeded" regardless of amount, so this screen
+// never launches a payment intent. It only provides the UPI ID + exact amount.
+
 export default function AddCashPaymentScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
   const { amount, upiId } = useLocalSearchParams<{ amount?: string; upiId?: string }>();
-  const [isOpening, setIsOpening] = useState(false);
-  const [paymentAppOpened, setPaymentAppOpened] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const amountValue = Number(amount);
-  const hasValidPayment = Number.isFinite(amountValue) && amountValue >= 200 && Boolean(upiId?.trim());
+  const trimmedUpiId = upiId?.trim() ?? '';
+  const hasValidPayment = Number.isFinite(amountValue) && amountValue >= 200 && trimmedUpiId.length > 0;
+  const amountText = hasValidPayment ? amountValue.toFixed(2) : '—';
   const s = styles(colors, insets);
 
   const returnToPaymentProof = useCallback(() => {
@@ -49,38 +55,28 @@ export default function AddCashPaymentScreen() {
     return () => subscription.remove();
   }, [returnToPaymentProof]);
 
-  const openUpiApp = async () => {
-    if (!hasValidPayment || !upiId) {
+  useEffect(() => () => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+  }, []);
+
+  const copyUpiId = () => {
+    if (!hasValidPayment) {
       Alert.alert(t('wallet_error_title'), 'Payment details are unavailable. Please return to Add Cash and try again.');
       return;
     }
-
-    if (Platform.OS === 'web') {
-      Alert.alert(
-        'Open Jazment on your phone',
-        `UPI apps cannot open from the web preview. Continue this payment in the Jazment Android app.\n\nAmount: ₹${amountValue.toFixed(2)}\nUPI ID: ${upiId.trim()}`,
-      );
-      return;
-    }
-
-    setIsOpening(true);
-    try {
-      const deeplink = `upi://pay?pa=${encodeURIComponent(upiId.trim())}&cu=INR`;
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await Linking.openURL(deeplink);
-      setPaymentAppOpened(true);
-    } catch {
-      Alert.alert(t('wallet_no_upi_app_title'), t('wallet_no_upi_app_msg'));
-    } finally {
-      setIsOpening(false);
-    }
+    Clipboard.setString(trimmedUpiId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    setCopied(true);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(false), 2500);
   };
 
-  const copyUpiId = () => {
-    if (!upiId?.trim()) return;
-    Clipboard.setString(upiId.trim());
-    Alert.alert('UPI ID copied', `${upiId.trim()}\n\nEnter ₹${amountValue.toFixed(2)} in your UPI app.`);
-  };
+  const steps = [
+    { icon: 'copy-outline' as const, text: 'Tap "Copy UPI ID" above.' },
+    { icon: 'phone-portrait-outline' as const, text: 'Open PhonePe, Google Pay, Paytm or any UPI app and choose "To UPI ID" / "Pay to UPI ID".' },
+    { icon: 'cash-outline' as const, text: `Paste the UPI ID, enter exactly ₹${amountText} and complete the payment.` },
+    { icon: 'cloud-upload-outline' as const, text: 'Come back to Jazment and upload the payment screenshot.' },
+  ];
 
   return (
     <View style={s.root}>
@@ -97,78 +93,73 @@ export default function AddCashPaymentScreen() {
         <View style={s.headerSpacer} />
       </View>
 
-      <View style={s.content}>
+      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         <View style={s.secureIcon}>
           <Ionicons name="shield-checkmark" size={34} color={colors.primary} />
         </View>
-        <Text style={s.title}>Complete your payment</Text>
-        <Text style={s.subtitle}>Open your UPI app, then enter the exact amount shown below.</Text>
+        <Text style={s.title}>Pay from your UPI app</Text>
+        <Text style={s.subtitle}>
+          Send the exact amount to the UPI ID below directly from your UPI app, then upload the screenshot.
+        </Text>
 
         <View style={s.amountCard}>
           <Text style={s.amountLabel}>AMOUNT TO PAY</Text>
-          <Text style={s.amount}>₹{hasValidPayment ? amountValue.toFixed(2) : '—'}</Text>
-          {upiId?.trim() ? (
-            <View style={s.upiRow}>
-              <View style={s.upiDetails}>
-                <Text style={s.upiLabel}>PAY TO UPI ID</Text>
-                <Text style={s.upiValue}>{upiId.trim()}</Text>
-              </View>
-              <TouchableOpacity
-                style={s.copyButton}
-                onPress={copyUpiId}
-                activeOpacity={0.75}
-                accessibilityLabel="Copy UPI ID"
-                testID="add-cash-copy-upi"
-              >
-                <Ionicons name="copy-outline" size={17} color={colors.primary} />
-                <Text style={s.copyButtonText}>Copy</Text>
-              </TouchableOpacity>
+          <Text style={s.amount}>₹{amountText}</Text>
+          {trimmedUpiId ? (
+            <View style={s.upiBlock}>
+              <Text style={s.upiLabel}>PAY TO UPI ID</Text>
+              <Text style={s.upiValue} selectable testID="add-cash-upi-id">{trimmedUpiId}</Text>
             </View>
           ) : null}
         </View>
 
+        <TouchableOpacity
+          style={[s.payButton, copied && s.copiedButton, !hasValidPayment && s.disabledButton]}
+          onPress={copyUpiId}
+          disabled={!hasValidPayment}
+          activeOpacity={0.85}
+          accessibilityLabel="Copy UPI ID"
+          testID="add-cash-copy-upi"
+        >
+          <Ionicons
+            name={copied ? 'checkmark-circle' : 'copy-outline'}
+            size={22}
+            color={colors.primaryForeground}
+          />
+          <Text style={s.payButtonText}>{copied ? 'UPI ID Copied' : 'Copy UPI ID'}</Text>
+        </TouchableOpacity>
+
+        <View style={s.stepsCard}>
+          <Text style={s.stepsTitle}>How to pay</Text>
+          {steps.map((step, index) => (
+            <View key={step.icon} style={[s.stepRow, index === steps.length - 1 && s.stepRowLast]}>
+              <View style={s.stepBadge}>
+                <Text style={s.stepBadgeText}>{index + 1}</Text>
+              </View>
+              <Text style={s.stepText}>{step.text}</Text>
+            </View>
+          ))}
+        </View>
+
         <View style={s.notice}>
-          <Ionicons name="information-circle-outline" size={20} color={colors.primary} />
+          <Ionicons name="alert-circle-outline" size={20} color={colors.warning} />
           <Text style={s.noticeText}>
-            Enter ₹{hasValidPayment ? amountValue.toFixed(2) : '—'} inside your UPI app. Payment is not credited automatically; return and upload the screenshot for admin verification.
+            Pay only by entering the UPI ID inside your UPI app. Payment links opened from other apps are blocked by banks for this UPI ID and show a "bank limit exceeded" error even for small amounts.
           </Text>
         </View>
 
         <TouchableOpacity
-          style={[s.payButton, (!hasValidPayment || isOpening) && s.disabledButton]}
-          onPress={openUpiApp}
-          disabled={!hasValidPayment || isOpening}
-          activeOpacity={0.85}
-          testID="add-cash-click-to-pay"
-        >
-          {isOpening ? (
-            <ActivityIndicator color={colors.primaryForeground} />
-          ) : (
-            <>
-              <Ionicons name="arrow-forward-circle" size={22} color={colors.primaryForeground} />
-              <Text style={s.payButtonText}>Open UPI App</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
           style={s.proofButton}
           onPress={returnToPaymentProof}
-          activeOpacity={0.75}
+          activeOpacity={0.8}
           testID="add-cash-return-to-proof"
         >
-          <Ionicons
-            name={paymentAppOpened ? 'cloud-upload-outline' : 'arrow-back-circle-outline'}
-            size={20}
-            color={colors.primary}
-          />
-          <Text style={s.proofButtonText}>
-            {paymentAppOpened ? 'Return to Payment Proof' : 'Back to Add Cash'}
-          </Text>
+          <Ionicons name="cloud-upload-outline" size={20} color={colors.primary} />
+          <Text style={s.proofButtonText}>I have paid — Upload Screenshot</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
 
-      <Text style={s.footer}>Wallet credit requires screenshot review and admin approval.</Text>
+      <Text style={s.footer}>Wallet credit is not automatic. Every deposit is verified from the screenshot and approved by admin.</Text>
     </View>
   );
 }
@@ -204,22 +195,22 @@ const styles = (colors: ReturnType<typeof useColors>, insets: ReturnType<typeof 
     width: 42,
   },
   content: {
-    flex: 1,
     paddingHorizontal: 22,
-    justifyContent: 'center',
+    paddingTop: 24,
+    paddingBottom: 24,
     alignItems: 'center',
   },
   secureIcon: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: colors.primary + '18',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 25,
+    fontSize: 24,
     color: colors.foreground,
     fontFamily: 'Inter_700Bold',
     textAlign: 'center',
@@ -235,8 +226,8 @@ const styles = (colors: ReturnType<typeof useColors>, insets: ReturnType<typeof 
   },
   amountCard: {
     alignSelf: 'stretch',
-    marginTop: 30,
-    paddingVertical: 24,
+    marginTop: 24,
+    paddingVertical: 22,
     paddingHorizontal: 20,
     borderRadius: 16,
     borderWidth: 1,
@@ -256,19 +247,13 @@ const styles = (colors: ReturnType<typeof useColors>, insets: ReturnType<typeof 
     color: colors.foreground,
     fontFamily: 'Inter_700Bold',
   },
-  upiRow: {
+  upiBlock: {
     alignSelf: 'stretch',
-    marginTop: 20,
+    marginTop: 18,
     paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  upiDetails: {
-    flex: 1,
   },
   upiLabel: {
     fontSize: 10,
@@ -277,48 +262,16 @@ const styles = (colors: ReturnType<typeof useColors>, insets: ReturnType<typeof 
     fontFamily: 'Inter_600SemiBold',
   },
   upiValue: {
-    marginTop: 4,
-    fontSize: 14,
+    marginTop: 6,
+    fontSize: 20,
     color: colors.foreground,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  copyButton: {
-    minHeight: 38,
-    paddingHorizontal: 13,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  copyButtonText: {
-    fontSize: 12,
-    color: colors.primary,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  notice: {
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginTop: 16,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: colors.accent,
-  },
-  noticeText: {
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 18,
-    color: colors.mutedForeground,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Inter_700Bold',
+    textAlign: 'center',
   },
   payButton: {
     alignSelf: 'stretch',
     minHeight: 54,
-    marginTop: 22,
+    marginTop: 16,
     borderRadius: 13,
     backgroundColor: colors.primary,
     flexDirection: 'row',
@@ -331,6 +284,10 @@ const styles = (colors: ReturnType<typeof useColors>, insets: ReturnType<typeof 
     shadowRadius: 10,
     elevation: 5,
   },
+  copiedButton: {
+    backgroundColor: colors.success,
+    shadowColor: colors.success,
+  },
   disabledButton: {
     opacity: 0.55,
   },
@@ -339,22 +296,96 @@ const styles = (colors: ReturnType<typeof useColors>, insets: ReturnType<typeof 
     color: colors.primaryForeground,
     fontFamily: 'Inter_700Bold',
   },
+  stepsCard: {
+    alignSelf: 'stretch',
+    marginTop: 20,
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  stepsTitle: {
+    fontSize: 13,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: colors.mutedForeground,
+    fontFamily: 'Inter_600SemiBold',
+    marginBottom: 12,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingBottom: 12,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  stepRowLast: {
+    paddingBottom: 0,
+    marginBottom: 0,
+    borderBottomWidth: 0,
+  },
+  stepBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  stepBadgeText: {
+    fontSize: 12,
+    color: colors.primaryForeground,
+    fontFamily: 'Inter_700Bold',
+  },
+  stepText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.foreground,
+    fontFamily: 'Inter_400Regular',
+  },
+  notice: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: colors.warning + '1A',
+  },
+  noticeText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.foreground,
+    fontFamily: 'Inter_400Regular',
+  },
   proofButton: {
-    minHeight: 48,
-    marginTop: 12,
+    alignSelf: 'stretch',
+    minHeight: 50,
+    marginTop: 16,
     paddingHorizontal: 16,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   proofButtonText: {
-    fontSize: 14,
+    fontSize: 15,
     color: colors.primary,
     fontFamily: 'Inter_600SemiBold',
   },
   footer: {
     paddingHorizontal: 24,
+    paddingTop: 8,
     paddingBottom: 16,
     fontSize: 11,
     lineHeight: 16,
