@@ -1,6 +1,7 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
-import { Router, type IRouter, type Response } from "express";
+import { basename } from "node:path";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { db, platformSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/auth";
@@ -15,31 +16,45 @@ async function readValue(key: string) {
   return row?.value ?? "";
 }
 
+type LocalApk = { path: string; fileName: string; size: number; updatedAt: string };
+
 /**
- * VPS fallback: when APK_FILE_PATH points to an existing regular file, serve it
- * directly from disk (no Object Storage sidecar needed). Returns false when the
- * variable is unset or the file is missing so the caller keeps the existing
- * Object Storage behavior.
+ * VPS fallback: when APK_FILE_PATH points to an existing regular file, that file
+ * is the published APK. It is checked BEFORE any database or Object Storage
+ * lookup, so it needs neither a "published" row nor the storage sidecar.
+ * Returns null when the variable is unset or the file is missing so callers keep
+ * the existing Object Storage behavior.
  */
-async function serveLocalApk(res: Response, fileName: string): Promise<boolean> {
+async function getLocalApk(): Promise<LocalApk | null> {
   const localPath = process.env.APK_FILE_PATH?.trim();
-  if (!localPath) return false;
-  let size: number;
+  if (!localPath) return null;
   try {
     const info = await stat(localPath);
-    if (!info.isFile()) return false;
-    size = info.size;
+    if (!info.isFile()) return null;
+    return {
+      path: localPath,
+      fileName: basename(localPath) || DEFAULT_APK_FILE_NAME,
+      size: info.size,
+      updatedAt: info.mtime.toISOString(),
+    };
   } catch {
-    return false;
+    return null;
   }
+}
+
+async function streamLocalApk(req: Request, res: Response, apk: LocalApk): Promise<void> {
+  res.status(200);
   res.setHeader("Content-Type", "application/vnd.android.package-archive");
-  res.setHeader("Content-Disposition", `attachment; filename="${fileName.replace(/[^\w.-]/g, "_")}"`);
+  res.setHeader("Content-Disposition", `attachment; filename="${apk.fileName.replace(/[^\w.-]/g, "_")}"`);
   res.setHeader("Cache-Control", "public, max-age=300");
-  res.setHeader("Content-Length", String(size));
+  res.setHeader("Content-Length", String(apk.size));
+  if (req.method === "HEAD") {
+    res.end();
+    return;
+  }
   await new Promise<void>((resolve, reject) => {
-    createReadStream(localPath).on("error", reject).on("end", resolve).pipe(res);
+    createReadStream(apk.path).on("error", reject).on("end", resolve).pipe(res);
   });
-  return true;
 }
 
 async function writeValue(key: string, value: string) {
@@ -49,6 +64,17 @@ async function writeValue(key: string, value: string) {
 }
 
 router.get("/app/apk-info", async (_req, res): Promise<void> => {
+  const localApk = await getLocalApk();
+  if (localApk) {
+    res.json({
+      available: true,
+      fileName: localApk.fileName,
+      size: localApk.size,
+      updatedAt: localApk.updatedAt,
+      downloadUrl: "/api/app/apk",
+    });
+    return;
+  }
   const [objectPath, fileName, size, updatedAt] = await Promise.all([
     readValue("apk_object_path"),
     readValue("apk_file_name"),
@@ -66,20 +92,16 @@ router.get("/app/apk-info", async (_req, res): Promise<void> => {
 
 router.get("/app/apk", async (req, res): Promise<void> => {
   try {
-    let objectPath = "";
-    let fileName = "";
-    let settingsError: unknown = null;
-    try {
-      [objectPath, fileName] = await Promise.all([
-        readValue("apk_object_path"),
-        readValue("apk_file_name"),
-      ]);
-    } catch (error) {
-      // Local-file fallback must still work when the settings table is unreachable.
-      settingsError = error;
+    // Local file first: no database or Object Storage dependency on the VPS.
+    const localApk = await getLocalApk();
+    if (localApk) {
+      await streamLocalApk(req, res, localApk);
+      return;
     }
-    if (await serveLocalApk(res, fileName || DEFAULT_APK_FILE_NAME)) return;
-    if (settingsError) throw settingsError;
+    const [objectPath, fileName] = await Promise.all([
+      readValue("apk_object_path"),
+      readValue("apk_file_name"),
+    ]);
     if (!objectPath) {
       res.status(404).json({ error: "APK is not published yet" });
       return;
