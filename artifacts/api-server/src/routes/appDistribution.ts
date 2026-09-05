@@ -1,4 +1,6 @@
-import { Router, type IRouter } from "express";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { Router, type IRouter, type Response } from "express";
 import { db, platformSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/auth";
@@ -6,10 +8,38 @@ import { createApkUpload, getPrivateFile, pipeFile } from "../lib/objectStorage"
 
 const router: IRouter = Router();
 const MAX_APK_BYTES = 300 * 1024 * 1024;
+const DEFAULT_APK_FILE_NAME = "Jazment.apk";
 
 async function readValue(key: string) {
   const [row] = await db.select().from(platformSettingsTable).where(eq(platformSettingsTable.key, key));
   return row?.value ?? "";
+}
+
+/**
+ * VPS fallback: when APK_FILE_PATH points to an existing regular file, serve it
+ * directly from disk (no Object Storage sidecar needed). Returns false when the
+ * variable is unset or the file is missing so the caller keeps the existing
+ * Object Storage behavior.
+ */
+async function serveLocalApk(res: Response, fileName: string): Promise<boolean> {
+  const localPath = process.env.APK_FILE_PATH?.trim();
+  if (!localPath) return false;
+  let size: number;
+  try {
+    const info = await stat(localPath);
+    if (!info.isFile()) return false;
+    size = info.size;
+  } catch {
+    return false;
+  }
+  res.setHeader("Content-Type", "application/vnd.android.package-archive");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName.replace(/[^\w.-]/g, "_")}"`);
+  res.setHeader("Cache-Control", "public, max-age=300");
+  res.setHeader("Content-Length", String(size));
+  await new Promise<void>((resolve, reject) => {
+    createReadStream(localPath).on("error", reject).on("end", resolve).pipe(res);
+  });
+  return true;
 }
 
 async function writeValue(key: string, value: string) {
@@ -36,15 +66,25 @@ router.get("/app/apk-info", async (_req, res): Promise<void> => {
 
 router.get("/app/apk", async (req, res): Promise<void> => {
   try {
-    const [objectPath, fileName] = await Promise.all([
-      readValue("apk_object_path"),
-      readValue("apk_file_name"),
-    ]);
+    let objectPath = "";
+    let fileName = "";
+    let settingsError: unknown = null;
+    try {
+      [objectPath, fileName] = await Promise.all([
+        readValue("apk_object_path"),
+        readValue("apk_file_name"),
+      ]);
+    } catch (error) {
+      // Local-file fallback must still work when the settings table is unreachable.
+      settingsError = error;
+    }
+    if (await serveLocalApk(res, fileName || DEFAULT_APK_FILE_NAME)) return;
+    if (settingsError) throw settingsError;
     if (!objectPath) {
       res.status(404).json({ error: "APK is not published yet" });
       return;
     }
-    await pipeFile(getPrivateFile(objectPath), res, fileName || "Jazment.apk");
+    await pipeFile(getPrivateFile(objectPath), res, fileName || DEFAULT_APK_FILE_NAME);
   } catch (error) {
     req.log.error({ err: error }, "APK download failed");
     if (!res.headersSent) res.status(500).json({ error: "Unable to download APK" });

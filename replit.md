@@ -10,6 +10,7 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+- Optional env: `APK_FILE_PATH` — absolute path to a local `.apk`. When set and the file exists, `GET /api/app/apk` serves it directly from disk (for non-Replit hosts without Object Storage). When unset or missing, the endpoint uses Replit Object Storage as before.
 
 ## Stack
 
