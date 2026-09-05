@@ -1,6 +1,6 @@
 import { Download } from 'lucide-react';
 
-const APK_DOWNLOAD_URL = '/api/app/apk';
+const APK_DOWNLOAD_URL = 'https://jazment.online/api/app/apk';
 
 function BrandMark() {
   return (
